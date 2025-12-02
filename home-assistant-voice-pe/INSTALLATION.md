@@ -15,8 +15,10 @@ This guide will help you set up the Home Assistant Voice PE hardware to work wit
 
 The custom `voice_assistant_websocket` component requires ESP WebSocket Client files from the Espressif esp-protocols repository. These must be downloaded before compilation.
 
+Run the download script from the `home-assistant-voice-pe` directory:
+
 ```bash
-cd home-assistant-voice-pe/esphome/components/voice_assistant_websocket
+cd home-assistant-voice-pe
 python3 download_websocket_client.py
 ```
 

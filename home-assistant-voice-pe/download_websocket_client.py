@@ -34,7 +34,13 @@ def extract_zip(zip_path: Path, extract_to: Path) -> None:
 def main():
     """Main function to download and copy ESP WebSocket Client files."""
     script_dir = Path(__file__).parent.resolve()
-    component_dir = script_dir
+    # Component directory is in esphome/components/voice_assistant_websocket
+    component_dir = script_dir / "esphome" / "components" / "voice_assistant_websocket"
+    
+    if not component_dir.exists():
+        print(f"Error: Component directory not found: {component_dir}", file=sys.stderr)
+        print("Please run this script from the home-assistant-voice-pe directory", file=sys.stderr)
+        sys.exit(1)
     
     print(f"Downloading ESP WebSocket Client from {REPO_URL}...")
     

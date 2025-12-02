@@ -23,8 +23,10 @@ ESPHome custom component for connecting ESP32 devices to OpenAI Realtime API via
 
 The component requires ESP WebSocket Client files from the Espressif esp-protocols repository. These files are not included in the repository (see `.gitignore`) and must be downloaded first.
 
+Run the download script from the `home-assistant-voice-pe` directory:
+
 ```bash
-cd esphome/components/voice_assistant_websocket
+cd home-assistant-voice-pe
 python3 download_websocket_client.py
 ```
 
@@ -142,10 +144,10 @@ The ESP WebSocket Client is licensed under the **Apache License 2.0**. A copy of
 Copyright (c) 2015-2025 Espressif Systems (Shanghai) CO LTD
 
 **How to Download/Update:**
-To download or update the ESP WebSocket Client files, use the provided Python script:
+To download or update the ESP WebSocket Client files, use the provided Python script from the `home-assistant-voice-pe` directory:
 
 ```bash
-cd esphome/components/voice_assistant_websocket
+cd home-assistant-voice-pe
 python3 download_websocket_client.py
 ```
 
