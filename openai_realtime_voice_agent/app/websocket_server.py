@@ -225,7 +225,6 @@ class WebSocketServer:
         last_interrupt_check = 0
         last_send_time = time.time()
         audio_buffer = b""  # Buffer for rate-limited sending
-        aec_training_sent = False  # Track if we've sent AEC training signal
         
         try:
             while True:
@@ -242,8 +241,6 @@ class WebSocketServer:
                             logger.info("🛑 User interrupted - sent interrupt message to client")
                             # Clear buffer on interrupt
                             audio_buffer = b""
-                            # Reset AEC training flag on interrupt
-                            aec_training_sent = False
                         last_interrupt_check = current_time
                     
                     # Get audio from OpenAI (24kHz, 16-bit, mono PCM)
@@ -261,18 +258,6 @@ class WebSocketServer:
                         # Record audio if recording is enabled
                         if recorder:
                             recorder.record_output_audio(audio_bytes)
-                        
-                        # Send AEC training signal before first audio chunk
-                        # This helps the XMOS AEC adapt before the actual response
-                        if not aec_training_sent and len(audio_buffer) > 0:
-                            # Send ~300ms of silence (14400 bytes at 24kHz, 16-bit mono)
-                            # This gives the AEC time to adapt to the speaker output
-                            training_silence = b'\x00' * 14400  # 300ms of silence
-                            await websocket.send(training_silence)
-                            logger.info("🔇 Sent AEC training silence (300ms) to help echo cancellation adapt")
-                            aec_training_sent = True
-                            # Adjust timing to account for training
-                            last_send_time = current_time
                     
                     # Send audio from buffer at playback rate
                     if audio_buffer:
