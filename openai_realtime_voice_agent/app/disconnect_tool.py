@@ -1,6 +1,12 @@
 """Tool for disconnecting the client when user says goodbye or stop."""
+import asyncio
+import json
 import logging
-from typing import Dict, Any, Callable, Awaitable
+from typing import Dict, Any, Callable, Awaitable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pipecat.services.llm_service import FunctionCallParams
+    from pipecat.transports.websocket.server import WebsocketServerTransport
 
 logger = logging.getLogger(__name__)
 
@@ -27,20 +33,27 @@ def get_disconnect_tool_definition() -> Dict[str, Any]:
 
 async def execute_disconnect_tool(
     arguments: Dict[str, Any],
-    disconnect_callback: Callable[[], Awaitable[None]]
+    disconnect_callback: Optional[Callable[[], Awaitable[None]]]
 ) -> Dict[str, Any]:
     """
     Execute the disconnect tool.
     
     Args:
         arguments: Tool arguments containing the reason
-        disconnect_callback: Async callback function to disconnect the client
+        disconnect_callback: Optional async callback function to disconnect the client
         
     Returns:
         Result dictionary with success status
     """
     reason = arguments.get("reason", "unknown")
     logger.info(f"🔌 Disconnect tool called with reason: {reason}")
+    
+    if not disconnect_callback:
+        return {
+            "success": False,
+            "error": "Disconnect callback not available",
+            "reason": reason
+        }
     
     try:
         # Call the disconnect callback
@@ -59,3 +72,79 @@ async def execute_disconnect_tool(
             "reason": reason
         }
 
+
+def create_disconnect_callback(
+    websocket_transport: Optional["WebsocketServerTransport"],
+    reason: str = "user_requested"
+) -> Callable[[], Awaitable[None]]:
+    """
+    Create a disconnect callback that closes the WebSocket connection.
+    
+    Args:
+        websocket_transport: The WebSocket transport instance
+        reason: The reason for disconnecting
+        
+    Returns:
+        Async callback function that closes the WebSocket connection
+    """
+    async def disconnect_callback() -> None:
+        """Disconnect callback that closes the WebSocket connection."""
+        logger.info("🔌 Disconnect tool triggered - closing WebSocket connection")
+        try:
+            # Access the input transport's websocket connection
+            if websocket_transport and hasattr(websocket_transport, 'input'):
+                input_transport = websocket_transport.input()
+                if hasattr(input_transport, '_websocket') and input_transport._websocket:
+                    # Send disconnect message to client before closing
+                    try:
+                        await input_transport._websocket.send(json.dumps({
+                            "type": "disconnect",
+                            "message": "User requested disconnect",
+                            "reason": reason
+                        }))
+                        logger.info("✅ Sent disconnect message to client")
+                        await asyncio.sleep(0.1)  # Give client time to process
+                    except Exception as e:
+                        logger.warning(f"⚠️ Error sending disconnect message: {e}")
+                    
+                    # Close the WebSocket connection
+                    await input_transport._websocket.close()
+                    logger.info("✅ Closed WebSocket connection")
+        except Exception as e:
+            logger.error(f"❌ Error closing WebSocket connection: {e}", exc_info=True)
+    
+    return disconnect_callback
+
+
+def create_disconnect_tool_handler(
+    websocket_transport: Optional["WebsocketServerTransport"]
+) -> Callable[["FunctionCallParams"], Awaitable[None]]:
+    """
+    Create a disconnect tool handler for Pipecat's OpenAI Realtime Service.
+    
+    Args:
+        websocket_transport: The WebSocket transport instance
+        
+    Returns:
+        Async function handler that can be registered with OpenAIRealtimeLLMService
+    """
+    async def disconnect_tool_handler(params: "FunctionCallParams") -> None:
+        """Handle disconnect tool calls."""
+        logger.info(f"🔌 Disconnect tool called: {params.function_name} with arguments: {params.arguments}")
+        
+        # Get reason from arguments
+        reason = params.arguments.get("reason", "user_requested")
+        
+        # Create disconnect callback that closes the WebSocket connection
+        disconnect_callback = create_disconnect_callback(websocket_transport, reason=reason)
+        
+        # Execute the disconnect tool
+        result = await execute_disconnect_tool(params.arguments, disconnect_callback)
+        
+        # Send result back to OpenAI
+        if result.get("success"):
+            await params.result_callback(f"Disconnected successfully: {result.get('message', '')}")
+        else:
+            await params.result_callback(f"Error: {result.get('error', 'Unknown error')}")
+    
+    return disconnect_tool_handler

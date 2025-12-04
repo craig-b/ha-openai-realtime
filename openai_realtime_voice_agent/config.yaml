@@ -24,6 +24,8 @@ options:
   vad_silence_duration_ms: 500
   # OpenAI instructions
   instructions: "You are the Home Assistant Voice Agent and can control the Smart Home."
+  # Session management
+  session_reuse_timeout_seconds: 300  # 5 Minuten (in Sekunden)
 schema:
   openai_api_key: password
   websocket_port: int(1024,65535)
@@ -33,6 +35,7 @@ schema:
   vad_prefix_padding_ms: int
   vad_silence_duration_ms: int
   instructions: str
+  session_reuse_timeout_seconds: int(0,3600)  # bis 1 Stunde
 #image: ghcr.io/yourusername/ha-openai-realtime/{arch}
 
 
