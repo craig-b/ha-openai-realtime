@@ -45,12 +45,14 @@ esphome:
   name: ha-voice-openai
   friendly_name: Home Assistant OpenAI Realtime Voice
   name_add_mac_suffix: true
-  min_version: 2025.11.0
+  min_version: 2025.11.2  # Will be updated to 2025.11.4 when available
+  platformio_options:
+    build_flags: []
   on_boot:
-    priority: 375
+    priority: 600  # Higher priority to ensure WiFi initializes before WebRTC components
     then:
       - script.execute: control_leds
-      - delay: 1s
+      - delay: 2s  # Give WiFi more time to initialize before other components
       - switch.turn_on: internal_speaker_amp
       # init_in_progress will be set to false when API connects (see api.on_client_connected)
       # micro_wake_word will be started when API connects (see api.on_client_connected)
@@ -73,6 +75,20 @@ esp32:
       CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
       CONFIG_MBEDTLS_SSL_PROTO_TLS1_3: "y"
+      # DTLS is required for WebRTC, but SRTP functions are not available in ESP-IDF 5.5.1 mbedtls
+      CONFIG_MBEDTLS_SSL_PROTO_DTLS: "y"
+      CONFIG_MBEDTLS_SSL_DTLS_SRTP: "n"  # Disable SRTP to avoid missing function errors
+      # WiFi configuration to prevent interference with WebRTC components
+      CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM: "10"
+      CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM: "32"
+      CONFIG_ESP32_WIFI_TX_BUFFER_TYPE: "1"  # Dynamic
+      CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM: "32"
+      CONFIG_ESP32_WIFI_AMPDU_TX_ENABLED: "y"
+      CONFIG_ESP32_WIFI_AMPDU_RX_ENABLED: "y"
+      CONFIG_ESP32_WIFI_AMSDU_TX_ENABLED: "y"
+      CONFIG_ESP32_WIFI_NVS_ENABLED: "y"
+      # Increase WiFi task stack size to prevent stack overflow
+      CONFIG_ESP32_WIFI_TASK_STACK_SIZE: "6144"
 
 wifi:
   id: wifi_id
@@ -91,7 +107,7 @@ logger:
   level: DEBUG
   logs:
     sensor: WARN
-    voice_assistant_websocket: DEBUG
+    voice_assistant_webrtc: DEBUG
 
 api:
   id: api_id
@@ -240,13 +256,13 @@ binary_sensor:
                     level: INFO
                 - if:
                     condition:
-                      voice_assistant_websocket.is_running:
+                      voice_assistant_webrtc.is_running:
                         id: voice_assistant_ws
                     then:
                       - logger.log:
                           format: "Voice assistant is running - stopping"
                           level: INFO
-                      - voice_assistant_websocket.stop:
+                      - voice_assistant_webrtc.stop:
                           id: voice_assistant_ws
                     else:
                       - logger.log:
@@ -259,7 +275,7 @@ binary_sensor:
                             - logger.log:
                                 format: "Mute switch is OFF - starting voice assistant"
                                 level: INFO
-                            - voice_assistant_websocket.start:
+                            - voice_assistant_webrtc.start:
                                 id: voice_assistant_ws
                           else:
                             - logger.log:
@@ -721,9 +737,9 @@ script:
       - if:
           condition:
             and:
-              - voice_assistant_websocket.is_running:
+              - voice_assistant_webrtc.is_running:
                   id: voice_assistant_ws
-              - voice_assistant_websocket.is_connected:
+              - voice_assistant_webrtc.is_connected:
                   id: voice_assistant_ws
           then:
             # Voice assistant is active and connected - show blue pulse
@@ -959,7 +975,7 @@ speaker:
     bits_per_sample: 16
   
   # Resampler for voice assistant audio (24kHz -> 48kHz)
-  # Used directly by voice_assistant_websocket component
+  # Used directly by voice_assistant_webrtc component
   - platform: resampler
     id: voice_resampling_speaker
     output_speaker: announcement_mixing_input
@@ -1007,7 +1023,7 @@ media_player:
         condition:
           and:
             - not:
-                voice_assistant_websocket.is_running:
+                voice_assistant_webrtc.is_running:
                   id: voice_assistant_ws
             - not:
                 media_player.is_announcing:
@@ -1051,22 +1067,22 @@ micro_wake_word:
           # Start/Stop Voice Assistant
           - if:
               condition:
-                voice_assistant_websocket.is_running:
+                voice_assistant_webrtc.is_running:
                   id: voice_assistant_ws
               then:
-                - voice_assistant_websocket.stop:
+                - voice_assistant_webrtc.stop:
                     id: voice_assistant_ws
               else:
-                - voice_assistant_websocket.start:
+                - voice_assistant_webrtc.start:
                     id: voice_assistant_ws
 
-# External Components - Custom voice_assistant_websocket component
+# External Components - Custom voice_assistant_webrtc component
 external_components:
-  # Custom Voice Assistant WebSocket Component (local)
+  # Custom Voice Assistant WebRTC Component (local)
   - source:
       type: local
       path: esphome/components
-    components: [voice_assistant_websocket]
+    components: [voice_assistant_webrtc]
   # Voice PE Hardware Components
   - source:
       type: git
@@ -1076,11 +1092,11 @@ external_components:
       - voice_kit
     refresh: 0s
 
-# Voice Assistant WebSocket Component
-voice_assistant_websocket:
+# Voice Assistant WebRTC Component
+voice_assistant_webrtc:
   id: voice_assistant_ws
-  # Server URL - uses secret from secrets.yaml
-  server_url: !secret server_url
+  # Server base URL - uses secret from secrets.yaml (e.g., http://192.168.1.10:8080)
+  server_base_url: !secret server_url
   
   # Audio input (microphone) - reference to I2S audio input
   microphone: i2s_mics
