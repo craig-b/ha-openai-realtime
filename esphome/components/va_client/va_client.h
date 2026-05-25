@@ -77,6 +77,11 @@ class VaClient : public Component {
   // the mic until the speaker drains, otherwise it picks up its own output.
   // loop() flips this to a live followup window once audio_fill_ hits 0.
   bool followup_pending_{false};
+  // Server sends phase=idle when OpenAI is done generating, but we still
+  // have audio queued in PSRAM + downstream rings. If we fire the LED
+  // trigger immediately the device looks idle while still speaking. Hold
+  // the "idle" emission until the queue drains + kFollowupOpenDelayMs.
+  bool idle_emit_pending_{false};
   static constexpr uint32_t kFollowupMs = 5000;
   // After our PSRAM queue drains there's still ~500–700 ms in the
   // downstream chain (resampler + mixer + i2s_audio buffer_duration). Wait

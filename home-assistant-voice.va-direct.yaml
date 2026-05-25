@@ -1463,10 +1463,13 @@ script:
     then:
       - lambda: 'id(is_timer_active) = false;  // TODO va-direct: no timer API on va_client yet'
 
-  # Script used activate the stop word if the TTS step is long.
-  # Why is this wrapped on a script?
-  #   Becasue we want to stop the sequence if the TTS step is faster than that.
-  #   This allows us to prevent having the deactivation of the stop word before its own activation.
+  # DEAD CODE (va-direct): in the original yaml this script enabled the
+  # stop wake word while external_media_player was announcing. We no
+  # longer route TTS through external_media_player, so the wait_until
+  # condition never fires. Stop word arming now lives in va_client's
+  # on_phase handler (enable on phase=replying, disable otherwise).
+  # Kept for diff readability with upstream; safe to delete once the
+  # va-direct yaml is the only one.
   - id: activate_stop_word_once
     then:
       - wait_until:
@@ -1679,6 +1682,18 @@ va_client:
           id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
         }
     - script.execute: control_leds
+    # Arm the "stop" wake word only while the assistant is actually
+    # speaking — that's the only moment it's useful, and keeping it
+    # disabled otherwise prevents false positives during user speech
+    # and idle silence. Replaces the original activate_stop_word_once
+    # which was keyed on external_media_player.is_announcing.
+    - if:
+        condition:
+          lambda: 'return phase == "replying";'
+        then:
+          - micro_wake_word.enable_model: stop
+        else:
+          - micro_wake_word.disable_model: stop
 
 audio_dac:
   - platform: aic3204
@@ -1716,26 +1731,39 @@ micro_wake_word:
               then:
                 - switch.turn_off: timer_ringing
               else:
-                # If this is the "stop" wake word (fires only while replying), interrupt the active session.
-                # Otherwise, play the wake sound (if enabled) and start a new va_client session.
-                # TODO va-direct: distinguish stop vs okay_nabu/hey_jarvis here properly; for now we always
-                # call start_session() and rely on va_client to no-op if a session is already in flight.
+                # Distinguish stop word from regular wake words.
+                # `wake_word` is the trigger variable injected by micro_wake_word.
                 - if:
                     condition:
-                      switch.is_on: wake_sound
+                      lambda: 'return wake_word == "stop";'
                     then:
-                      - script.execute:
-                          id: play_sound
-                          priority: true
-                          sound_file: "wake_word_triggered_sound"
-                      - delay: 300ms
-                - lambda: 'id(va)->start_session();'
-                # Show "waiting for command" (blue spin) immediately on wake,
-                # before the server VAD detects actual speech. va_client's
-                # on_phase will overwrite to phase 3 (listening_for_command)
-                # once the server reports speech started.
-                - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
-                - script.execute: control_leds
+                      # Stop word: interrupt the active reply, flush the
+                      # speaker queue so audio stops immediately, drop
+                      # back to listening. No wake-sound chime here —
+                      # the user is interrupting, not starting fresh.
+                      - lambda: 'id(va)->send_interrupt();'
+                      - speaker.stop:
+                          id: media_resampling_speaker
+                      - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+                      - script.execute: control_leds
+                    else:
+                      # Regular wake word: play wake chime, start a new session.
+                      - if:
+                          condition:
+                            switch.is_on: wake_sound
+                          then:
+                            - script.execute:
+                                id: play_sound
+                                priority: true
+                                sound_file: "wake_word_triggered_sound"
+                            - delay: 300ms
+                      - lambda: 'id(va)->start_session();'
+                      # Show "waiting for command" (blue spin) immediately on wake,
+                      # before the server VAD detects actual speech. va_client's
+                      # on_phase will overwrite to phase 3 (listening_for_command)
+                      # once the server reports speech started.
+                      - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+                      - script.execute: control_leds
 
 select:
   - platform: template
