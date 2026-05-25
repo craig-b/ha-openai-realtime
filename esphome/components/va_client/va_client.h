@@ -13,6 +13,7 @@ namespace va_client {
 
 class OnPhaseTrigger;
 class OnRepeatedFailureTrigger;
+class OnFollowupOpenedTrigger;
 
 class VaClient : public Component {
  public:
@@ -31,6 +32,9 @@ class VaClient : public Component {
   void add_on_phase_trigger(OnPhaseTrigger *t) { phase_triggers_.push_back(t); }
   void add_on_repeated_failure_trigger(OnRepeatedFailureTrigger *t) {
     repeated_failure_triggers_.push_back(t);
+  }
+  void add_on_followup_opened_trigger(OnFollowupOpenedTrigger *t) {
+    followup_opened_triggers_.push_back(t);
   }
 
   bool is_connected() const { return ws_connected_; }
@@ -77,6 +81,7 @@ class VaClient : public Component {
   std::string current_phase_{"idle"};
   std::vector<OnPhaseTrigger *> phase_triggers_;
   std::vector<OnRepeatedFailureTrigger *> repeated_failure_triggers_;
+  std::vector<OnFollowupOpenedTrigger *> followup_opened_triggers_;
 
   // Counts consecutive failed reconnect attempts. Reset to 0 on a clean
   // WS_CONNECTED event. When it hits kRepeatedFailureThreshold we fire the

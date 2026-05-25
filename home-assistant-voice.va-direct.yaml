@@ -1756,6 +1756,22 @@ va_client:
         # audio_file id is `error_cloud_expired` (no "_sound" suffix),
         # unlike the other chimes — original yaml inconsistency.
         sound_file: "error_cloud_expired"
+  on_followup_opened:
+    # Server's request_follow_up tool fired (the model asked the user a
+    # question) and va_client has actually opened the mic after the
+    # speaker ring drained. Give the user the same UX they get on wake
+    # word: a short chime + listening LED, so they know they can speak
+    # without saying "okay nabu" again.
+    - if:
+        condition:
+          switch.is_on: wake_sound
+        then:
+          - script.execute:
+              id: play_sound
+              priority: true
+              sound_file: "wake_word_triggered_sound"
+    - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+    - script.execute: control_leds
 
 audio_dac:
   - platform: aic3204

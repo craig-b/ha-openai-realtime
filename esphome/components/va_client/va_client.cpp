@@ -92,6 +92,18 @@ void VaClient::loop() {
     this->followup_pending_ = false;
     this->request_follow_up_pending_ = false;
     const uint32_t duration = was_request ? kRequestFollowUpMs : kFollowupMs;
+    // For request-driven follow-up, notify yaml NOW so the wake chime
+    // plays and the LED flips to listening *before* the mic opens.
+    // kFollowupOpenDelayMs (1.5 s) doubles as chime-playback budget — if
+    // we fired the trigger after the timeout the chime would play while
+    // the mic was already streaming and the XMOS AEC (~10× leak) would
+    // let the server VAD trip on our own chime. The natural-idle path
+    // (kFollowupMs = 0) doesn't open the mic, so no cue needed.
+    if (was_request && duration > 0) {
+      for (auto *t : this->followup_opened_triggers_) {
+        t->trigger();
+      }
+    }
     this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this, duration]() {
       this->open_followup_window_(duration);
     });
@@ -265,9 +277,17 @@ void VaClient::handle_text_(const char *data, size_t len) {
     // the natural-idle path; mark this as a request-driven follow-up so
     // the longer kRequestFollowUpMs window applies once it fires.
     if (this->audio_fill_ == 0) {
-      ESP_LOGI(TAG, "request_follow_up — opening %u ms mic window",
-               (unsigned) kRequestFollowUpMs);
-      this->open_followup_window_(kRequestFollowUpMs);
+      // Already drained — still gate the mic behind the same delay we
+      // use on the drain path so the chime (fired now) has time to play
+      // before streaming_ goes hot.
+      ESP_LOGI(TAG, "request_follow_up — chime + open %u ms mic window in %u ms",
+               (unsigned) kRequestFollowUpMs, (unsigned) kFollowupOpenDelayMs);
+      for (auto *t : this->followup_opened_triggers_) {
+        t->trigger();
+      }
+      this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this]() {
+        this->open_followup_window_(kRequestFollowUpMs);
+      });
     } else {
       ESP_LOGI(TAG, "request_follow_up but %u bytes still queued; mic window deferred",
                (unsigned) this->audio_fill_);
