@@ -498,6 +498,13 @@ void VaClient::open_followup_window_() {
       this->turn_t_wake_ = 0;  // mark turn as logged
     }
   }
+  if (kFollowupMs == 0) {
+    // Follow-up disabled: turn-based behaviour like the original pipeline.
+    // After the LED idle emit above, leave the mic closed; user must say
+    // a wake word for the next turn.
+    this->streaming_ = false;
+    return;
+  }
   ESP_LOGI(TAG, "follow-up window open (mic on for %u ms)", (unsigned) kFollowupMs);
   this->streaming_ = true;
   this->set_timeout("va_followup", kFollowupMs, [this]() {

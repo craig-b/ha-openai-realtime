@@ -104,7 +104,12 @@ class VaClient : public Component {
   // doesn't trigger a follow-up mic window. The user explicitly asked us to
   // stop — they don't want the device sitting there listening.
   bool suppress_followup_{false};
-  static constexpr uint32_t kFollowupMs = 5000;
+  // Follow-up dialog window after a real turn ends. 0 disables — mic
+  // closes immediately after each reply, like the original turn-based
+  // pipeline. Currently 0 because XMOS AEC is too leaky and the mic
+  // hears its own TTS tail during this window. Re-enable (e.g. 5000)
+  // when AEC is tuned or we add wait_for_user on the server.
+  static constexpr uint32_t kFollowupMs = 0;
   // After start_session() we wait this long for the server to emit
   // phase=listening (i.e. server VAD heard speech). If nothing comes, the
   // user pressed wake/button and stayed silent — close the session so we
