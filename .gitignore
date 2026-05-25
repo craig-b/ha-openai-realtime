@@ -138,3 +138,6 @@ sdkconfig.*
 .tests/
 
 /components
+
+# ESPHome secrets (per-device credentials, do not commit)
+secrets.yaml
