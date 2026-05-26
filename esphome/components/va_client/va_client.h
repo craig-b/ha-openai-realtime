@@ -46,6 +46,12 @@ class VaClient : public Component {
   // YAML-callable actions.
   void start_session();
   void send_interrupt();
+  // Called from yaml's on_followup_opened automation AFTER the chime has
+  // finished announcing through the speaker (wait_until !is_announcing +
+  // i2s tail). Opens the mic for kRequestFollowUpMs. No-op if the device
+  // is no longer armed (e.g. user already pressed wake before the chime
+  // finished — the new session takes priority).
+  void commit_followup_mic();
 
   // Called from the static esp-idf event handler trampoline.
   void on_ws_event(int32_t event_id, void *event_data);
@@ -113,6 +119,12 @@ class VaClient : public Component {
   // (kRequestFollowUpMs); the latter uses kFollowupMs (which is 0 by
   // default — no auto-follow-up).
   bool request_follow_up_pending_{false};
+  // Set when on_followup_opened has fired and we're waiting on yaml to
+  // play the chime + call commit_followup_mic(). Cleared on commit or
+  // when a new session preempts. Without this flag a stale
+  // commit_followup_mic() call (e.g. delayed lambda after a `Stop` wake
+  // word already reset state) would re-open the mic out of nowhere.
+  bool followup_armed_{false};
   // Server sends phase=idle when OpenAI is done generating, but we still
   // have audio queued in PSRAM + downstream rings. If we fire the LED
   // trigger immediately the device looks idle while still speaking. Hold
@@ -147,6 +159,12 @@ class VaClient : public Component {
   // the mic — every leak triggers the server VAD because the XMOS AEC
   // doesn't fully cancel our own speaker output (M3.2 measured ~10× leak).
   static constexpr uint32_t kFollowupOpenDelayMs = 1500;
+  // After the PSRAM queue drains, how long to wait for the TTS hardware
+  // tail (resampler + mixer + i2s + DAC ≈ 750 ms) to clear before
+  // firing the on_followup_opened trigger. If the chime starts while
+  // the TTS tail is still in the mixer the user hears them overlap and
+  // the cue gets muddy. 800 ms gives a small safety margin.
+  static constexpr uint32_t kTtsTailMs = 800;
 
   // Tracks the opcode of the in-flight WS message so we can route
   // continuation frames (op_code = 0) to the same handler.

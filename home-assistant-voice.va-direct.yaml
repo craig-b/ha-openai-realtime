@@ -1781,11 +1781,14 @@ va_client:
         # unlike the other chimes — original yaml inconsistency.
         sound_file: "error_cloud_expired"
   on_followup_opened:
-    # Server's request_follow_up tool fired (the model asked the user a
-    # question) and va_client has actually opened the mic after the
-    # speaker ring drained. Give the user the same UX they get on wake
-    # word: a short chime + listening LED, so they know they can speak
-    # without saying "okay nabu" again.
+    # Server's request_follow_up tool fired and va_client has waited
+    # for the TTS hardware tail to clear (kTtsTailMs ≈ 800 ms after the
+    # PSRAM ring drained). The mic is NOT yet open — we own the gating
+    # here, exactly like the wake-word handler. Play the chime, wait
+    # for it to actually finish through the speaker, then tell
+    # va_client to open the mic. This keeps the listening LED honest
+    # (it flips on at the same instant the mic does) and prevents the
+    # chime tail from leaking through the XMOS AEC into the server VAD.
     - if:
         condition:
           switch.is_on: wake_sound
@@ -1794,6 +1797,16 @@ va_client:
               id: play_sound
               priority: true
               sound_file: "wake_word_triggered_sound"
+          - wait_until:
+              condition:
+                not:
+                  media_player.is_announcing:
+                    id: external_media_player
+              timeout: 2s
+          # i2s_audio_speaker ring tail — same 400 ms used on the wake
+          # path. Mic stays closed until this delay completes.
+          - delay: 400ms
+    - lambda: 'id(va)->commit_followup_mic();'
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
     - script.execute: control_leds
     # Arm the "stop" wake word so the user can abort if they changed
@@ -1884,37 +1897,58 @@ micro_wake_word:
                             - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
                             - script.execute: control_leds
                           else:
-                            # Regular wake word: play wake chime, start a new session.
+                            # Backend down? Don't pretend to listen. Without
+                            # this guard we'd play the wake chime + start
+                            # streaming, on_mic_data_ would silently drop
+                            # every frame (!ws_connected_), and 7 s later
+                            # the no-speech watchdog would close the session
+                            # — user has no idea why nothing happened.
+                            # Play the same error chime as on_repeated_failure
+                            # so the failure mode is audible.
                             - if:
                                 condition:
-                                  switch.is_on: wake_sound
+                                  lambda: 'return !id(va)->is_connected();'
                                 then:
                                   - script.execute:
                                       id: play_sound
                                       priority: true
-                                      sound_file: "wake_word_triggered_sound"
-                                  # Wait until the chime has actually finished
-                                  # playing through the speaker — a fixed 300ms
-                                  # delay was racing with the ~500ms FLAC and the
-                                  # mic was streaming the chime tail to OpenAI
-                                  # (which transcribed it as "Ok, nabór").
-                                  - wait_until:
+                                      sound_file: "error_cloud_expired"
+                                else:
+                                  # Regular wake word: play wake chime, start a new session.
+                                  - if:
                                       condition:
-                                        not:
-                                          media_player.is_announcing:
-                                            id: external_media_player
-                                      timeout: 2s
-                                  # Plus the downstream speaker ring buffer is
-                                  # still ~600ms behind — wait a bit more so the
-                                  # mic only catches the user's actual command.
-                                  - delay: 600ms
-                            - lambda: 'id(va)->start_session();'
-                            # Show "waiting for command" (blue spin) immediately on wake,
-                            # before the server VAD detects actual speech. va_client's
-                            # on_phase will overwrite to phase 3 (listening_for_command)
-                            # once the server reports speech started.
-                            - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
-                            - script.execute: control_leds
+                                        switch.is_on: wake_sound
+                                      then:
+                                        - script.execute:
+                                            id: play_sound
+                                            priority: true
+                                            sound_file: "wake_word_triggered_sound"
+                                        # Wait until the chime has actually finished
+                                        # playing through the speaker — a fixed 300ms
+                                        # delay was racing with the ~500ms FLAC and the
+                                        # mic was streaming the chime tail to OpenAI
+                                        # (which transcribed it as "Ok, nabu").
+                                        - wait_until:
+                                            condition:
+                                              not:
+                                                media_player.is_announcing:
+                                                  id: external_media_player
+                                            timeout: 2s
+                                        # Downstream i2s_audio_speaker ring buffer is
+                                        # still draining. 600 ms was conservative —
+                                        # 400 ms covers the typical tail without
+                                        # noticeable risk of the chime leaking into
+                                        # the mic (XMOS AEC catches the residual).
+                                        # Saves ~200 ms of "dead corridor" where the
+                                        # user can't yet be heard.
+                                        - delay: 400ms
+                                  - lambda: 'id(va)->start_session();'
+                                  # Show "waiting for command" (blue spin) immediately on wake,
+                                  # before the server VAD detects actual speech. va_client's
+                                  # on_phase will overwrite to phase 3 (listening_for_command)
+                                  # once the server reports speech started.
+                                  - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
+                                  - script.execute: control_leds
 
 select:
   - platform: template

@@ -91,22 +91,27 @@ void VaClient::loop() {
     const bool was_request = this->request_follow_up_pending_;
     this->followup_pending_ = false;
     this->request_follow_up_pending_ = false;
-    const uint32_t duration = was_request ? kRequestFollowUpMs : kFollowupMs;
-    // For request-driven follow-up, notify yaml NOW so the wake chime
-    // plays and the LED flips to listening *before* the mic opens.
-    // kFollowupOpenDelayMs (1.5 s) doubles as chime-playback budget — if
-    // we fired the trigger after the timeout the chime would play while
-    // the mic was already streaming and the XMOS AEC (~10× leak) would
-    // let the server VAD trip on our own chime. The natural-idle path
-    // (kFollowupMs = 0) doesn't open the mic, so no cue needed.
-    if (was_request && duration > 0) {
-      for (auto *t : this->followup_opened_triggers_) {
-        t->trigger();
-      }
+    if (was_request) {
+      // Request-driven path: wait for the TTS hardware tail to clear,
+      // then arm the follow-up and let yaml own the chime → wait_until →
+      // i2s tail → commit_followup_mic flow. This mirrors the wake-word
+      // path exactly (wait_until not is_announcing + delay) so the LED
+      // and the actual mic-open moment line up.
+      this->set_timeout("va_tts_tail", kTtsTailMs, [this]() {
+        this->open_followup_window_(0);  // emit deferred idle LED + latency log; no mic
+        this->followup_armed_ = true;
+        for (auto *t : this->followup_opened_triggers_) {
+          t->trigger();
+        }
+      });
+    } else {
+      // Natural-idle path (kFollowupMs = 0): no chime, no mic — just let
+      // the existing settle delay run so the deferred LED idle emit
+      // fires after the speaker has actually gone quiet.
+      this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this]() {
+        this->open_followup_window_(kFollowupMs);
+      });
     }
-    this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this, duration]() {
-      this->open_followup_window_(duration);
-    });
   }
 }
 
@@ -264,6 +269,15 @@ void VaClient::handle_text_(const char *data, size_t len) {
 
   if (msg.find("\"type\":\"error\"") != std::string::npos) {
     ESP_LOGW(TAG, "Server reported error: %s", msg.c_str());
+    // Without an audible cue the user just sees the LED go idle and
+    // assumes the assistant ignored them. Reuse the on_repeated_failure
+    // trigger — it already plays error_cloud_expired and the failure
+    // mode is identical from the user's perspective ("something went
+    // wrong, try again"). We deliberately don't bump consecutive_failures_
+    // here; that counter is for WS reachability, not server-side errors.
+    for (auto *t : this->repeated_failure_triggers_) {
+      t->trigger();
+    }
     this->set_phase_("idle");
     return;
   }
@@ -277,16 +291,15 @@ void VaClient::handle_text_(const char *data, size_t len) {
     // the natural-idle path; mark this as a request-driven follow-up so
     // the longer kRequestFollowUpMs window applies once it fires.
     if (this->audio_fill_ == 0) {
-      // Already drained — still gate the mic behind the same delay we
-      // use on the drain path so the chime (fired now) has time to play
-      // before streaming_ goes hot.
-      ESP_LOGI(TAG, "request_follow_up — chime + open %u ms mic window in %u ms",
-               (unsigned) kRequestFollowUpMs, (unsigned) kFollowupOpenDelayMs);
-      for (auto *t : this->followup_opened_triggers_) {
-        t->trigger();
-      }
-      this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this]() {
-        this->open_followup_window_(kRequestFollowUpMs);
+      // Already drained — still wait kTtsTailMs for the i2s tail to
+      // clear before firing the chime, then yaml drives the rest.
+      ESP_LOGI(TAG, "request_follow_up — arming chime in %u ms",
+               (unsigned) kTtsTailMs);
+      this->set_timeout("va_tts_tail", kTtsTailMs, [this]() {
+        this->followup_armed_ = true;
+        for (auto *t : this->followup_opened_triggers_) {
+          t->trigger();
+        }
       });
     } else {
       ESP_LOGI(TAG, "request_follow_up but %u bytes still queued; mic window deferred",
@@ -442,9 +455,11 @@ void VaClient::set_phase_(const std::string &phase) {
     }
     this->cancel_timeout("va_followup");
     this->cancel_timeout("va_followup_open");
+    this->cancel_timeout("va_tts_tail");
     this->cancel_timeout("va_no_speech");
     this->followup_pending_ = false;
     this->request_follow_up_pending_ = false;
+    this->followup_armed_ = false;
     this->idle_emit_pending_ = false;  // new turn began, drop any held idle
   } else if (phase == "idle") {
     // Only open a follow-up window if we just finished a real turn —
@@ -464,6 +479,8 @@ void VaClient::set_phase_(const std::string &phase) {
       this->streaming_ = false;
       this->followup_pending_ = false;
       this->request_follow_up_pending_ = false;
+      this->followup_armed_ = false;
+      this->cancel_timeout("va_tts_tail");
       this->idle_emit_pending_ = false;
     } else if (this->audio_fill_ == 0) {
       // Server says response.done and the device has actually played out.
@@ -513,10 +530,12 @@ void VaClient::start_session() {
   // follow-up window from the previous turn.
   this->followup_pending_ = false;
   this->request_follow_up_pending_ = false;
+  this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->suppress_followup_ = false;
   this->cancel_timeout("va_followup");
   this->cancel_timeout("va_followup_open");
+  this->cancel_timeout("va_tts_tail");
   // Anchor turn-latency timestamps for the new turn.
   this->turn_t_wake_ = millis();
   this->turn_t_listening_ = 0;
@@ -592,6 +611,29 @@ void VaClient::open_followup_window_(uint32_t duration_ms) {
   });
 }
 
+void VaClient::commit_followup_mic() {
+  // Called from yaml's on_followup_opened automation once the chime has
+  // finished playing AND the i2s tail has cleared (wait_until + delay).
+  // If anything pre-empted us between trigger fire and here (a fresh
+  // wake word, a Stop, send_interrupt, or a new turn starting) the
+  // armed flag was cleared — silently no-op so we don't reopen the mic
+  // out of nowhere.
+  if (!this->followup_armed_) {
+    ESP_LOGD(TAG, "commit_followup_mic: not armed, ignoring");
+    return;
+  }
+  this->followup_armed_ = false;
+  ESP_LOGI(TAG, "follow-up mic armed by yaml (window %u ms)",
+           (unsigned) kRequestFollowUpMs);
+  this->streaming_ = true;
+  this->set_timeout("va_followup", kRequestFollowUpMs, [this]() {
+    if (this->streaming_) {
+      ESP_LOGI(TAG, "follow-up window expired — mic streaming off");
+      this->streaming_ = false;
+    }
+  });
+}
+
 void VaClient::send_interrupt() {
   if (!this->ws_connected_ || this->ws_handle_ == nullptr) {
     ESP_LOGW(TAG, "send_interrupt: WS not connected");
@@ -610,9 +652,11 @@ void VaClient::send_interrupt() {
   this->audio_fill_ = 0;
   this->followup_pending_ = false;
   this->request_follow_up_pending_ = false;
+  this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->cancel_timeout("va_no_speech");
   this->cancel_timeout("va_followup");
+  this->cancel_timeout("va_tts_tail");
   // The phase=idle the server is about to send shouldn't open a follow-up
   // mic window — the user said "stop", not "wait for me to keep talking".
   this->suppress_followup_ = true;
