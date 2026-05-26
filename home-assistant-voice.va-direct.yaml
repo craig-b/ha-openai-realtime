@@ -1737,7 +1737,10 @@ time:
 udp_log:
   host: va.local
   port: 5140
-  level: INFO
+  # DEBUG forwarded for now while we're still ironing things out — bump
+  # back to INFO once the device behaves and wifi-amplified spam stops
+  # paying off.
+  level: DEBUG
   time_id: sntp_time
 
 va_client:
