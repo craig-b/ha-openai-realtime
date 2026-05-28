@@ -7,7 +7,12 @@ packages = [{include = "app", from = "."}]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
-pipecat-ai = {extras = ["mcp", "openai", "websocket"], version = ">=0.0.96"}
+# Pinned to the 0.0.x line: this codebase targets the Pipecat 0.0.x API
+# (FrameSerializerType, OpenAIRealtimeLLMService, SessionProperties events,
+# WebsocketServerParams). Without a lockfile pip otherwise resolves Pipecat
+# 1.x, whose changed API breaks the imports. 0.0.97 is the version this was
+# developed/tested against.
+pipecat-ai = {extras = ["mcp", "openai", "websocket"], version = "0.0.97"}
 python-dotenv = ">=1.0.0"
 fastapi = ">=0.100.0"
 uvicorn = {extras = ["standard"], version = ">=0.23.0"}
