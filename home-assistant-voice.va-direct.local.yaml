@@ -176,20 +176,43 @@ ota:
     # password so wireless updates keep working; define it in secrets.yaml.
     password: !secret ota_password
 
-# va-direct: we removed `api:` (HA no longer talks to this device — audio
-# goes over va_client WS, tools go via the MCP server on the backend), but
-# ESPHome's mDNS only advertises `_esphomelib._tcp` under USE_API. Without
-# that service `esphome run`'s mDNS browse can't find us and prints
-# "no devices matching ...local were discovered" → "no valid options for
-# upload/logging". Advertise the service manually so OTA upload works.
-# Post-upload log streaming over API still won't work (nothing listens on
-# 6053), but `udp_log:` below ships logs to Dozzle on the Pi anyway, and
-# serial is always available as a fallback.
-mdns:
-  services:
-    - service: _esphomelib
-      protocol: _tcp
-      port: 6053
+# va-direct fork: api re-enabled so this device shows up in Home Assistant
+# again (entities, OTA discovery, and diagnostics readable from HA). Voice
+# audio still flows over the va_client WebSocket and tools via the MCP server
+# on the backend — api only manages/observes the device itself. With api on,
+# ESPHome advertises _esphomelib over mDNS automatically, so the old manual
+# mdns workaround is no longer needed.
+api:
+  encryption:
+    key: !secret api_key
+
+# Diagnostics surfaced to Home Assistant (so they can be read remotely without
+# a serial cable): the last reset reason (e.g. "Task watchdog" / "Software" /
+# "Power on") and the current voice-assistant phase.
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset reason"
+      entity_category: diagnostic
+    device:
+      name: "Device info"
+      entity_category: diagnostic
+  - platform: template
+    name: "Voice phase"
+    id: voice_phase_text
+    update_interval: 1s
+    entity_category: diagnostic
+    lambda: |-
+      switch (id(voice_assistant_phase)) {
+        case ${voice_assist_idle_phase_id}: return std::string("idle");
+        case ${voice_assist_waiting_for_command_phase_id}: return std::string("waiting");
+        case ${voice_assist_listening_for_command_phase_id}: return std::string("listening");
+        case ${voice_assist_thinking_phase_id}: return std::string("thinking");
+        case ${voice_assist_replying_phase_id}: return std::string("replying");
+        case ${voice_assist_not_ready_phase_id}: return std::string("not_ready");
+        case ${voice_assist_error_phase_id}: return std::string("error");
+        default: return std::string("unknown");
+      }
 
 # va-direct: WiFi provisioning blocks moved out of factory.yaml into the main
 # config since we don't use the upstream two-tier factory build.
