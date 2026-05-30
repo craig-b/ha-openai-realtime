@@ -1940,17 +1940,26 @@ va_client:
           lambda: 'return phase == "idle";'
         then:
           - micro_wake_word.start:
-    # Arm the "stop" wake word only while the assistant is actually
-    # speaking — that's the only moment it's useful, and keeping it
-    # disabled otherwise prevents false positives during user speech
-    # and idle silence. Replaces the original activate_stop_word_once
-    # which was keyed on external_media_player.is_announcing.
+    # Arm the "stop" wake word for the WHOLE reply, not per phase-transition.
+    # The backend's phase flaps replying<->thinking DURING a single reply (the
+    # device keeps draining TTS through those "thinking" flaps — see the logs:
+    # replying -> thinking 1s in, then idle 12s later). The old
+    # disarm-on-every-non-replying `else` branch therefore switched "stop" OFF
+    # for most of each reply, so the user's "stop" was almost always ignored.
+    # Mirror stock's activate_stop_word_once: ENABLE on the first "replying" and
+    # DISABLE only when the turn fully ends ("idle"); leave listening/thinking in
+    # between untouched so the model stays armed across the flaps. (Detection
+    # over the device's own TTS is still AEC-limited, but at least it's now
+    # actually listening for the whole reply.)
     - if:
         condition:
           lambda: 'return phase == "replying";'
         then:
           - micro_wake_word.enable_model: stop
-        else:
+    - if:
+        condition:
+          lambda: 'return phase == "idle";'
+        then:
           - micro_wake_word.disable_model: stop
   on_repeated_failure:
     # Backend has been unreachable for N reconnect attempts in a row.
