@@ -2,7 +2,7 @@
 import json
 import logging
 import os
-from pipecat.frames.frames import InputAudioRawFrame, OutputAudioRawFrame, Frame, InterruptionFrame
+from pipecat.frames.frames import InputAudioRawFrame, OutputAudioRawFrame, Frame
 from pipecat.serializers.base_serializer import FrameSerializer, FrameSerializerType
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,17 @@ class RawAudioSerializer(FrameSerializer):
         if input_sample_rate is None:
             input_sample_rate = int(os.environ.get("DEVICE_INPUT_SAMPLE_RATE", "16000"))
         self._input_sample_rate = input_sample_rate
+        # Async callback invoked when the device sends {"type":"interrupt"} (the
+        # "stop" wake word). Set by WebSocketHandler.build_pipeline once it has
+        # the OpenAI service. We deliberately do NOT emit a pipecat
+        # InterruptionFrame for this: pipecat's OWN VAD already emits
+        # InterruptionFrame (StartInterruptionFrame) on every user-start-speaking,
+        # so reacting to that class would cancel the response on ANY speech.
+        self._on_interrupt = None
+
+    def set_interrupt_handler(self, handler):
+        """Register the async no-arg callback fired on a device 'interrupt'."""
+        self._on_interrupt = handler
 
     @property
     def type(self) -> FrameSerializerType:
@@ -44,9 +55,11 @@ class RawAudioSerializer(FrameSerializer):
         # transport has NO on_message event and routes EVERY incoming frame
         # through this serializer, so the device's {"type":"interrupt"} (sent
         # when the user says the "stop" wake word) would be silently dropped and
-        # the assistant's reply would never stop. Translate it into a pipecat
-        # InterruptionFrame here; DeviceInterruptCanceller (in the pipeline) turns
-        # that into an explicit OpenAI response.cancel.
+        # the assistant's reply would never stop. Handle it via the registered
+        # interrupt callback (which sends an explicit OpenAI response.cancel) and
+        # inject NO frame into the pipeline — emitting a pipecat InterruptionFrame
+        # here would be indistinguishable from the VAD's own per-utterance
+        # interruptions and would cancel the reply on any speech.
         if isinstance(message, str):
             try:
                 data = json.loads(message)
@@ -54,8 +67,12 @@ class RawAudioSerializer(FrameSerializer):
                 return None
             if isinstance(data, dict) and data.get("type") == "interrupt":
                 logger.info("🛑 device interrupt received")
-                return InterruptionFrame()
-            # ping / start / other control frames: nothing to inject downstream.
+                if self._on_interrupt is not None:
+                    try:
+                        await self._on_interrupt()
+                    except Exception as e:
+                        logger.warning(f"⚠️ device interrupt handler failed: {e!r}")
+            # interrupt / ping / start / other control frames: nothing to inject.
             return None
 
         if not isinstance(message, bytes):

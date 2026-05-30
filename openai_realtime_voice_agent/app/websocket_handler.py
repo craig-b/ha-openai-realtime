@@ -12,7 +12,7 @@ from pipecat.transports.websocket.server import WebsocketServerTransport, Websoc
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
-from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame, StartFrame, EndFrame, InterruptionFrame
+from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame, StartFrame, EndFrame
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
 
@@ -109,39 +109,6 @@ class InputResampler(FrameProcessor):
         await self.push_frame(frame, direction)
 
 
-class DeviceInterruptCanceller(FrameProcessor):
-    """Cancel the in-flight OpenAI response when the device sends an interrupt.
-
-    The Voice PE sends {"type":"interrupt"} when the user says the "stop" wake
-    word; RawAudioSerializer turns that into an InterruptionFrame. We must then
-    explicitly cancel the OpenAI response, because under semantic_vad pipecat's
-    own _handle_interruption does NOT send response.cancel (it assumes OpenAI's
-    server VAD heard the barge-in and cancels — but our "stop" is detected on the
-    device, and the mic is gated off during the reply, so OpenAI never hears it).
-    Without this the reply keeps generating after "stop".
-
-    Sits early in the pipeline with a reference to the OpenAI service, sends a
-    ResponseCancelEvent, and consumes the frame (does not forward it) so it
-    doesn't trip pipecat's "user started speaking" / new-turn machinery — a
-    "stop" means stop and go idle, not start a new utterance.
-    """
-
-    def __init__(self, openai_service, **kwargs):
-        super().__init__(**kwargs)
-        self._service = openai_service
-
-    async def process_frame(self, frame: Frame, direction: FrameDirection):
-        await super().process_frame(frame, direction)
-        if isinstance(frame, InterruptionFrame):
-            try:
-                await self._service.send_client_event(openai_rt_events.ResponseCancelEvent())
-                logger.info("🛑 device interrupt → response.cancel sent to OpenAI")
-            except Exception as e:
-                logger.warning(f"⚠️ could not cancel OpenAI response on interrupt: {e!r}")
-            return  # consume — don't forward (avoids spurious new-turn handling)
-        await self.push_frame(frame, direction)
-
-
 class WebSocketHandler:
     """Handles WebSocket transport initialization, pipeline building, and event management."""
     
@@ -170,6 +137,10 @@ class WebSocketHandler:
         self.pipeline: Optional[Pipeline] = None
         self.runner: Optional[PipelineRunner] = None
         self.current_task: Optional[PipelineTask] = None
+        # The serializer instance the transport reads through. Kept so
+        # build_pipeline can wire its device-interrupt callback to the OpenAI
+        # service.
+        self._serializer: Optional[RawAudioSerializer] = None
         # Connected device websockets, used to push va_client control/phase
         # messages as TEXT frames (the audio path uses the binary serializer).
         self._websockets: set = set()
@@ -187,6 +158,7 @@ class WebSocketHandler:
         # with the device mic rate (16 kHz for Voice PE); the transport
         # resamples in/out to the 24 kHz pipeline rate below.
         serializer = RawAudioSerializer()
+        self._serializer = serializer
 
         # Create WebsocketServerTransport with WebsocketServerParams
         # The transport will start its own server automatically
@@ -230,6 +202,22 @@ class WebSocketHandler:
             raise RuntimeError("OpenAI service must be created before building pipeline")
         
         logger.info(f"🔗 Building pipeline with WebSocket transport and OpenAI service: {type(openai_service).__name__}")
+
+        # Wire the device "stop" interrupt to an explicit OpenAI response.cancel.
+        # The serializer calls this when it sees {"type":"interrupt"} from the
+        # device. We cancel directly on THIS pipeline's service rather than
+        # emitting a pipecat InterruptionFrame, because pipecat's VAD already
+        # emits InterruptionFrames on every user-start-speaking — reacting to
+        # those would cancel the reply on any speech.
+        async def _on_device_interrupt():
+            try:
+                await openai_service.send_client_event(openai_rt_events.ResponseCancelEvent())
+                logger.info("🛑 device interrupt → response.cancel sent to OpenAI")
+            except Exception as e:
+                logger.warning(f"⚠️ could not cancel OpenAI response on device interrupt: {e!r}")
+
+        if self._serializer is not None:
+            self._serializer.set_interrupt_handler(_on_device_interrupt)
         
         # Create activity trackers
         input_activity_tracker = SessionActivityTracker(
@@ -253,9 +241,6 @@ class WebSocketHandler:
         pipeline_components = [
             transport.input(),
             InputResampler(out_rate=PIPELINE_SAMPLE_RATE),
-            # Cancel the OpenAI response when the device sends a "stop" interrupt
-            # (semantic_vad won't do it for us — see DeviceInterruptCanceller).
-            DeviceInterruptCanceller(openai_service),
             input_activity_tracker,
         ]
         
