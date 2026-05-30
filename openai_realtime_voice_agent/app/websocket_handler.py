@@ -244,7 +244,9 @@ class WebSocketHandler:
         try:
             await websocket.send(json.dumps(obj))
         except Exception as e:
-            logger.debug(f"Could not send {obj.get('type')} to device: {e}")
+            # TEMP instrumentation: surface send failures (was debug) so we can
+            # see if phase TEXT frames fail to reach the device.
+            logger.warning(f"⚠️ Could not send {obj.get('type')} to device: {e!r}")
 
     async def broadcast_json(self, obj: dict) -> None:
         """Send a JSON object to every connected device as a TEXT frame."""
@@ -253,7 +255,9 @@ class WebSocketHandler:
 
     async def broadcast_phase(self, value: str) -> None:
         """Send a va_client phase message to every connected device."""
-        logger.debug(f"➡️ phase: {value}")
+        # TEMP instrumentation: log the broadcast + how many device sockets we
+        # think are connected (was debug).
+        logger.info(f"➡️ broadcast phase '{value}' to {len(self._websockets)} device(s)")
         await self.broadcast_json({"type": "phase", "value": value})
     
     def setup_event_handlers(

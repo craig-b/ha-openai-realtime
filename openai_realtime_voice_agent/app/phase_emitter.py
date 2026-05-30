@@ -77,6 +77,7 @@ class PhaseEmitter(FrameProcessor):
         if value == self._current:
             return
         self._current = value
+        logger.info(f"📞 phase -> {value}")  # TEMP instrumentation
         if self._send_phase is not None:
             try:
                 await self._send_phase(value)
