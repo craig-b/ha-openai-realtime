@@ -1,5 +1,5 @@
 name: OpenAI Realtime Voice Agent
-version: "0.3.8"
+version: "0.3.9"
 slug: openai_realtime_voice_agent
 description: Voice control using OpenAI Realtime API with WebSocket support for ESP32 devices
 url: https://github.com/fjfricke/ha-openai-realtime
@@ -76,8 +76,16 @@ options:
   interrupt_response: false
   # Pin the language (ISO code, e.g. "nl" for Dutch). Empty = auto-detect.
   # Stops the model drifting to another language; pair with a language lock in
-  # `instructions`.
+  # `instructions`. (Transcription is only enabled when this is set.)
   transcription_language: ""
+  # Model that transcribes your speech to TEXT (the transcript in the logs +
+  # context). NOTE: this is NOT what gpt-realtime understands you with — the main
+  # model hears the audio natively; this is only the side-channel transcript.
+  # Options: "gpt-4o-transcribe" (default, accurate), "gpt-4o-mini-transcribe"
+  # (cheaper), "whisper-1" (older), "gpt-realtime-whisper" (new streaming STT for
+  # the Realtime API — faster/cheaper, try it if you like). Only used when
+  # transcription_language is set.
+  transcription_model: "gpt-4o-transcribe"
   # Milliseconds the bot must stay silent after a reply before the device
   # returns to idle. Bridges the gaps between TTS sentences / tool-calls so the
   # LED ring and the "stop" wake word stay active for the whole answer.
@@ -108,6 +116,7 @@ schema:
   enable_disconnect_tool: bool
   interrupt_response: bool
   transcription_language: str?
+  transcription_model: str
   phase_idle_debounce_ms: int(0,10000)
   instructions: str
   session_reuse_timeout_seconds: int(0,3600)  # bis 1 Stunde

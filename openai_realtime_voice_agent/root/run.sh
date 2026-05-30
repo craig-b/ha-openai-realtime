@@ -21,6 +21,7 @@ SEMANTIC_VAD_CREATE_RESPONSE=$(bashio::config 'semantic_vad_create_response')
 ENABLE_DISCONNECT_TOOL=$(bashio::config 'enable_disconnect_tool')
 INTERRUPT_RESPONSE=$(bashio::config 'interrupt_response')
 TRANSCRIPTION_LANGUAGE=$(bashio::config 'transcription_language')
+TRANSCRIPTION_MODEL=$(bashio::config 'transcription_model')
 PHASE_IDLE_DEBOUNCE_MS=$(bashio::config 'phase_idle_debounce_ms')
 
 # Get instructions
@@ -57,6 +58,7 @@ export SEMANTIC_VAD_CREATE_RESPONSE
 export ENABLE_DISCONNECT_TOOL
 export INTERRUPT_RESPONSE
 export TRANSCRIPTION_LANGUAGE
+export TRANSCRIPTION_MODEL
 export PHASE_IDLE_DEBOUNCE_MS
 
 # Export instructions

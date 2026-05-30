@@ -98,6 +98,15 @@ class Application:
         # the model auto-detect. Helps stop the model drifting to another
         # language; pair it with an explicit language lock in `instructions`.
         transcription_language = os.environ.get("TRANSCRIPTION_LANGUAGE", "").strip()
+        # Model that transcribes the user's speech to TEXT (the transcript shown
+        # in logs + put in the context). NOTE: this is NOT what gpt-realtime-2
+        # uses to understand you — the main model hears the audio natively; this
+        # only affects the side-channel transcript. Default "gpt-4o-transcribe".
+        # Alternatives: "gpt-4o-mini-transcribe", "whisper-1", and the newer
+        # streaming "gpt-realtime-whisper" (purpose-built for the Realtime API,
+        # faster/cheaper). If the API rejects a value, transcription silently
+        # falls back; check the logs.
+        transcription_model = os.environ.get("TRANSCRIPTION_MODEL", "gpt-4o-transcribe").strip()
 
         # Get instructions with default
         instructions = os.environ.get("INSTRUCTIONS", "You are the Home Assistant Voice Agent and can control the Smart Home.")
@@ -157,6 +166,7 @@ class Application:
         self.semantic_vad_create_response = semantic_vad_create_response
         self.enable_disconnect_tool = enable_disconnect_tool
         self.transcription_language = transcription_language
+        self.transcription_model = transcription_model
         self.instructions = instructions
         self.model = openai_model
         self.voice = openai_voice
@@ -313,8 +323,12 @@ class Application:
 
             # Optionally pin the input-transcription language to stop the model
             # drifting between languages (e.g. "nl"). Empty -> auto-detect.
+            # transcription_model picks the STT used for the transcript text.
             transcription = (
-                InputAudioTranscription(language=self.transcription_language)
+                InputAudioTranscription(
+                    model=self.transcription_model,
+                    language=self.transcription_language,
+                )
                 if self.transcription_language
                 else None
             )
@@ -336,13 +350,13 @@ class Application:
                     f"🎚️ Turn detection: semantic_vad (eagerness={self.vad_eagerness}, "
                     f"create_response={self.semantic_vad_create_response}, "
                     f"interrupt_response={self.interrupt_response})"
-                    + (f", transcription language={self.transcription_language}" if self.transcription_language else "")
+                    + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
                 )
             else:
                 logger.info(
                     f"🎚️ Turn detection: server_vad (threshold={self.vad_threshold}, "
                     f"silence_duration_ms={self.vad_silence_duration_ms})"
-                    + (f", transcription language={self.transcription_language}" if self.transcription_language else "")
+                    + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
                 )
 
             logger.info(f"🔧 Creating session with {len(all_tools)} tools: {[tool.get('name', 'unknown') for tool in all_tools]}")
