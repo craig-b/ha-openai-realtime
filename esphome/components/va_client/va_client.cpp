@@ -383,6 +383,12 @@ void VaClient::handle_text_(const char *data, size_t len) {
 void VaClient::handle_binary_(const uint8_t *data, size_t len) {
   if (this->speaker_ == nullptr || len < 2 || this->audio_buf_ == nullptr)
     return;
+  // After a "stop"/barge-in (send_interrupt) the backend is still streaming the
+  // rest of the already-generated reply. Drop it so the cancelled reply goes
+  // silent instead of refilling the PSRAM ring we just flushed. Cleared on the
+  // next "idle"/"listening" phase (see set_phase_).
+  if (this->suppress_incoming_audio_)
+    return;
   const uint32_t now_ms = millis();
   if (this->turn_t_first_audio_out_ == 0 && this->turn_t_wake_ != 0) {
     this->turn_t_first_audio_out_ = now_ms;
@@ -566,6 +572,15 @@ void VaClient::set_phase_(const std::string &phase) {
   const std::string prev_phase = this->current_phase_;
   this->current_phase_ = phase;
   ESP_LOGD(TAG, "Phase -> %s", phase.c_str());
+
+  // Lift the post-"stop" incoming-audio suppression once the backend confirms a
+  // turn boundary: "idle" (the cancelled reply truly ended) or "listening" (a
+  // fresh turn's audio is now legitimate). We deliberately do NOT clear on
+  // "thinking"/"replying" — those can still belong to the reply we cancelled.
+  if (this->suppress_incoming_audio_ && (phase == "idle" || phase == "listening")) {
+    this->suppress_incoming_audio_ = false;
+    ESP_LOGI(TAG, "incoming-audio suppression lifted on phase=%s", phase.c_str());
+  }
 
   // Streaming gate state machine:
   //   listening  → mic on (user is being heard)
@@ -875,6 +890,9 @@ void VaClient::send_interrupt() {
   this->audio_tail_ = 0;
   this->audio_fill_ = 0;
   portEXIT_CRITICAL(&this->ring_mux_);
+  // Drop further incoming TTS until the backend confirms the turn boundary —
+  // it keeps streaming the rest of the (already-generated) reply otherwise.
+  this->suppress_incoming_audio_ = true;
   this->followup_pending_ = false;
   this->waiting_for_speaker_stop_ = false;
   this->request_follow_up_pending_ = false;

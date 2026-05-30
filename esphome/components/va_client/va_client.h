@@ -168,6 +168,14 @@ class VaClient : public Component {
   // doesn't trigger a follow-up mic window. The user explicitly asked us to
   // stop — they don't want the device sitting there listening.
   bool suppress_followup_{false};
+  // Set by send_interrupt() ("stop" word / barge-in). OpenAI bursts the whole
+  // reply faster than real-time, so by the time the user says "stop" the audio
+  // is already buffered (backend + our PSRAM) and the backend keeps streaming
+  // the rest. Flushing our queue isn't enough — handle_binary_ just refills it
+  // from the in-flight frames. While this is true we DROP incoming audio so the
+  // cancelled reply actually goes silent. Cleared in set_phase_ on the next
+  // "idle" (reply ended) or "listening" (a fresh turn's audio is legitimate).
+  bool suppress_incoming_audio_{false};
   // Follow-up dialog window after a real turn ends. 0 disables — mic
   // closes immediately after each reply, like the original turn-based
   // pipeline. Currently 0 because XMOS AEC is too leaky and the mic
