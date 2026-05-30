@@ -79,7 +79,11 @@ class VaClient : public Component {
   void handle_text_(const char *data, size_t len);
   void handle_binary_(const uint8_t *data, size_t len);
   void set_phase_(const std::string &phase);
-  void open_followup_window_(uint32_t duration_ms = kFollowupMs);
+  // Marshal a phase-LED trigger fire onto the main loop (used to drive the LED
+  // ring to `listening`/`idle` from timer callbacks during the follow-up window,
+  // independently of a server-sent phase).
+  void fire_phase_led_(const std::string &phase);
+  void open_followup_window_(uint32_t duration_ms);
 
   std::string url_;
   std::string token_;
@@ -176,11 +180,19 @@ class VaClient : public Component {
   // cancelled reply actually goes silent. Cleared in set_phase_ on the next
   // "idle" (reply ended) or "listening" (a fresh turn's audio is legitimate).
   bool suppress_incoming_audio_{false};
-  // Follow-up dialog window after a real turn ends. 0 disables — mic
-  // closes immediately after each reply, like the original turn-based
-  // pipeline. Currently 0 because XMOS AEC is too leaky and the mic
-  // hears its own TTS tail during this window. Re-enable (e.g. 5000)
-  // when AEC is tuned or we add wait_for_user on the server.
+  // Live duration (ms) of the post-reply follow-up window: how long the mic
+  // stays open after the assistant finishes so the user can answer back
+  // WITHOUT re-saying the wake word. Pushed from the backend add-on in the
+  // `hello` handshake (`"follow_up_ms":N`) so it's tunable from the add-on
+  // config without reflashing; 0 = disabled (turn-based, mic closes after each
+  // reply). Clamped to kFollowupMsMax on parse. The window only opens AFTER the
+  // speaker chain drains + kFollowupOpenDelayMs so the assistant's own TTS tail
+  // can't leak into the open mic (XMOS AEC ~10x leak).
+  uint32_t followup_ms_{0};
+  static constexpr uint32_t kFollowupMsMax = 60000;
+  // Legacy compile-time default, kept for reference. The live value now comes
+  // from the backend (followup_ms_); this stays 0 so a device talking to an
+  // old backend that doesn't send follow_up_ms keeps the turn-based behaviour.
   static constexpr uint32_t kFollowupMs = 0;
   // Used when the server explicitly requests a follow-up via the
   // request_follow_up tool — overrides kFollowupMs for a single turn.

@@ -177,9 +177,10 @@ void VaClient::loop() {
           t->trigger();
         }
       } else {
-        // Natural-idle path (kFollowupMs = 0): just emit the deferred
-        // LED idle. No chime, no mic.
-        this->open_followup_window_(kFollowupMs);
+        // Natural-idle path: emit the deferred LED idle, and — if the backend
+        // configured a follow-up window (followup_ms_ > 0) — open the mic for
+        // that long so the user can answer back without a wake word.
+        this->open_followup_window_(this->followup_ms_);
       }
     }
   }
@@ -349,6 +350,35 @@ void VaClient::handle_text_(const char *data, size_t len) {
       t->trigger();
     }
     this->set_phase_("idle");
+    return;
+  }
+
+  if (msg.find("\"type\":\"hello\"") != std::string::npos) {
+    // Handshake ack from the backend. It may carry "follow_up_ms":N — how long
+    // the mic should stay open after each reply so the user can answer without
+    // a wake word. Parsing it here (instead of a firmware constant) makes the
+    // window tunable from the add-on config; reconnecting after an add-on
+    // restart re-reads the new value. Simple substring + int scan, matching the
+    // phase-matching style below (no JSON parser yet).
+    const std::string key = "\"follow_up_ms\":";
+    size_t p = msg.find(key);
+    if (p != std::string::npos) {
+      p += key.size();
+      uint32_t v = 0;
+      bool any = false;
+      while (p < msg.size() && msg[p] >= '0' && msg[p] <= '9') {
+        v = v * 10u + static_cast<uint32_t>(msg[p] - '0');
+        p++;
+        any = true;
+      }
+      if (any) {
+        if (v > kFollowupMsMax)
+          v = kFollowupMsMax;
+        this->followup_ms_ = v;
+        ESP_LOGI(TAG, "hello: follow-up window = %u ms (%s)", (unsigned) v,
+                 v == 0 ? "disabled, turn-based" : "mic stays open after replies");
+      }
+    }
     return;
   }
 
@@ -672,8 +702,9 @@ void VaClient::set_phase_(const std::string &phase) {
     } else if (this->audio_fill_ == 0) {
       // Server says response.done and the device has actually played out.
       // Open the follow-up window (mic on so user can answer a question).
-      this->open_followup_window_();
-      // fall through to fire the trigger normally below
+      this->open_followup_window_(this->followup_ms_);
+      // fall through to fire the trigger normally below (LED -> idle); the
+      // follow-up window, if any, fires its own `listening` LED after its delay.
     } else {
       // Server says response.done, but we still have seconds of TTS queued
       // in PSRAM + downstream rings. Two things wait on the queue:
@@ -832,16 +863,45 @@ void VaClient::open_followup_window_(uint32_t duration_ms) {
   if (duration_ms == 0) {
     // Follow-up disabled for this call: turn-based behaviour like the
     // original pipeline. Leave the mic closed; user must say a wake word
-    // for the next turn.
+    // for the next turn. (The LED idle was already emitted above / by the
+    // set_phase_ tail.)
     this->streaming_ = false;
     return;
   }
-  ESP_LOGI(TAG, "follow-up window open (mic on for %u ms)", (unsigned) duration_ms);
-  this->streaming_ = true;
-  this->set_timeout("va_followup", duration_ms, [this]() {
-    if (this->streaming_) {
-      ESP_LOGI(TAG, "follow-up window expired — mic streaming off");
-      this->streaming_ = false;
+  // Follow-up dialog window. We do NOT open the mic immediately: has_buffered_
+  // data() (the drain signal that got us here) goes false ~500 ms before true
+  // silence — there's still the i2s ring + DAC tail playing out. Opening the
+  // mic now would let that tail leak back in (XMOS AEC ~10x) and false-trigger
+  // the server VAD. So wait kFollowupOpenDelayMs for the tail to clear, THEN
+  // open the mic and show `listening` so the user can see the device is waiting
+  // for them to answer (without a wake word). The LED stays idle (emitted just
+  // above) during this short gap. Any new turn / wake / stop / interrupt cancels
+  // "va_followup_open" before it fires (see set_phase_, start_session,
+  // send_interrupt), so a barge of a new turn won't reopen the mic underneath it.
+  ESP_LOGI(TAG, "follow-up: mic opens in %u ms, then listening for %u ms",
+           (unsigned) kFollowupOpenDelayMs, (unsigned) duration_ms);
+  this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this, duration_ms]() {
+    ESP_LOGI(TAG, "follow-up window open (mic on, listening for %u ms)", (unsigned) duration_ms);
+    this->streaming_ = true;
+    this->fire_phase_led_("listening");  // blue ring: user may answer now
+    this->set_timeout("va_followup", duration_ms, [this]() {
+      if (this->streaming_) {
+        ESP_LOGI(TAG, "follow-up window expired — mic streaming off");
+        this->streaming_ = false;
+        this->fire_phase_led_("idle");  // no answer came; back to idle
+      }
+    });
+  });
+}
+
+void VaClient::fire_phase_led_(const std::string &phase) {
+  // Drive the yaml on_phase automation (LED ring + voice_assistant_phase global)
+  // from a device-side timer, not a server message. Marshalled via defer() so it
+  // runs on the main loop even if called from another task.
+  std::string phase_copy = phase;
+  this->defer([this, phase_copy]() {
+    for (auto *t : this->phase_triggers_) {
+      t->trigger(phase_copy);
     }
   });
 }
