@@ -147,6 +147,7 @@ class ConnectionRecovery(FrameProcessor):
         "1006",
     )
     RECONNECT_COOLDOWN_S = 5.0
+    IDLE_UNSTICK_COOLDOWN_S = 2.0
 
     def __init__(self, openai_service, emit_idle=None, **kwargs):
         super().__init__(**kwargs)
@@ -154,6 +155,7 @@ class ConnectionRecovery(FrameProcessor):
         self._emit_idle = emit_idle  # async callable(value:str), e.g. broadcast_phase
         self._reconnecting = False
         self._last_attempt = 0.0
+        self._last_idle_unstick = 0.0
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
@@ -171,6 +173,19 @@ class ConnectionRecovery(FrameProcessor):
                     self._reconnecting = True
                     self._last_attempt = now
                     asyncio.create_task(self._recover(msg))
+            else:
+                # Non-connection-death error that ENDS a turn without a reply:
+                # most importantly an OpenAI rate-limit ("Rate limit reached …"),
+                # but also any other transient response.create failure. No bot
+                # speech was produced, so PhaseEmitter never fires
+                # BotStopped→idle; the device is left stuck in `thinking`
+                # (LED keeps blinking) with no device-side watchdog to recover.
+                # Emit one `idle` to unstick it so the user can just try again.
+                # Guarded by a short cooldown so a rare flood collapses to one.
+                now = time.monotonic()
+                if now - self._last_idle_unstick >= self.IDLE_UNSTICK_COOLDOWN_S:
+                    self._last_idle_unstick = now
+                    asyncio.create_task(self._unstick_idle(msg))
         await self.push_frame(frame, direction)
 
     async def _recover(self, reason: str):
@@ -192,6 +207,19 @@ class ConnectionRecovery(FrameProcessor):
             logger.error(f"❌ OpenAI reconnect attempt failed: {e!r}")
         finally:
             self._reconnecting = False
+
+    async def _unstick_idle(self, reason: str):
+        """Emit `idle` to the device after a turn-ending error (e.g. rate limit).
+
+        The session is still alive (no reconnect needed) — we just nudge the
+        device out of its stuck `thinking` blink so the user can retry.
+        """
+        try:
+            logger.warning(f"⚠️ turn ended on error, emitting idle to unstick device ({reason[:90]})")
+            if self._emit_idle is not None:
+                await self._emit_idle("idle")
+        except Exception as e:
+            logger.warning(f"⚠️ could not emit idle after turn-ending error: {e!r}")
 
 
 class WebSocketHandler:
