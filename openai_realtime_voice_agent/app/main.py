@@ -464,26 +464,38 @@ class Application:
         # The transport manages multiple connections internally
         self._build_pipeline_for_transport(self.websocket_transport, "server")
 
-        # Seed the realtime service's context ONCE at startup with a throwaway
-        # kickoff run. WHY: pipecat 0.0.97's OpenAIRealtimeLLMService only
-        # auto-creates a response for the FIRST context it ever receives; every
-        # later context just updates state (no response unless a tool result is
-        # pending). With semantic_vad create_response=True the SERVER creates a
-        # response on every user turn — but pipecat's first-context path would
-        # ALSO fire on the user's very first turn → two response.create →
-        # `conversation_already_has_active_response`, which cut turn 1 short and
-        # left turn 2 hanging. Kicking off one empty run here consumes that
-        # first-context path now, before any device/user turn, so every real
-        # user turn routes cleanly through the server (else-branch, no double).
-        # The throwaway greeting it may generate goes to no device (nothing is
-        # connected at startup) and is discarded by the transport.
+        # Consume pipecat's FIRST-context auto-response ONCE at startup — SILENTLY.
+        # WHY: pipecat 0.0.97's OpenAIRealtimeLLMService._handle_context does
+        # `if not self._context: ... await self._create_response()` — i.e. the
+        # very first context it ever sees triggers a real response. With
+        # semantic_vad create_response=True the SERVER also creates a response on
+        # every user turn, so the user's first turn would double-create →
+        # `conversation_already_has_active_response` (cut turn 1 short, hung
+        # turn 2). We previously consumed that path with a throwaway LLMRunFrame
+        # kickoff — but an LLMRunFrame runs `_create_response()`, producing a REAL
+        # (audible, tool-calling) reply. The old comment assumed it "goes to no
+        # device" because nothing is connected at startup; WRONG: when the user
+        # updates the add-on the device auto-reconnects within seconds and lands
+        # mid-kickoff (and its post-tool follow-up), so the device plays a
+        # spontaneous "answer" nobody asked for (observed: "Ik vond geen
+        # betrouwbare lamp in de gang" right after a restart).
+        #
+        # Fix: pre-set `self._context` to an empty LLMContext instead. Now the
+        # first REAL user turn hits the ELSE branch of _handle_context (no
+        # _create_response), the server creates that turn's response (semantic_vad
+        # create_response=True), and there's no double — AND no startup speech.
+        # The empty sentinel is harmlessly overwritten by the real context on the
+        # first turn (both branches do `self._context = context`).
         if self.turn_detection_type == "semantic_vad" and self.semantic_vad_create_response:
             try:
-                from pipecat.frames.frames import LLMRunFrame
-                await self.current_task.queue_frames([LLMRunFrame()])
-                logger.info("🚀 Seeded realtime context with a startup kickoff run")
+                from pipecat.processors.aggregators.llm_context import LLMContext
+                if self.openai_service is not None and getattr(self.openai_service, "_context", None) is None:
+                    self.openai_service._context = LLMContext()
+                    logger.info("🌱 Pre-seeded empty context to consume pipecat's first-context auto-response (silent — no startup speech)")
+                else:
+                    logger.info("🌱 Startup context already set; skipping pre-seed")
             except Exception as e:
-                logger.warning(f"⚠️ Could not seed startup context (turn-1 double may occur): {e}")
+                logger.warning(f"⚠️ Could not pre-seed startup context (turn-1 double may occur): {e}")
 
         # Setup WebSocket event handlers
         async def on_client_connected(client_id: str):
