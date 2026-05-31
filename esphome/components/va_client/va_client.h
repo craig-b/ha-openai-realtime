@@ -190,6 +190,14 @@ class VaClient : public Component {
   // can't leak into the open mic (XMOS AEC ~10x leak).
   uint32_t followup_ms_{0};
   static constexpr uint32_t kFollowupMsMax = 60000;
+  // Live delay (ms) between the speaker draining and the follow-up mic opening,
+  // also pushed from the backend `hello` ("follow_up_open_delay_ms":N). Covers
+  // the i2s ring + DAC tail that plays out after has_buffered_data() goes false,
+  // so the mic doesn't catch the reply's own tail. Defaults to the conservative
+  // kFollowupOpenDelayMs but is tunable from the add-on (lower = snappier, risk
+  // of hearing the tail; higher = safer). Clamped to kFollowupOpenDelayMaxMs.
+  uint32_t followup_open_delay_ms_{kFollowupOpenDelayMs};
+  static constexpr uint32_t kFollowupOpenDelayMaxMs = 5000;
   // Legacy compile-time default, kept for reference. The live value now comes
   // from the backend (followup_ms_); this stays 0 so a device talking to an
   // old backend that doesn't send follow_up_ms keeps the turn-based behaviour.

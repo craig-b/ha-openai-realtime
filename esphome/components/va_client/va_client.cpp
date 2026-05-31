@@ -24,6 +24,28 @@ static void va_ws_event_handler(void *handler_args, esp_event_base_t /*base*/, i
   self->on_ws_event(event_id, event_data);
 }
 
+// Parse the unsigned integer immediately following `key` in `msg` (key includes
+// the quotes + colon, e.g. "\"follow_up_ms\":"). Returns true and sets `out` if a
+// run of digits was found right after the key. Keeps us out of a JSON parser for
+// the few small ints the backend sends in `hello`.
+static bool parse_uint_after_key(const std::string &msg, const char *key, uint32_t &out) {
+  size_t p = msg.find(key);
+  if (p == std::string::npos)
+    return false;
+  p += std::strlen(key);
+  uint32_t v = 0;
+  bool any = false;
+  while (p < msg.size() && msg[p] >= '0' && msg[p] <= '9') {
+    v = v * 10u + static_cast<uint32_t>(msg[p] - '0');
+    p++;
+    any = true;
+  }
+  if (!any)
+    return false;
+  out = v;
+  return true;
+}
+
 void VaClient::setup() {
   ESP_LOGCONFIG(TAG, "Setting up VA Client...");
 
@@ -354,30 +376,26 @@ void VaClient::handle_text_(const char *data, size_t len) {
   }
 
   if (msg.find("\"type\":\"hello\"") != std::string::npos) {
-    // Handshake ack from the backend. It may carry "follow_up_ms":N — how long
-    // the mic should stay open after each reply so the user can answer without
-    // a wake word. Parsing it here (instead of a firmware constant) makes the
-    // window tunable from the add-on config; reconnecting after an add-on
-    // restart re-reads the new value. Simple substring + int scan, matching the
-    // phase-matching style below (no JSON parser yet).
-    const std::string key = "\"follow_up_ms\":";
-    size_t p = msg.find(key);
-    if (p != std::string::npos) {
-      p += key.size();
-      uint32_t v = 0;
-      bool any = false;
-      while (p < msg.size() && msg[p] >= '0' && msg[p] <= '9') {
-        v = v * 10u + static_cast<uint32_t>(msg[p] - '0');
-        p++;
-        any = true;
-      }
-      if (any) {
-        if (v > kFollowupMsMax)
-          v = kFollowupMsMax;
-        this->followup_ms_ = v;
-        ESP_LOGI(TAG, "hello: follow-up window = %u ms (%s)", (unsigned) v,
-                 v == 0 ? "disabled, turn-based" : "mic stays open after replies");
-      }
+    // Handshake ack from the backend. It may carry follow-up tuning so the
+    // device behaviour is configurable from the add-on (no reflash): a reconnect
+    // after an add-on restart re-reads these.
+    //   "follow_up_ms":N            — how long the mic stays open after a reply
+    //                                 so the user can answer without a wake word.
+    //   "follow_up_open_delay_ms":N — delay before that mic opens, to let the
+    //                                 reply's i2s/DAC tail finish playing out.
+    uint32_t v = 0;
+    if (parse_uint_after_key(msg, "\"follow_up_ms\":", v)) {
+      if (v > kFollowupMsMax)
+        v = kFollowupMsMax;
+      this->followup_ms_ = v;
+      ESP_LOGI(TAG, "hello: follow-up window = %u ms (%s)", (unsigned) v,
+               v == 0 ? "disabled, turn-based" : "mic stays open after replies");
+    }
+    if (parse_uint_after_key(msg, "\"follow_up_open_delay_ms\":", v)) {
+      if (v > kFollowupOpenDelayMaxMs)
+        v = kFollowupOpenDelayMaxMs;
+      this->followup_open_delay_ms_ = v;
+      ESP_LOGI(TAG, "hello: follow-up mic-open delay = %u ms", (unsigned) v);
     }
     return;
   }
@@ -872,15 +890,16 @@ void VaClient::open_followup_window_(uint32_t duration_ms) {
   // data() (the drain signal that got us here) goes false ~500 ms before true
   // silence — there's still the i2s ring + DAC tail playing out. Opening the
   // mic now would let that tail leak back in (XMOS AEC ~10x) and false-trigger
-  // the server VAD. So wait kFollowupOpenDelayMs for the tail to clear, THEN
-  // open the mic and show `listening` so the user can see the device is waiting
-  // for them to answer (without a wake word). The LED stays idle (emitted just
-  // above) during this short gap. Any new turn / wake / stop / interrupt cancels
-  // "va_followup_open" before it fires (see set_phase_, start_session,
-  // send_interrupt), so a barge of a new turn won't reopen the mic underneath it.
+  // the server VAD. So wait followup_open_delay_ms_ (from the backend) for the
+  // tail to clear, THEN open the mic and show `listening` so the user can see
+  // the device is waiting for them to answer (without a wake word). The LED
+  // stays idle (emitted just above) during this short gap. Any new turn / wake /
+  // stop / interrupt cancels "va_followup_open" before it fires (see set_phase_,
+  // start_session, send_interrupt), so a new turn won't reopen the mic under it.
+  const uint32_t open_delay = this->followup_open_delay_ms_;
   ESP_LOGI(TAG, "follow-up: mic opens in %u ms, then listening for %u ms",
-           (unsigned) kFollowupOpenDelayMs, (unsigned) duration_ms);
-  this->set_timeout("va_followup_open", kFollowupOpenDelayMs, [this, duration_ms]() {
+           (unsigned) open_delay, (unsigned) duration_ms);
+  this->set_timeout("va_followup_open", open_delay, [this, duration_ms]() {
     ESP_LOGI(TAG, "follow-up window open (mic on, listening for %u ms)", (unsigned) duration_ms);
     this->streaming_ = true;
     this->fire_phase_led_("listening");  // blue ring: user may answer now
