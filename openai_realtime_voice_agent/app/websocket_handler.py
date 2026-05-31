@@ -13,7 +13,7 @@ from pipecat.transports.websocket.server import WebsocketServerTransport, Websoc
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
-from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame, StartFrame, EndFrame, InterruptionTaskFrame, ErrorFrame
+from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame, StartFrame, EndFrame, ErrorFrame
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
 
@@ -390,27 +390,40 @@ class WebSocketHandler:
         logger.info("✅ Pipeline initialized successfully")
 
         # Wire the device "stop" interrupt. The serializer calls this when it
-        # sees {"type":"interrupt"} from the device. By the time the user says
-        # "stop", OpenAI has usually FINISHED generating (it bursts the whole
-        # reply faster than real-time) — so response.cancel alone fails with
-        # "no active response" and the buffered TTS keeps playing out. The real
-        # fix is to interrupt the BOT so pipecat clears the output transport's
-        # queued audio: queue an InterruptionTaskFrame (the non-deprecated
-        # programmatic bot-interrupt). We additionally send response.cancel ONLY
-        # if a response is still actively generating, to avoid the noisy
-        # "response_cancel_not_active" error in the common (already-done) case.
+        # sees {"type":"interrupt"} from the device.
+        #
+        # The DEVICE stops playback AUTHORITATIVELY: on "stop" its firmware
+        # flushes the PSRAM queue and drops all further incoming TTS
+        # (suppress_incoming_audio_) until the next turn boundary. So the backend
+        # does NOT need to clear its own output here — the user already hears
+        # silence. The backend's only job is to stop OpenAI generating MORE
+        # tokens: a plain response.cancel, and ONLY while a response is actually
+        # active (avoids the noisy response_cancel_not_active in the common
+        # already-burst-finished case).
+        #
+        # We deliberately do NOT queue an InterruptionTaskFrame anymore. It made
+        # pipecat run _handle_interruption → _truncate_current_audio_response(),
+        # which tells OpenAI to truncate the assistant audio at the *playback*
+        # position. But OpenAI bursts the reply faster than real-time, so that
+        # position overshoots the audio that actually exists and OpenAI rejects
+        # the truncate with invalid_request_error ("Audio content of N ms is
+        # already shorter than M ms"). That error left the realtime session in a
+        # broken state where the user's VERY NEXT turn got NO response — the
+        # recurring "say stop, then immediately ask again → silence" bug. Since
+        # the device already silenced playback, dropping the truncate costs us
+        # nothing and keeps the next turn alive. (The backend still drains its
+        # already-buffered output to the device, which the device discards —
+        # minor wasted bandwidth, tracked as roadmap #3; no extra tokens because
+        # response.cancel stops further generation.)
         async def _on_device_interrupt():
-            try:
-                await task.queue_frames([InterruptionTaskFrame()])
-                logger.info("🛑 device interrupt → bot interruption queued (clears buffered reply)")
-            except Exception as e:
-                logger.warning(f"⚠️ could not interrupt pipeline on device interrupt: {e!r}")
             try:
                 if getattr(openai_service, "_current_assistant_response", None) is not None:
                     await openai_service.send_client_event(openai_rt_events.ResponseCancelEvent())
                     logger.info("🛑 device interrupt → response.cancel sent (response was still active)")
+                else:
+                    logger.info("🛑 device interrupt → no active response to cancel (device already silenced)")
             except Exception as e:
-                logger.warning(f"⚠️ could not cancel active OpenAI response: {e!r}")
+                logger.info(f"🛑 device interrupt → response.cancel no-op ({e!r})")
 
         if self._serializer is not None:
             self._serializer.set_interrupt_handler(_on_device_interrupt)
