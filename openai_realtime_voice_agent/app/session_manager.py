@@ -27,13 +27,24 @@ class SessionManager:
     closed within the reuse timeout period.
     """
     
-    def __init__(self, reuse_timeout: float = 300.0):
+    def __init__(self, reuse_timeout: float = 300.0, max_restored_messages: int = 0):
         """Initialize session manager.
-        
+
         Args:
             reuse_timeout: Time in seconds after which cached context expires
+            max_restored_messages: Cap on how many of the most-recent cached
+                messages are restored into a new session (0 = unlimited). The
+                OpenAI Realtime conversation grows server-side and pipecat 0.0.97
+                has no truncation, so every response.create re-bills the whole
+                history (audio transcripts + tool results). The device reconnects
+                often (follow-up windows, keepalive drops), and each reconnect
+                restores the cached context — so capping it here bounds the
+                per-turn token cost (and the rate-limit risk) without losing
+                recent conversational continuity. A leading system message, if
+                present, is always kept.
         """
         self.reuse_timeout = reuse_timeout
+        self.max_restored_messages = max(0, int(max_restored_messages))
         # Dictionary mapping client_id to ContextCacheEntry
         self.context_caches: Dict[str, ContextCacheEntry] = {}
         # Dictionary mapping client_id to current service
@@ -128,8 +139,25 @@ class SessionManager:
             # Create a new context instance with the same messages
             # Use the constructor to properly copy messages and tools
             cached_messages = cached_context.get_messages()
+            restore_messages = cached_messages.copy() if cached_messages else None
+            # Cap the restored history to the most-recent N messages so the
+            # per-turn token cost stays bounded (see __init__ docstring). Keep a
+            # leading system message if there is one, then the last N of the rest.
+            if restore_messages and self.max_restored_messages > 0 and \
+                    len(restore_messages) > self.max_restored_messages:
+                head = []
+                body = restore_messages
+                if isinstance(restore_messages[0], dict) and restore_messages[0].get("role") == "system":
+                    head = [restore_messages[0]]
+                    body = restore_messages[1:]
+                trimmed = head + body[-self.max_restored_messages:]
+                logger.info(
+                    f"✂️ Trimmed restored context for client {client_id}: "
+                    f"{len(restore_messages)} → {len(trimmed)} messages (cap {self.max_restored_messages})"
+                )
+                restore_messages = trimmed
             new_context = LLMContext(
-                messages=cached_messages.copy() if cached_messages else None,
+                messages=restore_messages,
                 tools=cached_context.tools if hasattr(cached_context, 'tools') else None,
                 tool_choice=cached_context.tool_choice if hasattr(cached_context, 'tool_choice') else None
             )

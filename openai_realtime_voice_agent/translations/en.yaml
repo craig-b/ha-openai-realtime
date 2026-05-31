@@ -139,6 +139,14 @@ configuration:
     description: >-
       How long a disconnected client's conversation context is kept so a quick
       reconnect resumes the same session. 0–3600.
+  max_context_messages:
+    name: Max context messages
+    description: >-
+      How many recent conversation messages are restored into a session. gpt-realtime
+      re-bills the whole conversation on every reply, so a long chat can hit OpenAI's
+      tokens-per-minute limit ("Rate limit reached"). Capping this keeps each turn
+      cheap while preserving recent context. 12 is a good default; lower if you still
+      hit rate limits, 0 disables the cap.
   enable_recording:
     name: Record audio (debug)
     description: >-

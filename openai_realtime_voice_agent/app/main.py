@@ -178,8 +178,23 @@ class Application:
 
         # Get session reuse timeout and initialize session manager
         session_reuse_timeout = float(os.environ.get("SESSION_REUSE_TIMEOUT_SECONDS", "300"))
-        self.session_manager = SessionManager(reuse_timeout=session_reuse_timeout)
-        logger.info(f"Session reuse timeout: {session_reuse_timeout} seconds")
+        # Cap on restored conversation history (0 = unlimited). Bounds per-turn
+        # tokens so a long chat doesn't trip OpenAI's TPM rate limit (gpt-realtime
+        # re-bills the whole conversation on every response; pipecat has no
+        # truncation). Default 12 keeps recent continuity cheaply.
+        try:
+            max_context_messages = int(os.environ.get("MAX_CONTEXT_MESSAGES", "12"))
+        except (TypeError, ValueError):
+            max_context_messages = 12
+        max_context_messages = max(0, max_context_messages)
+        self.session_manager = SessionManager(
+            reuse_timeout=session_reuse_timeout,
+            max_restored_messages=max_context_messages,
+        )
+        logger.info(
+            f"Session reuse timeout: {session_reuse_timeout} seconds, "
+            f"max restored messages: {max_context_messages or 'unlimited'}"
+        )
         
         if not openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")

@@ -32,6 +32,7 @@ INSTRUCTIONS=$(bashio::config 'instructions')
 
 # Get session management settings
 SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'session_reuse_timeout_seconds')
+MAX_CONTEXT_MESSAGES=$(bashio::config 'max_context_messages')
 
 # Get audio recording setting
 ENABLE_RECORDING=$(bashio::config 'enable_recording')
@@ -72,6 +73,7 @@ export INSTRUCTIONS
 
 # Export session management settings
 export SESSION_REUSE_TIMEOUT_SECONDS
+export MAX_CONTEXT_MESSAGES
 
 # Export audio recording setting
 export ENABLE_RECORDING
