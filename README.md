@@ -7,13 +7,13 @@
 > unofficial **[ha-mcp](https://github.com/homeassistant-ai/ha-mcp)** server.
 > There is no Home Assistant `voice_assistant` pipeline on the audio path.
 >
-> Active config: [`home-assistant-voice.va-direct.yaml`](home-assistant-voice.va-direct.yaml).
+> Active config: [`home-assistant-voice.realtime.yaml`](home-assistant-voice.realtime.yaml) (standard / DHCP) — or [`home-assistant-voice.realtime.static-ip.yaml`](home-assistant-voice.realtime.static-ip.yaml) for a fixed IP via secrets.
 > Companion backend add-on: **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)**.
 
 ## What this fork adds on top of upstream
 
 - **Direct use in ESPHome Builder**: `external_components` and sound/model
-  assets are pulled from GitHub, so you can paste the va-direct config into the
+  assets are pulled from GitHub, so you can paste the realtime config into the
   ESPHome dashboard and build without a local checkout. This repo is **private**,
   so the component source URL carries a read-only token kept in `secrets.yaml`
   (see setup below) — the token never lands in the committed config.
@@ -31,7 +31,7 @@
    [xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)
    (sets your OpenAI key, the model, and the ha-mcp URL/token).
 2. In the ESPHome dashboard, create a device from
-   [`home-assistant-voice.va-direct.yaml`](home-assistant-voice.va-direct.yaml).
+   [`home-assistant-voice.realtime.yaml`](home-assistant-voice.realtime.yaml).
 3. Provide these `secrets.yaml` keys:
    - `va_components_repo` — the tokenized git URL for this private repo, e.g.
      `https://<TOKEN>@github.com/xandervanerven/home-assistant-voice-pe.git`
