@@ -35,9 +35,9 @@
 - **"stop" word + button interrupt**: say *"stop"* while the assistant is
   talking, or press the center button, to cancel the reply. This is the reliable
   way to interrupt.
-- **Audio-quality fixes**: a resampler cold-start "silence-prime" plus WiFi
-  `power_save_mode: none` remove the start-of-reply crackle, and a ~600 ms mic
-  pre-roll ring keeps the first word spoken during the wake chime from being lost.
+- **Conversational, with online answers**: because the brain is `gpt-realtime-2`
+  in the backend, you get a natural back-and-forth — and with web search enabled it
+  can look things up online (weather, news, facts), not just control your devices.
 
 ## Setup (ESPHome Builder)
 
