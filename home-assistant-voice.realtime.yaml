@@ -1637,8 +1637,9 @@ script:
   # Single disarm point for the "stop" wake word. Started on EVERY return to idle
   # (on_phase) and by on_followup_opened (request_follow_up). It waits out the
   # whole reply tail + follow-up listening window, then disarms "stop" — but only
-  # if no new reply started meanwhile (a new reply calls script.stop on this and
-  # re-arms). mode: restart so each idle / follow-up restarts the timer.
+  # if no new turn started meanwhile (a new reply OR a `listening` turn-start
+  # calls script.stop on this; the turn's own return to idle restarts it).
+  # mode: restart so each idle / follow-up restarts the timer.
   #
   # 12 s comfortably covers both window types: the automatic follow-up
   # (follow_up_listen_seconds, ~8 s) and a request_follow_up (kRequestFollowUpMs,
@@ -1956,6 +1957,23 @@ va_client:
           lambda: 'return phase == "replying";'
         then:
           - micro_wake_word.enable_model: stop
+          - script.stop: followup_window_watchdog
+    # A turn is in flight ("listening" = the server VAD heard the user speak,
+    # OR the follow-up window just opened its listening LED): stop the disarm
+    # watchdog that the preceding idle started. Without this it fires 12 s
+    # after that idle — mid-turn if the user is still talking — and its
+    # idle-or-listening condition matches, forcing phase/LED to idle and
+    # disarming "stop" in the middle of the conversation. Stopping it here
+    # also decouples the 12 s constant from follow_up_listen_seconds (windows
+    # > ~11 s no longer get cut short). Every path still converges on a
+    # disarm: each return to idle (incl. the window-expiry idle the firmware
+    # fires) restarts the watchdog. The request_follow_up path is unaffected —
+    # it sets the phase global directly (not via on_phase) and runs its own
+    # watchdog from on_followup_opened.
+    - if:
+        condition:
+          lambda: 'return phase == "listening";'
+        then:
           - script.stop: followup_window_watchdog
     - if:
         condition:

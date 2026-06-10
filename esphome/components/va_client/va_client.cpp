@@ -423,9 +423,13 @@ void VaClient::handle_text_(const char *data, size_t len) {
     // mode is identical from the user's perspective ("something went
     // wrong, try again"). We deliberately don't bump consecutive_failures_
     // here; that counter is for WS reachability, not server-side errors.
-    for (auto *t : this->repeated_failure_triggers_) {
-      t->trigger();
-    }
+    // Marshalled via defer(): handle_text_ runs on the WS task and ESPHome
+    // triggers (→ the yaml play_sound script) are not thread-safe.
+    this->defer([this]() {
+      for (auto *t : this->repeated_failure_triggers_) {
+        t->trigger();
+      }
+    });
     this->set_phase_("idle");
     return;
   }
@@ -541,8 +545,12 @@ void VaClient::handle_binary_(const uint8_t *data, size_t len) {
   size_t pairs = len / 2;
   if (pairs > 0) {
     auto *in = reinterpret_cast<const int16_t *>(data);
-    // Reuse mono_buf_ as a scratch — it's already int16_t.
-    this->mono_buf_.resize(pairs);
+    // Scale into tts_buf_ — NOT mono_buf_: that vector is owned by the mic
+    // task (on_mic_data_ refills it on every mic frame, and the mic never
+    // stops while mWW runs), whereas we're on the WS task. Sharing one vector
+    // raced the two tasks (concurrent resize/realloc + interleaved writes),
+    // putting mic samples / freed memory into the TTS ring — audible as hiss.
+    this->tts_buf_.resize(pairs);
     float vol = this->volume_;
     if (vol < 0.0f) vol = 0.0f;
     else if (vol > 1.0f) vol = 1.0f;
@@ -553,10 +561,10 @@ void VaClient::handle_binary_(const uint8_t *data, size_t len) {
       int32_t v = (static_cast<int32_t>(in[i]) * scale) >> 15;
       if (v > 32767) { v = 32767; clipped++; }
       else if (v < -32768) { v = -32768; clipped++; }
-      this->mono_buf_[i] = static_cast<int16_t>(v);
+      this->tts_buf_[i] = static_cast<int16_t>(v);
     }
     this->clipped_samples_ += clipped;
-    data = reinterpret_cast<const uint8_t *>(this->mono_buf_.data());
+    data = reinterpret_cast<const uint8_t *>(this->tts_buf_.data());
     // len is unchanged (pairs * 2 == len rounded down; trailing odd byte ignored).
     len = pairs * 2;
   }
@@ -1030,6 +1038,12 @@ void VaClient::send_interrupt() {
   // Abandon any in-progress cold-start silence-prime; the next reply will detect
   // cold and re-prime cleanly.
   this->chain_prime_remaining_ = 0;
+  // Close the mic gate. An interrupt during the OPEN follow-up window would
+  // otherwise leave streaming_ true while the va_followup close-timer gets
+  // cancelled just below — mic open + streaming to OpenAI indefinitely, so any
+  // later room speech becomes an unprompted turn. Callers that start a fresh
+  // turn (start_session) re-open it themselves right after.
+  this->streaming_ = false;
   this->followup_pending_ = false;
   this->waiting_for_speaker_stop_ = false;
   this->request_follow_up_pending_ = false;
