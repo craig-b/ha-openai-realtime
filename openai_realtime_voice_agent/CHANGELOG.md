@@ -2,6 +2,12 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.5.1 (dev channel)
+
+- Version sync after the stable **0.5.0** release: the dev channel contains the
+  same content plus the dev-only diagnostics (log_level/DebugFrameLogger).
+  No functional changes.
+
 ## 0.4.32 (dev channel)
 
 - The add-on now has its own icon and logo (a stylised Voice PE), shown in
