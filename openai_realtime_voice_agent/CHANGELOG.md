@@ -2,6 +2,14 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.5.4 (dev channel)
+
+- **Long web searches now get all the time they need.** While a tool call is
+  running (a web search on a hard question can legitimately take a while) the
+  stuck-"thinking" watchdog from 0.5.3 waits indefinitely instead of cutting
+  in after 60 seconds. The 15-second dead-turn detection still applies the
+  moment nothing is running anymore.
+
 ## 0.5.3 (dev channel)
 
 - **The device can no longer get stuck "thinking".** When a turn died without

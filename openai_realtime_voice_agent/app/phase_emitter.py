@@ -48,13 +48,18 @@ IMPORTANT — thinking watchdog + forced idle (v0.5.3):
        the exact 400 ms race observed.
     2. A thinking watchdog — if `thinking` sees no model activity for
        THINKING_TIMEOUT_S it forces idle as a generic safety net (covers
-       turn deaths that produce no ErrorFrame at all). "Activity" includes
-       running tool calls via TURN_LIVENESS (a web search legitimately takes
-       10-20 s of pipeline silence; tool handlers are wrapped in
-       SafeRealtimeLLMService.register_function to tick it), with a harder
-       TOOL_INFLIGHT_CAP_S so even a hung MCP call can't stick the device.
-       If a slow-but-alive turn is cut off by the watchdog, the late reply
-       still plays (BotStarted -> replying) — degraded but never stuck.
+       turn deaths that produce no ErrorFrame at all). While a tool call is
+       in flight (TURN_LIVENESS; tool handlers are wrapped in
+       SafeRealtimeLLMService.register_function to tick it) the watchdog
+       WAITS WITH NO CAP — explicit user decision 2026-06-12: a long web
+       search on a hard question must get all the time it needs, the user
+       knowingly waits. This cannot wait forever: every tool is bounded by
+       its own client timeout (MCP ~30 s HTTP; web search the OpenAI
+       client's 600 s default, whose except-path feeds the model a spoken
+       error), and the wrapper's `finally` guarantees in_flight always
+       drops back to 0 — after which the normal THINKING_TIMEOUT_S window
+       applies again. If a slow-but-alive turn is ever cut off, the late
+       reply still plays (BotStarted -> replying) — degraded but never stuck.
 """
 import asyncio
 import logging
@@ -107,13 +112,12 @@ class PhaseEmitter(FrameProcessor):
     # activity before we declare the turn dead and force idle. Normal silent
     # gaps (turn end -> first token, tool result -> next response) are 1-4 s,
     # so 15 s has ample margin without leaving the user staring at a blinking
-    # LED for long.
+    # LED for long. While a tool is in flight the watchdog waits with NO cap
+    # (see the module docstring — explicit user decision).
     THINKING_TIMEOUT_S = 15.0
-    # While a tool call is in flight the turn is alive by definition — allow
-    # much longer (web search!), but still cap it so a hung tool/MCP call
-    # can't stick the device forever.
-    TOOL_INFLIGHT_CAP_S = 60.0
     WATCHDOG_POLL_S = 1.0
+    # How often to log that we're deliberately waiting on a running tool.
+    INFLIGHT_LOG_EVERY_S = 30.0
 
     def __init__(self, send_phase, idle_debounce_s: float = None, **kwargs):
         """
@@ -193,6 +197,7 @@ class PhaseEmitter(FrameProcessor):
     async def _thinking_watchdog(self) -> None:
         """Force idle when `thinking` sits with no model activity (dead turn)."""
         armed_at = time.monotonic()
+        last_inflight_log = 0.0
         try:
             while True:
                 await asyncio.sleep(self.WATCHDOG_POLL_S)
@@ -200,14 +205,23 @@ class PhaseEmitter(FrameProcessor):
                     return  # phase moved on — turn is alive, watchdog done
                 now = time.monotonic()
                 last = max(armed_at, TURN_LIVENESS.last_activity)
-                limit = (self.TOOL_INFLIGHT_CAP_S if TURN_LIVENESS.in_flight > 0
-                         else self.THINKING_TIMEOUT_S)
-                if now - last < limit:
+                if TURN_LIVENESS.in_flight > 0:
+                    # A tool is running — the turn is alive by definition, and
+                    # a long web search must get all the time it needs (no
+                    # cap; see the module docstring). Log occasionally so a
+                    # long wait is visibly deliberate in the log.
+                    if now - last_inflight_log >= self.INFLIGHT_LOG_EVERY_S:
+                        last_inflight_log = now
+                        logger.info(
+                            f"⏳ thinking-watchdog: {TURN_LIVENESS.in_flight} tool(s) "
+                            f"running for {now - last:.0f}s — waiting (no cap)"
+                        )
+                    continue
+                if now - last < self.THINKING_TIMEOUT_S:
                     continue
                 logger.warning(
                     f"⚠️ thinking-watchdog: no model activity for {now - last:.0f}s "
-                    f"({TURN_LIVENESS.in_flight} tool(s) in flight) — forcing idle "
-                    f"to unstick the device"
+                    f"and no tool in flight — forcing idle to unstick the device"
                 )
                 await self.force_idle("thinking-watchdog")
                 return
