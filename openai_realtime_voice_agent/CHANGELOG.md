@@ -2,6 +2,14 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.5.10 (dev channel)
+
+- **The light ring keeps "thinking" during a web search** instead of dropping to
+  the idle animation. After the spoken "let me look that up" the device used to
+  go idle while the search (a few seconds) was still running, so it looked like
+  nothing was happening. It now stays in the thinking state until the answer
+  comes.
+
 ## 0.5.9 (dev channel)
 
 - **Web search works again.** The 0.5.8 "phantom turn" guard was too aggressive:

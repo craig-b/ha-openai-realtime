@@ -192,6 +192,19 @@ class PhaseEmitter(FrameProcessor):
             await asyncio.sleep(self._idle_debounce_s)
         except asyncio.CancelledError:
             return
+        # A tool (web search, MCP call) can still be running when the filler
+        # reply's debounce expires — the turn isn't over, the model is
+        # "thinking" while it waits for the tool. Going idle here makes the
+        # device look done (idle LED, and it opens a follow-up window) while it
+        # is actually still working — confusing on a slow web search. Show
+        # `thinking` instead and arm the watchdog (which waits without a cap
+        # while a tool is in flight); the tool's result response then flips the
+        # phase to `replying`. Fast tools never reach here — their result reply
+        # cancels this debounce first.
+        if TURN_LIVENESS.in_flight > 0:
+            await self._emit("thinking")
+            self._arm_watchdog()
+            return
         await self._emit("idle")
 
     async def _thinking_watchdog(self) -> None:
