@@ -270,8 +270,14 @@ void VaClient::loop() {
 
 void VaClient::connect_() {
   if (this->ws_handle_ != nullptr) {
-    // Already initialised; just (re)start.
-    esp_websocket_client_start(static_cast<esp_websocket_client_handle_t>(this->ws_handle_));
+    // Already initialised; just (re)start. A synchronous start failure must
+    // reschedule — otherwise the reconnect chain stalls silently and the
+    // device stays offline until a reboot.
+    esp_err_t err = esp_websocket_client_start(static_cast<esp_websocket_client_handle_t>(this->ws_handle_));
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_websocket_client_start (restart) failed: %d — rescheduling", (int) err);
+      this->schedule_reconnect_();
+    }
     return;
   }
 
@@ -799,21 +805,27 @@ void VaClient::set_phase_(const std::string &phase) {
       // Plain idle (boot, reconnect, etc) — no follow-up. Fall through to
       // the regular trigger fire so the LED updates.
       //
-      // One plain-idle case DOES need work: idle straight from `listening`
-      // means the turn died without a reply — a backend force-idle (rate
-      // limit / thinking-watchdog; the backend suppresses `thinking` after
-      // declaring a turn dead, so `listening` is exactly where the device
-      // sits then) or a WS drop mid-listening. Nothing else ever closes the
-      // mic gate in that state: no `replying` follows and the no-speech
-      // watchdog was cancelled when `listening` arrived — the mic would
-      // stream the room indefinitely (and the backend's mic-resume buffer
-      // clear never fires, because the stream never pauses). prev==IDLE is
-      // deliberately left alone: that's the open follow-up window
-      // (fire_phase_led_ doesn't change current_phase_), and closing the
-      // gate there would cut the window short.
-      if (prev == Phase::LISTENING && this->streaming_) {
-        ESP_LOGI(TAG, "idle from listening — turn died, mic streaming off");
+      // An idle that arrives while the mic gate is still OPEN means an orphaned
+      // stream that nothing else will close — shut it. Two real ways to reach
+      // here with streaming_ still true:
+      //   • idle straight from `listening`: the turn died without a reply (a
+      //     backend force-idle on rate-limit / thinking-watchdog — the backend
+      //     suppresses `thinking` after declaring a turn dead, so `listening`
+      //     is exactly where the device sits — or a WS drop mid-listening).
+      //   • idle from `idle` (prev==IDLE) with the mic open: the brief post-wake
+      //     "waiting for the first phase" window, or an open follow-up window,
+      //     when the WS drops (on_ws_event fires set_phase_("idle") on
+      //     disconnect). Without this the gate stays open and the mic resumes
+      //     streaming the room the instant we reconnect — and the backend's
+      //     mic-resume buffer clear can't help because the stream never paused.
+      // Closing here can't cut a LIVE follow-up window short: the only idle that
+      // reaches an open window is exactly such a disconnect — the backend sends
+      // no idle while it's waiting for the user to answer.
+      if (this->streaming_) {
+        ESP_LOGI(TAG, "idle while mic open (prev=%s) — closing orphaned mic gate",
+                 phase_name_(prev));
         this->streaming_ = false;
+        this->cancel_timeout("va_no_speech");
       }
     } else if (this->suppress_followup_) {
       // send_interrupt() set this — user explicitly asked us to stop.
@@ -1073,13 +1085,18 @@ void VaClient::commit_followup_mic() {
 }
 
 void VaClient::send_interrupt() {
-  if (!this->ws_connected_ || this->ws_handle_ == nullptr) {
-    ESP_LOGW(TAG, "send_interrupt: WS not connected");
-    return;
+  // Best-effort cancel to the backend — ONLY if the socket is alive. The local
+  // cleanup below must ALWAYS run: returning early on a dead socket (the old
+  // behaviour) left streaming_ on, the PSRAM ring full and the follow-up timers
+  // armed after a "stop" on a dead link, so the mic would resume streaming the
+  // room the instant we reconnected.
+  if (this->ws_connected_ && this->ws_handle_ != nullptr) {
+    const char msg[] = "{\"type\":\"interrupt\"}";
+    auto handle = static_cast<esp_websocket_client_handle_t>(this->ws_handle_);
+    esp_websocket_client_send_text(handle, msg, sizeof(msg) - 1, portMAX_DELAY);
+  } else {
+    ESP_LOGW(TAG, "send_interrupt: WS not connected — local cleanup only");
   }
-  const char msg[] = "{\"type\":\"interrupt\"}";
-  auto handle = static_cast<esp_websocket_client_handle_t>(this->ws_handle_);
-  esp_websocket_client_send_text(handle, msg, sizeof(msg) - 1, portMAX_DELAY);
   // Flush our PSRAM playback queue — what's already been pushed into the
   // resampler/mixer/leaf will still drain (~600 ms residual), but everything
   // we have yet to hand off is dropped. The yaml side stops the resampler
