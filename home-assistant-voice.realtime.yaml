@@ -2113,23 +2113,34 @@ micro_wake_word:
                 - switch.turn_off: timer_ringing
               else:
                 # The "stop" model is special — it's a cancel signal, not a
-                # session-start. We want it to work in any non-idle phase:
-                # during replying (current barge-in), but also during the
-                # follow-up listening window (user changed their mind) and
-                # while server VAD has us in listening/thinking (user wants
-                # to abort their own utterance). mww reports the wake word
-                # label, which has been observed as "Stop" (capital) on
-                # this model — check both forms case-defensively.
+                # session-start. It acts ONLY when there is something to stop:
+                # while a reply is audibly playing, or in the follow-up /
+                # request-follow-up window after a reply (turn_has_reply_audio()
+                # is true there). It is deliberately IGNORED while the user is
+                # still asking (listening) or the model is still thinking, before
+                # any reply audio — there is nothing to stop yet, and a false
+                # "stop" on the user's OWN speech used to corrupt that turn (it
+                # fired send_interrupt + suppressed the follow-up window; seen
+                # 2026-06-14 20:49, a 0.40 misfire on the start of a question).
+                # mww reports the wake word label, observed as "Stop" (capital)
+                # on this model — check both forms case-defensively.
                 - if:
                     condition:
                       lambda: 'return wake_word == "Stop" || wake_word == "stop";'
                     then:
-                      # Cancel anything in flight (reply, follow-up listening,
-                      # user STT). send_interrupt() flushes the audio queue and
-                      # tells the server to drop the response. No-op in idle.
+                      # Cancel the playing reply (and the follow-up window after
+                      # it). send_interrupt() flushes the audio queue and tells
+                      # the server to drop the response. Guarded by
+                      # turn_has_reply_audio(): only act if audible reply audio
+                      # has played this turn — otherwise this "stop" arrived
+                      # before any reply (during the question / thinking) and is
+                      # a misfire on the user's own speech, so ignore it and let
+                      # the turn finish clean. (Idle is also covered by the phase
+                      # check; turn_has_reply_audio() stays true through the
+                      # follow-up window, so a real barge-in there still works.)
                       - if:
                           condition:
-                            lambda: 'return id(voice_assistant_phase) != ${voice_assist_idle_phase_id};'
+                            lambda: 'return id(voice_assistant_phase) != ${voice_assist_idle_phase_id} && id(va)->turn_has_reply_audio();'
                           then:
                             - lambda: 'id(va)->send_interrupt();'
                             - speaker.stop:
@@ -2137,6 +2148,11 @@ micro_wake_word:
                             - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
                             - script.execute: control_leds
                             - micro_wake_word.disable_model: stop
+                          else:
+                            - logger.log:
+                                format: "ignoring 'stop' — no reply audio yet (phase=%d), nothing to stop"
+                                args: ['id(voice_assistant_phase)']
+                                level: INFO
                     else:
                       # Non-stop wake word: branch on the assistant's current
                       # phase. Wake fired while replying = barge-in (interrupt

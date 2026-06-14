@@ -71,6 +71,14 @@ class VaClient : public Component {
   // is no longer armed (e.g. user already pressed wake before the chime
   // finished — the new session takes priority).
   void commit_followup_mic();
+  // True once this turn has produced audible reply audio (the first
+  // non-suppressed binary chunk set turn_t_first_audio_out_; reset to 0 on
+  // every start_session()). The yaml "stop" handler uses this to ignore a
+  // detection while the user is still asking / the model is still thinking —
+  // there is nothing to stop yet, and a false "stop" on the user's own speech
+  // would otherwise corrupt the turn (no follow-up window). Reply/follow-up/
+  // request-follow-up windows all have it set, so a real barge-in still works.
+  bool turn_has_reply_audio() const { return this->turn_t_first_audio_out_ != 0; }
 
   // Called from the static esp-idf event handler trampoline.
   void on_ws_event(int32_t event_id, void *event_data);
