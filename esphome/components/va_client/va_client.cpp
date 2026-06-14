@@ -960,6 +960,11 @@ void VaClient::start_session() {
   this->preroll_discard_pending_ = true;
   ESP_LOGI(TAG, "start_session() — streaming on");
   this->streaming_ = true;
+  // Tell the backend a fresh wake started (dangling-VAD guard, A). Sent AFTER
+  // the residual-reply interrupt above so the backend sees interrupt → wake in
+  // order. The first real mic frame for this turn doesn't flow until after this
+  // returns, so the guard's "speech since wake" tracker starts clean.
+  this->send_wake_();
   // New wake word starts a fresh session — drop any pending or active
   // follow-up window from the previous turn.
   this->followup_pending_ = false;
@@ -1108,6 +1113,21 @@ void VaClient::send_mic_flush_() {
     auto handle = static_cast<esp_websocket_client_handle_t>(this->ws_handle_);
     esp_websocket_client_send_text(handle, msg, sizeof(msg) - 1, portMAX_DELAY);
     ESP_LOGI(TAG, "follow-up window closed — sent flush (drop uncommitted mic audio)");
+  }
+}
+
+void VaClient::send_wake_() {
+  // Tell the backend a fresh wake started (dangling-VAD guard, A). Until the
+  // user actually speaks this turn, OpenAI's server VAD can still fire an
+  // end-of-turn for a PREVIOUS utterance that never closed (the reply gated the
+  // mic mid-sentence) — committing it auto-creates a garbage answer to an empty
+  // turn. The backend uses this signal to suppress that stale thinking + cancel
+  // the racing response. Sent on every start_session(); old backends ignore it.
+  if (this->ws_connected_ && this->ws_handle_ != nullptr) {
+    const char msg[] = "{\"type\":\"wake\"}";
+    auto handle = static_cast<esp_websocket_client_handle_t>(this->ws_handle_);
+    esp_websocket_client_send_text(handle, msg, sizeof(msg) - 1, portMAX_DELAY);
+    ESP_LOGI(TAG, "wake — sent {\"type\":\"wake\"} (dangling-VAD guard)");
   }
 }
 

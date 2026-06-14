@@ -86,6 +86,11 @@ class VaClient : public Component {
   // source means no reactive clear-on-wake is needed (that one disturbed the
   // server VAD and caused spurious garbage commits). No-op if nothing buffered.
   void send_mic_flush_();
+  // Tell the backend a fresh wake started ({"type":"wake"}), for the
+  // dangling-VAD guard: a server-VAD end-of-turn before the user speaks is a
+  // stale pre-wake segment → backend suppresses its thinking + cancels its
+  // garbage response. Sent on every start_session(); old backends ignore it.
+  void send_wake_();
   // Mic pre-roll helper (mic-task only, no lock). push appends to the rolling
   // ring while the session is closed; the ring is DISCARDED (not replayed) on
   // session open — see preroll_discard_pending_.
