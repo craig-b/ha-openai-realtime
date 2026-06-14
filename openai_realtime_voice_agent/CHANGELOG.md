@@ -2,6 +2,16 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.5.14 (dev channel)
+
+- **Fixed: saying "stop" during a web search no longer leaves the device
+  looking busy.** If you stopped the assistant while it was searching online
+  (or running another tool), the answer was correctly muted — but the light
+  ring kept showing the "replying" animation for many seconds, as if it was
+  still working. The answer the search produced was created just after the
+  cancel window closed, so it slipped through. The add-on now also cancels that
+  already-stopped answer at the source, so the ring returns to idle promptly.
+
 ## 0.5.13 (dev channel)
 
 - **Fixed: after rapid "stop" + wake testing, a reply (e.g. a web-search
