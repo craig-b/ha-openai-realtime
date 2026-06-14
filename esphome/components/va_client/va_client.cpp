@@ -848,6 +848,28 @@ void VaClient::set_phase_(const std::string &phase) {
       this->cancel_timeout("va_tts_tail");
       this->idle_emit_pending_ = false;
     } else if (this->audio_fill_ == 0) {
+      // Stale-`idle` guard. prev==REPLYING with NO audio played since the last
+      // wake (turn_t_first_audio_out_==0) means this `idle` belongs to a reply
+      // that was stopped and then superseded by a new wake while it was still
+      // draining: start_session() reset turn_t_first_audio_out_ and the old
+      // tail is suppressed, so nothing actually played in THIS session. Opening
+      // a follow-up here lights a spurious `listening` window over the fresh
+      // wake session (observed live 2026-06-14: web-search → "stop" → bare wake
+      // → ~4 s `listening` flicker; device log "Phase -> idle (was replying)").
+      // Ignore it: the wake's no-speech watchdog is still armed (we never
+      // reached `listening`, so it was never cancelled) and owns the session —
+      // it idles the LED and closes the mic. current_phase_ is already IDLE
+      // (set at the top of set_phase_), so the next message's `prev` is fine.
+      // Tight by construction: a reply that really played sets
+      // turn_t_first_audio_out_ (suppression lifts on `listening`), and a
+      // follow-up chain keeps it set (only start_session resets it), so no
+      // legitimate follow-up is skipped; the dead-turn path (prev==THINKING,
+      // watchdog already cancelled) is deliberately left untouched.
+      if (prev == Phase::REPLYING && this->turn_t_first_audio_out_ == 0) {
+        ESP_LOGI(TAG, "stale replying-idle after wake (no audio this session) "
+                      "— ignoring, no follow-up");
+        return;  // leave LED on the wake state; va_no_speech owns the idle + mic
+      }
       // Server says response.done and the device has actually played out.
       // Open the follow-up window (mic on so user can answer a question).
       this->open_followup_window_(this->followup_ms_);
