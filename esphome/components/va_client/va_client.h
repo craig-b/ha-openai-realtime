@@ -210,6 +210,18 @@ class VaClient : public Component {
   // cancelled reply actually goes silent. Cleared in set_phase_ on the next
   // "idle" (reply ended) or "listening" (a fresh turn's audio is legitimate).
   bool suppress_incoming_audio_{false};
+  // Set by send_interrupt() (a local "stop"), cleared in start_session() (the
+  // next wake). After a stop the mic gate is CLOSED, so no new turn can begin
+  // until a wake — yet OpenAI's server VAD can still fire an end-of-turn for
+  // the utterance we just cancelled, which the backend turns into a `thinking`
+  // phase. Acting on that strands the LED in `thinking` until the backend's
+  // 15 s watchdog (observed live 2026-06-14: "stop" mid-question -> 15 s stuck
+  // thinking). While this is true, set_phase_ IGNORES `thinking` — it can only
+  // be the stale tail of the cancelled turn (a legitimate `thinking` is always
+  // preceded by a wake, which clears this). Scoped to `thinking` only: a web
+  // search's replying->thinking has no stop so this stays false (don't break
+  // the search animation), and a reply-drain emits no `thinking` (mic gated).
+  bool post_stop_guard_{false};
   // Live duration (ms) of the post-reply follow-up window: how long the mic
   // stays open after the assistant finishes so the user can answer back
   // WITHOUT re-saying the wake word. Pushed from the backend add-on in the

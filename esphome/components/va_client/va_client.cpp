@@ -715,6 +715,20 @@ void VaClient::set_phase_(const std::string &phase) {
   this->current_phase_.store(static_cast<uint8_t>(phase_from_string_(phase)));
   ESP_LOGD(TAG, "Phase -> %s (was %s)", phase.c_str(), phase_name_(prev));
 
+  // Post-stop `thinking` guard. After a local "stop" the mic gate is closed
+  // (send_interrupt set post_stop_guard_), so no new turn can begin until a
+  // wake (start_session clears it). A `thinking` arriving here is the server
+  // VAD's end-of-turn for the utterance we just cancelled — acting on it
+  // strands the LED in `thinking` until the backend's 15 s watchdog (observed
+  // 2026-06-14: "stop" mid-question -> 15 s stuck thinking). Ignore it, keeping
+  // the prior phase. Scoped to `thinking`: a web search's replying->thinking
+  // has no stop (guard stays false), and a reply-drain emits no `thinking`.
+  if (this->post_stop_guard_ && phase == "thinking") {
+    this->current_phase_.store(static_cast<uint8_t>(prev));  // don't advance to the stale value
+    ESP_LOGI(TAG, "ignoring stale 'thinking' after stop (no wake since)");
+    return;
+  }
+
   // Lift the post-"stop" incoming-audio suppression ONLY on "listening" — a
   // genuine fresh user turn whose reply is legitimate. We deliberately do NOT
   // lift on "idle": the backend keeps streaming the cancelled reply's audio in
@@ -954,6 +968,10 @@ void VaClient::start_session() {
   this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->suppress_followup_ = false;
+  // A genuine new turn starts here — drop the post-stop `thinking` guard so
+  // this turn's `thinking` shows normally. (Set last, AFTER the residual-reply
+  // send_interrupt() above re-set it, so the wake always ends with it clear.)
+  this->post_stop_guard_ = false;
   this->cancel_timeout("va_followup");
   this->cancel_timeout("va_followup_open");
   this->cancel_timeout("va_tts_tail");
@@ -1186,6 +1204,11 @@ void VaClient::send_interrupt() {
   // The phase=idle the server is about to send shouldn't open a follow-up
   // mic window — the user said "stop", not "wait for me to keep talking".
   this->suppress_followup_ = true;
+  // Mic gate is now closed: no new turn can begin until a wake. Ignore any
+  // `thinking` the backend emits in the meantime — it's the server VAD's
+  // end-of-turn for the utterance we just cancelled, not a real new turn.
+  // Cleared in start_session() (the next wake). See set_phase_.
+  this->post_stop_guard_ = true;
   this->cancel_timeout("va_followup_open");
   // Report how much already-buffered TTS we just dropped — i.e. how much of the
   // (burst-complete) reply the user did NOT hear. If stale audio ever bleeds into
