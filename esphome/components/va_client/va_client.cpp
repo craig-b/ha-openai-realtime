@@ -882,11 +882,25 @@ void VaClient::set_phase_(const std::string &phase) {
       if (prev == Phase::REPLYING && this->turn_t_first_audio_out_ == 0) {
         ESP_LOGI(TAG, "stale replying-idle after wake (no audio this session) "
                       "— ignoring, no follow-up");
-        return;  // leave LED on the wake state; va_no_speech owns the idle + mic
+        // Distinguished by the mic gate: streaming_==true is a BARE WAKE (mic
+        // still open, never reached `replying` this session) → the no-speech
+        // watchdog is armed and owns the idle + mic close, so leave the LED on
+        // the wake state. streaming_==false means the turn DID reach `replying`
+        // (mic gated) but the audio never played — e.g. suppress_incoming_audio_
+        // was still set from an earlier stop, so turn_t_first_audio_out_ stayed
+        // 0. The watchdog was cancelled when the turn reached `listening`, so
+        // nothing else fires idle → fall through to the LED trigger below, else
+        // the ring strands on `replying` (observed live 2026-06-14: rapid stops
+        // left suppression on, the search reply was dropped, the LED hung).
+        if (this->streaming_) {
+          return;  // bare wake: va_no_speech owns the idle + mic
+        }
+        // else: fall through to fire the idle LED (still no follow-up).
+      } else {
+        // Server says response.done and the device has actually played out.
+        // Open the follow-up window (mic on so user can answer a question).
+        this->open_followup_window_(this->followup_ms_);
       }
-      // Server says response.done and the device has actually played out.
-      // Open the follow-up window (mic on so user can answer a question).
-      this->open_followup_window_(this->followup_ms_);
       // fall through to fire the trigger normally below (LED -> idle); the
       // follow-up window, if any, fires its own `listening` LED after its delay.
     } else {
