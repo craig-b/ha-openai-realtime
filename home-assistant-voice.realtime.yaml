@@ -408,6 +408,11 @@ switch:
           duration: 0.0s
       # Enable stop wake word
       - micro_wake_word.enable_model: stop
+      # B1: the timer ring is loud audio playing into the room → same echo risk
+      # as a reply, so use the stricter ~0.55 (140) cutoff. The cutoff is a single
+      # shared value on id(stop), so set it explicitly here rather than inherit
+      # whatever the last phase left it at.
+      - lambda: 'id(stop).set_probability_cutoff(140);'
       # Ring timer
       - script.execute: ring_timer
       # Refresh LED
@@ -1960,6 +1965,12 @@ va_client:
           lambda: 'return phase == "replying";'
         then:
           - micro_wake_word.enable_model: stop
+          # B1 (false-stop fix): TTS is PLAYING → its echo leaks into the raw
+          # channel-1 mic. Tighten the stop cutoff to ~0.55 (140) so a brief echo
+          # spike (high max, low sliding-avg ~0.41-0.49, e.g. a logged 0.46) is
+          # rejected while a real "stop" (sustained avg 0.62-0.67) still passes.
+          # Dropped back to 0.4 (102) in the quiet follow-up/idle window below.
+          - lambda: 'id(stop).set_probability_cutoff(140);'
           - script.stop: followup_window_watchdog
     # A turn is in flight ("listening" = the server VAD heard the user speak,
     # OR the follow-up window just opened its listening LED): stop the disarm
@@ -1983,6 +1994,11 @@ va_client:
           lambda: 'return phase == "idle";'
         then:
           - micro_wake_word.enable_model: stop
+          # B1: at rest the TTS has drained (no echo) and the follow-up mic may be
+          # open — restore the sensitive 0.4 (102) cutoff so weak real stops (the
+          # XMOS AGC is still recovering from playback level, scoring <0.5) are
+          # caught instead of streamed to OpenAI as a turn.
+          - lambda: 'id(stop).set_probability_cutoff(102);'
           - script.execute: followup_window_watchdog
   on_repeated_failure:
     # Backend has been unreachable for N reconnect attempts in a row.
@@ -2035,6 +2051,9 @@ va_client:
     # replying — during follow-up listening the server is silent until
     # the user speaks, so we have to enable it ourselves.
     - micro_wake_word.enable_model: stop
+    # B1: this window is quiet (the question's TTS + chime finish before the mic
+    # opens), so use the sensitive 0.4 (102) cutoff to catch weak stops.
+    - lambda: 'id(stop).set_probability_cutoff(102);'
     # If the user stays silent, va_client closes the mic at kRequestFollowUpMs
     # but doesn't notify yaml — without this watchdog the LED would stay
     # in listening_for_command forever and `stop` would never disarm.
@@ -2070,7 +2089,17 @@ micro_wake_word:
       # streamed the word to OpenAI, which answered it as a turn. 0.4 buys
       # detection margin; the false-accept exposure is contained because "stop"
       # is only armed during replies + the follow-up window (~20 s per turn).
-      # TUNING KNOB: lower if stops still get missed, raise if it false-fires.
+      # B1 (phase-dependent cutoff, 2026-06-14): this baked 0.4 is now only the
+      # initial/"quiet" value. At runtime the cutoff is raised to ~0.55 (140)
+      # while a reply or timer ring is PLAYING (echo rejection) and dropped back
+      # to 0.4 (102) in the quiet follow-up/idle window — see the
+      # set_probability_cutoff calls at on_phase "replying"/"idle",
+      # on_followup_opened and timer_ringing.on_turn_on. Detection compares the
+      # SLIDING AVERAGE: reply-echo false stops spike the max but average only
+      # ~0.41-0.49 (logged 0.46), so 0.55 rejects them; real stops average
+      # 0.62-0.67 and still pass.
+      # TUNING KNOB: adjust the per-phase 140/102 values (uint8 = round(p*255));
+      # raise 140 if it still false-fires on TTS, lower it if real stops get missed.
       probability_cutoff: 0.4
   # Permissive VAD gate. With the default threshold the VAD model repeatedly
   # vetoed REAL stop detections — device log shows "Wake word model predicts
