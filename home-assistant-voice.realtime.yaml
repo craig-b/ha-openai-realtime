@@ -1785,6 +1785,19 @@ speaker:
     output_speaker: announcement_mixing_input
     sample_rate: 48000
     bits_per_sample: 16
+    # va-direct (T1a): jitter buffer for streamed TTS. A web-search turn speaks a
+    # short filler AND dispatches the web_search function call in ONE OpenAI
+    # response; OpenAI pauses the audio ~650-765ms mid-filler while it emits the
+    # call (verified in logs). Our downstream chain (~600-700ms total: this
+    # resampler's default ring + mixer + the i2s 500ms above) drained right at
+    # that gap → i2s underrun → audible click ("kraakje") at search start.
+    # Deepening THIS resampler ring to 800ms (PSRAM, ~75KB) gives ~1.3s total
+    # runway so the dispatch gap is bridged with no underrun. No latency cost:
+    # start is gated by the device prebuffer (not this), end-of-reply plays a
+    # fixed amount of audio at realtime regardless of where it's buffered, and a
+    # "stop" tears the chain down via send_interrupt (resampler/mixer log
+    # "Stopped"), so no longer stop-tail. Mirrors fjfricke's 500ms voice resampler.
+    buffer_duration: 800ms
   - platform: resampler
     id: media_resampling_speaker
     output_speaker: media_mixing_input
