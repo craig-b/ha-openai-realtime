@@ -18,9 +18,8 @@ from app.audio_recording_service import AudioRecordingService
 from app.session_manager import SessionManager
 from app.websocket_handler import WebSocketHandler
 
-# Configure logging. LOG_LEVEL (add-on option) is INFO on stable; the dev add-on
-# defaults it to DEBUG, which turns on the verbose diagnostics (DebugFrameLogger
-# pipeline tap, turn/connection timing) without touching stable.
+# Configure logging. LOG_LEVEL (add-on option) defaults to INFO; DEBUG turns on
+# the verbose diagnostics (DebugFrameLogger pipeline tap, turn/connection timing).
 _LOG_LEVEL_NAME = os.environ.get("LOG_LEVEL", "INFO").upper()
 _LOG_LEVEL = getattr(logging, _LOG_LEVEL_NAME, logging.INFO)
 logging.basicConfig(

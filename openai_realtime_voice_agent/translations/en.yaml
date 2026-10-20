@@ -170,7 +170,7 @@ configuration:
     name: "⚙️ Advanced · Device port"
     description: >-
       The port the Voice PE connects to. Must match the va_url in the device
-      firmware (stable 8080, dev 8081). Only change this on a port clash —
+      firmware (default 8080). Only change this on a port clash —
       and update the device firmware stub to match.
   session_reuse_timeout_seconds:
     name: "⚙️ Advanced · Conversation resume window (seconds)"
@@ -232,4 +232,4 @@ configuration:
     name: "🔍 Debug · Log detail"
     description: >-
       INFO is normal. DEBUG writes very detailed logs of every turn and
-      connection — useful for bug reports (the dev add-on defaults to DEBUG).
+      connection — useful for bug reports.

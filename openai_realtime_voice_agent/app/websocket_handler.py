@@ -484,9 +484,9 @@ class WebSocketHandler:
         # aggregator can consume it) — opposite directions, so they need taps on
         # opposite sides of the service (see transcript_logger.py): "user" before
         # the LLM, "assistant" after it.
-        # DEV diagnostics: a passive frame logger that surfaces the turn / audio /
-        # interruption lifecycle. Only active when LOG_LEVEL=DEBUG (the dev add-on
-        # default; silent on stable). Placed right after the LLM so it sees the
+        # Diagnostics: a passive frame logger that surfaces the turn / audio /
+        # interruption lifecycle. Only active when LOG_LEVEL=DEBUG (off by
+        # default). Placed right after the LLM so it sees the
         # response / TTS / interruption frames plus the VAD speech frames passing
         # through.
         _debug_taps = logging.getLogger().isEnabledFor(logging.DEBUG)

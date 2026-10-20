@@ -1,7 +1,6 @@
-"""Verbose pipeline frame logger for the DEV channel.
+"""Verbose pipeline frame logger for diagnostics.
 
-Inserted into the pipeline ONLY when LOG_LEVEL=DEBUG (the dev add-on default;
-silent on stable). It logs the turn / audio / interruption lifecycle as frames
+Inserted into the pipeline ONLY when LOG_LEVEL=DEBUG (off by default). It logs the turn / audio / interruption lifecycle as frames
 pass a single point in the pipeline, so the add-on log alone shows WHEN each thing
 happens:
   - user speech start/stop, end-of-turn (server VAD)

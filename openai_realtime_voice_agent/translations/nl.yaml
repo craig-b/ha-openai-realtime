@@ -174,7 +174,7 @@ configuration:
     name: "⚙️ Geavanceerd · Apparaat-poort"
     description: >-
       De poort waarop de Voice PE verbindt. Moet overeenkomen met de va_url in
-      de apparaat-firmware (stable 8080, dev 8081). Alleen wijzigen bij een
+      de apparaat-firmware (standaard 8080). Alleen wijzigen bij een
       poortconflict — en pas dan ook de firmware-stub aan.
   session_reuse_timeout_seconds:
     name: "⚙️ Geavanceerd · Gesprek hervatten binnen (seconden)"
@@ -236,5 +236,4 @@ configuration:
     name: "🔍 Debug · Log-detail"
     description: >-
       INFO is normaal. DEBUG schrijft zeer gedetailleerde logs van elke beurt
-      en verbinding — nuttig voor foutrapporten (de dev-add-on staat standaard
-      op DEBUG).
+      en verbinding — nuttig voor foutrapporten.
