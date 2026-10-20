@@ -8,7 +8,7 @@
 # while the image only provided LLVM 15.
 #
 # Override the base per-arch via build.yaml (build_from) / --build-arg BUILD_FROM.
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-debian:bookworm
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-debian:bookworm@sha256:68f4c1a11d10facc5442ff11509a164463f98b154c80dc1dfeedbc267dd71665
 FROM ${BUILD_FROM}
 
 # uv installs the locked dependencies into /opt/venv, using Debian's python3.

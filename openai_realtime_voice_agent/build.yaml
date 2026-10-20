@@ -1,3 +1,6 @@
+# Base images pinned by digest so every build starts from the same OS layer.
+# To update: docker pull the :bookworm tag (with --platform linux/arm64 for
+# aarch64) and take the digest from `docker image inspect` RepoDigests.
 build_from:
-  aarch64: ghcr.io/home-assistant/aarch64-base-debian:bookworm
-  amd64: ghcr.io/home-assistant/amd64-base-debian:bookworm
+  aarch64: ghcr.io/home-assistant/aarch64-base-debian:bookworm@sha256:68f4c1a11d10facc5442ff11509a164463f98b154c80dc1dfeedbc267dd71665
+  amd64: ghcr.io/home-assistant/amd64-base-debian:bookworm@sha256:7da3f90a8e2fdc3095cc93b0dfb751c9c21356e11b30a6493c7ac15270b4e809
