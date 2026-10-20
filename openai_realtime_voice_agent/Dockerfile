@@ -24,7 +24,15 @@ ENV PYTHONUNBUFFERED=1 \
 # Runtime deps + minimal build insurance. Most Python deps install from wheels;
 # build-essential/python3-dev only cover the rare source-only package.
 # ffmpeg + libsndfile1 cover audio decoding/encoding paths in pipecat.
-RUN apt-get update \
+#
+# Packages come from the snapshot.debian.org archive the base image was built
+# from (it records the URL as a comment above each URIs: line), so the pinned
+# base digest also pins every package version. Snapshot Release files expire,
+# hence Check-Valid-Until=false; signatures are still verified.
+RUN grep -q '^# http://snapshot.debian.org/' /etc/apt/sources.list.d/debian.sources \
+    && sed -i -E '/^# http:\/\/snapshot\.debian\.org\//{s/^# /URIs: /;n;d}' /etc/apt/sources.list.d/debian.sources \
+    && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99snapshot \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         python3 \
         python3-dev \
