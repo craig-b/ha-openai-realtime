@@ -5,13 +5,12 @@
 # OpenAI Realtime 2 Voice Agent (Home Assistant Voice PE)
 
 > [!IMPORTANT]
-> **This is 1 of 2 repos — you need both halves.** This repo is the **backend add-on**
-> (the voice "brain"). It needs the custom Voice PE **firmware** to connect to it — the
-> stock Home Assistant voice pipeline won't talk to this add-on. You must set up both:
-> - 🧠 **Backend add-on** (this repo) — runs inside Home Assistant
-> - 🔌 **Device firmware** → **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)** (flashed onto the Voice PE)
+> **You need both halves, and both live in this repo.** The stock Home Assistant voice
+> pipeline won't talk to this add-on; it needs the custom Voice PE firmware:
+> - 🧠 **Backend add-on** → [`openai_realtime_voice_agent/`](openai_realtime_voice_agent/) — runs inside Home Assistant
+> - 🔌 **Device firmware** → [`firmware/`](firmware/) — flashed onto the Voice PE
 >
-> 📖 New here? The full **[INSTALL guide](https://github.com/xandervanerven/home-assistant-voice-pe/blob/main/INSTALL.md)** walks through both halves, step by step.
+> 📖 New here? The full **[INSTALL guide](firmware/INSTALL.md)** walks through both halves, step by step.
 
 A Home Assistant **add-on** that turns a [Voice PE](https://www.home-assistant.io/voice-pe/)
 device into a low-latency voice assistant built on **OpenAI's Realtime API**
@@ -22,9 +21,12 @@ controls Home Assistant through the official
 integration. STT, TTS and the LLM all run in the Realtime session — there is no
 Home Assistant `voice_assistant` pipeline on the audio path.
 
-> Fork of **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**,
+> Fork of **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)**
+> and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**,
+> merged into one repo. Xander's backend is itself a fork of
+> **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**,
 > retargeted at `gpt-realtime-2`, the official HA MCP Server, optional web search,
-> and the **Voice PE thin-client firmware** (a separate repo — see below).
+> and the **Voice PE thin-client firmware**.
 
 ## Repository layout
 
@@ -35,14 +37,17 @@ Home Assistant `voice_assistant` pipeline on the audio path.
     Home Assistant MCP connection, recommended settings, web search, all options.
   - [`CHANGELOG.md`](openai_realtime_voice_agent/CHANGELOG.md) — what changed per version.
 
-The **device firmware** lives in its own repository —
-**[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**
-(a custom `va_client` ESPHome component, specific to the Voice PE hardware).
+- **[`firmware/`](firmware/)** — the Voice PE firmware (ESPHome, with a custom
+  `va_client` component, specific to the Voice PE hardware). ESPHome builds it
+  straight from this repo; see [`firmware/README.md`](firmware/README.md).
+  It is a `git subtree` of `esphome/home-assistant-voice-pe`, so upstream
+  firmware fixes merge in with
+  `git fetch esphome && git subtree merge --prefix=firmware esphome/dev`.
 
 ## Install
 
 1. In Home Assistant, open **Settings → Add-ons → Add-on store → ⋮ → Repositories**
-   and add `https://github.com/xandervanerven/ha-openai-realtime`.
+   and add `https://github.com/craig-b/ha-openai-realtime`.
 2. Install **OpenAI Realtime 2 Voice Agent**. It ships with no prebuilt `image:`,
    so Home Assistant builds it locally on first install (a few minutes on a Pi).
 3. Configure the add-on and flash the companion firmware — see
@@ -75,7 +80,8 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 ## Credits
 
-- Forked from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**.
+- Forked from **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**.
+- Backend originally from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**.
 - Built on **[Pipecat](https://github.com/pipecat-ai/pipecat)**.
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)** (a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)**, Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).

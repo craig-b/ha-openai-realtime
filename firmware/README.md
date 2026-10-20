@@ -1,11 +1,11 @@
 # Home Assistant Voice PE — OpenAI Realtime 2 fork
 
 > [!IMPORTANT]
-> **This is 1 of 2 repos — you need both halves.** This repo is the **device
-> firmware**; on its own it does nothing. It streams audio to a backend add-on that
-> runs the OpenAI Realtime session and controls Home Assistant. You must set up both:
-> - 🔌 **Device firmware** (this repo) — flashed onto the Voice PE
-> - 🧠 **Backend add-on** → **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** (runs in Home Assistant)
+> **You need both halves.** This folder is the **device firmware**; on its own it
+> does nothing. It streams audio to a backend add-on that runs the OpenAI Realtime
+> session and controls Home Assistant. You must set up both:
+> - 🔌 **Device firmware** (this folder) — flashed onto the Voice PE
+> - 🧠 **Backend add-on** → [`../openai_realtime_voice_agent/`](../openai_realtime_voice_agent/) (runs in Home Assistant)
 >
 > 📖 New here? The full **[INSTALL guide](INSTALL.md)** sets up both halves, step by step.
 
@@ -44,7 +44,7 @@
 ## Setup (ESPHome Builder)
 
 1. Install and configure the **OpenAI Realtime 2 Voice Agent** add-on from
-   [xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)
+   [craig-b/ha-openai-realtime](https://github.com/craig-b/ha-openai-realtime)
    (sets your OpenAI API key, the model, and the Home Assistant MCP connection).
 2. In **Builder → Secrets**, add the keys from
    [`secrets.yaml.example`](secrets.yaml.example): `wifi_ssid`, `wifi_password`,
