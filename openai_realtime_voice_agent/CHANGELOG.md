@@ -2,209 +2,108 @@
 
 All notable changes to this add-on. Newest first.
 
-## 0.6.1 (dev channel)
+## 0.6.0
 
-- Version sync after the stable **0.6.0** release. The dev channel contains the
-  same content plus the dev-only diagnostics (log_level / DebugFrameLogger).
-  No functional changes.
+> ⚠️ **This update has two parts — please update both:**
+> 1. **This add-on** (the update you're installing now).
+> 2. **The Voice PE firmware** — open **ESPHome Device Builder** and click **Update** (or **Install**) on your device.
+>
+> The device and the add-on use one shared protocol; updating only one half can cause odd behaviour.
 
-## 0.5.15 (dev channel)
+A reliability and voice-control polish release.
 
-- **Fixed: saying "stop" sometimes needed two tries.** When you said "stop"
-  during a reply, the device stopped it — but OpenAI had also heard the word
-  "stop" and answered it ("Okay, I'll stop"), and that fresh little reply
-  arrived just after the cancel window closed, so it played anyway and you had
-  to say "stop" again. The add-on now cancels that next reply after any stop
-  (until you actually speak again), so one "stop" is enough.
+**Stop word**
 
-## 0.5.14 (dev channel)
+- **Saying "stop" now usually works on the first try.** The spoken "stop" could
+  previously be answered by the assistant a moment later, so you sometimes had to
+  repeat it; that follow-on reply is now cancelled, so a single "stop" is
+  typically enough.
+- **Saying "stop" during a web search returns the device to rest promptly** — the
+  light ring no longer keeps showing the "replying" animation for several seconds.
+- **Fewer accidental stops** on the assistant's own speech.
+- The light ring briefly flashes **red** to confirm your "stop" was registered. *(firmware)*
 
-- **Fixed: saying "stop" during a web search no longer leaves the device
-  looking busy.** If you stopped the assistant while it was searching online
-  (or running another tool), the answer was correctly muted — but the light
-  ring kept showing the "replying" animation for many seconds, as if it was
-  still working. The answer the search produced was created just after the
-  cancel window closed, so it slipped through. The add-on now also cancels that
-  already-stopped answer at the source, so the ring returns to idle promptly.
+**Reliability**
 
-## 0.5.13 (dev channel)
+- **No more unresponsive sessions.** A silently dropped connection to OpenAI is
+  now detected and repaired within seconds, instead of leaving the assistant deaf
+  until a restart.
+- **The roughly hourly reconnect now happens proactively during a quiet moment**,
+  so it practically never interrupts a conversation.
+- **Smart-home commands are no longer cancelled** if you keep talking while they run.
+- The light can no longer get **stuck on "thinking"**, and long web searches get
+  all the time they need.
 
-- **Fixed: after rapid "stop" + wake testing, a reply (e.g. a web-search
-  answer) could come out silent.** A "stop" tells the device to mute incoming
-  audio until it next receives a "listening" signal; the add-on was skipping
-  that signal as "redundant" when its own view of the phase hadn't changed,
-  so the device stayed muted and dropped the reply. The "listening" signal is
-  now always sent. (Pairs with a firmware fix that also stops the light ring
-  from freezing on "replying" in that case.)
+**No more "answers out of nowhere"**
 
-- **No more "answers out of nowhere" right after the wake word.** If you woke
-  the device and said nothing, a leftover speech segment from a previous turn
-  could close late and make the assistant reply to an empty turn. The device
-  now signals each wake; the add-on suppresses that stale turn and cancels its
-  answer. **Requires the matching firmware update** (new wake signal).
-- **No more "stuck thinking" or a garbled re-answer after a normal reply.** When
-  the speech detector split your sentence in two, the late half could flip the
-  device from "replying" back to "thinking" mid-answer — reopening the mic so the
-  reply leaked back in, freezing the light on "thinking" for ~15 s and sometimes
-  triggering a nonsense follow-up answer. A reply now stays "replying" through
-  such stale detections.
+- The assistant no longer occasionally replies — or repeats its previous answer —
+  right after the wake word when you said nothing.
+- A sentence that got cut off is no longer answered minutes later on your next wake.
 
-## 0.5.11 (dev channel)
+**Settings**
 
-- **Fewer "talks right after the wake word without you saying anything"
-  moments.** The previous approach cleared the audio buffer on every wake,
-  which could disturb the speech detector and make it answer a stray noise. The
-  device now drops a leftover half-sentence at the exact moment a follow-up
-  window closes instead, so nothing needs clearing on the wake — the detector
-  is left undisturbed. **Requires the matching firmware update** (the device and
-  add-on speak a new little signal to each other).
+- New **"Wake mic delay"** setting: a short pause after the wake chime before the
+  mic opens, so the chime can't be mistaken for speech (default 700 ms).
+- The **"Follow-up mic delay"** default is now **700 ms**. Existing installs keep
+  their saved value — raise yours if the assistant ever answers right after its
+  own reply.
 
-## 0.5.10 (dev channel)
+## 0.5.0
 
-- **The light ring keeps "thinking" during a web search** instead of dropping to
-  the idle animation. After the spoken "let me look that up" the device used to
-  go idle while the search (a few seconds) was still running, so it looked like
-  nothing was happening. It now stays in the thinking state until the answer
-  comes.
+A big stable release: everything built and tested on the dev channel over the
+past days. **Also update the Voice PE firmware** (v1.1.0 — one click in ESPHome
+Builder) to get the full effect of the "stop" improvements; the two halves
+work best together.
 
-## 0.5.9 (dev channel)
-
-- **Web search works again.** The 0.5.8 "phantom turn" guard was too aggressive:
-  during a web search (a multi-second tool call) it mistook the search result
-  for a phantom and cancelled the answer, so you got no reply. The guard was a
-  fragile heuristic that couldn't tell a genuine wake from a mid-conversation
-  microphone re-open, so it has been removed. The other safeguards against
-  "answers out of nowhere" (stale-audio clearing, the listening-only
-  suppression lift, and the wake/follow-up echo delays) stay in place.
-
-## 0.5.8 (dev channel)
-
-- **No more "answers its previous question out of nowhere" on the wake word.**
-  After rapid re-wakes, a half-finished turn could stay open on OpenAI's side
-  and close seconds later, making the assistant repeat its last answer to
-  nobody. The add-on now tracks whether you've actually spoken since the wake
-  and cancels any answer that appears without real speech — so a phantom turn
-  can never reach you.
-
-## 0.5.7 (dev channel)
-
-- **New "Wake mic delay" setting.** Just like the follow-up mic delay, this is
-  a short pause after the wake chime before the microphone opens, so the
-  chime's own sound can't leak in and be mistaken for a question (which made
-  the assistant occasionally answer "nobody" right after the wake word).
-  Default 700 ms; needs the matching firmware update to take effect.
-
-## 0.5.6 (dev channel)
-
-- **The "Follow-up mic delay" default went from 200 to 700 ms.** At 200–300 ms
-  the reply's own speaker tail could leak into the freshly opened follow-up
-  microphone and be mistaken for a question — the assistant would then answer
-  "nobody" or repeat its previous answer (observed live). 700 ms covers the
-  tail safely; existing installs keep their saved value, so raise yours
-  manually if you see the same symptom.
-
-## 0.5.5 (dev channel)
-
-- **The assistant no longer spontaneously answers an old, half-finished
-  sentence the moment you say the wake word.** When the microphone closed
-  mid-sentence (for example because the follow-up window expired), the cut-off
-  audio stayed behind in OpenAI's input buffer and was "completed" minutes
-  later by the next wake — the assistant then immediately replied to it. The
-  buffer is now cleared whenever the microphone resumes after a pause, and on
-  every device (re)connect. Your conversation memory is unaffected.
-
-## 0.5.4 (dev channel)
-
-- **Long web searches now get all the time they need.** While a tool call is
-  running (a web search on a hard question can legitimately take a while) the
-  stuck-"thinking" watchdog from 0.5.3 waits indefinitely instead of cutting
-  in after 60 seconds. The 15-second dead-turn detection still applies the
-  moment nothing is running anymore.
-
-## 0.5.3 (dev channel)
-
-- **The device can no longer get stuck "thinking".** When a turn died without
-  an answer (for example on an OpenAI rate limit during rapid-fire commands),
-  the LED could keep blinking "thinking" with the microphone left open — until
-  you woke the device again. A watchdog now declares such a turn dead after
-  15 seconds of model silence and returns the device to rest, and the
-  rate-limit recovery itself no longer loses the race against late
-  voice-detection events (the cause of one observed 44-second hang). Slow
-  tools such as web search are explicitly exempt and keep their time.
-
-## 0.5.2 (dev channel)
-
-- **No more deaf sessions.** If the connection to OpenAI silently died (network
-  blip, quiet server-side close), the assistant could sit unresponsive for
-  hours and your first question after that was lost. The connection's death is
-  now detected the moment it happens and repaired within seconds.
-- **The 60-minute reconnect now happens proactively while everything is
-  quiet** (session older than 55 minutes + a minute of silence), so it
-  practically never interrupts a conversation anymore.
-- **Smart-home commands are no longer cancelled by your own voice.** Continuing
-  to talk while a command was executing made the assistant abort the call and
-  claim the action failed — while it actually succeeded. Tool calls now always
-  finish and report the real result.
-
-## 0.5.1 (dev channel)
-
-- Version sync after the stable **0.5.0** release: the dev channel contains the
-  same content plus the dev-only diagnostics (log_level/DebugFrameLogger).
-  No functional changes.
-
-## 0.4.32 (dev channel)
-
-- The add-on now has its own icon and logo (a stylised Voice PE), shown in
-  the add-on store and on the add-on page.
-
-## 0.4.31 (dev channel)
-
-- **Fixed: an answer could cut off mid-sentence and the assistant then went
-  deaf.** When your sentence was split into two turns (a pause at the wrong
-  moment), OpenAI rejected the second answer attempt and the session's reader
-  stopped — killing the answer that was playing and ignoring everything after
-  it. Such harmless protocol races are now ignored and the playing answer
-  simply continues.
-
-## 0.4.30 (dev channel)
-
-- The four "custom" text fields (model / voice / search model / transcript
-  model) no longer clutter the page: they stay hidden until you need them
-  (pick "custom" in the dropdown, then enable "Show unused optional
-  configuration options" at the bottom).
-- The system-prompt field now explains how to edit it comfortably: the ⋮ menu
-  → "Edit in YAML" gives a full text editor (the add-on UI itself only
-  supports single-line fields).
-
-## 0.4.29 (dev channel)
-
-- **Cleaner Configuration tab.** Options are now grouped and ordered (Basics →
-  Model & voice → Conversation → Web search → Audio → Home Assistant →
-  Advanced → Debug) and every description is rewritten in plain, practical
-  language. A full Dutch translation is included (shown automatically when
-  your HA is set to Dutch).
-- Confusing or broken switches were removed (they are now fixed at their only
-  sane value); the legacy server_vad fields moved to Advanced and stay hidden
-  until you enable "Show unused optional configuration options".
+- **"Stop" now works through the whole reply AND the after-reply listening
+  window.** The device detects the word more reliably, and the bridge treats
+  it as authoritative: in-flight audio is discarded and an answer OpenAI had
+  already started for the stop word itself is cancelled on arrival — no more
+  "Okay, I'll be quiet" replies to your "stop".
+- **Fixed: an answer could cut off mid-sentence, after which the assistant
+  went deaf** until the next reconnect. Harmless protocol races (e.g. your
+  sentence being split into two turns by a pause) no longer kill the session.
+- **Fixed an audio race that could inject noise/hiss into replies** (firmware,
+  paired with this release).
+- **Mute behaves properly now** (firmware): the ring goes dark with red
+  markers by the microphones, and muting also ends an open listening window
+  immediately — both from Home Assistant and with the physical side switch.
+- **The LED Ring switch in Home Assistant works again** (firmware): entity off
+  = device dark at rest; entity on = the gentle "ready" pulse.
+- **Completely reworked Configuration tab**: options grouped logically
+  (Basics → Model & voice → Conversation → Web search → Audio →
+  Home Assistant → Advanced), every description rewritten in plain practical
+  language, and a full Dutch translation included (shown automatically when
+  your HA is set to Dutch). Confusing or broken switches were removed; rarely
+  needed expert fields stay hidden until you need them.
+- **The add-on now has its own icon.**
 - Friendlier defaults for new installs: follow-up mic delay 200 ms and
-  playback buffer 150 ms (existing installs keep their own values).
+  playback buffer 150 ms. **Existing installs keep their saved values** — if
+  yours still say 0, consider setting 200/150 manually (Conversation / Audio
+  groups) for fewer ghost triggers and less crackle.
 
-## 0.4.28 (dev channel)
+### Heads-up: the firmware stub template was improved
 
-- **"Stop" during the after-reply listening window now actually stops.** The
-  open mic had already streamed the word to OpenAI, which answered it as a
-  question. The bridge now treats the device's stop as authoritative: it
-  discards the in-flight audio and instantly cancels any answer OpenAI
-  started for it. (Pair with the dev firmware update, which also makes the
-  local "stop" detection more sensitive.)
+The per-device stub in ESPHome Builder used to reference the firmware in a
+form that lets ESPHome **cache the downloaded YAML for a day** — clicking
+Update shortly after a release could then silently rebuild yesterday's code.
+The stub templates in the firmware repo are fixed; existing users can apply
+the same fix once by replacing **only the `packages:` block** in their
+device's YAML in ESPHome Builder (everything else — your name, secrets,
+`dashboard_import` — stays exactly the same):
 
-## 0.4.27 (dev channel)
+```yaml
+packages:
+  realtime:
+    url: https://github.com/xandervanerven/home-assistant-voice-pe
+    ref: main
+    files: [home-assistant-voice.realtime.yaml]
+    refresh: 0s
+```
 
-- **Dev diagnostics:** new `log_level` option (the dev add-on defaults to
-  `DEBUG`). At DEBUG the add-on logs the full turn / audio / interruption
-  lifecycle (`🎚️` markers), the OpenAI session age at a drop + the reconnect gap
-  duration, and surfaces the `websockets` connection events. Stable stays at INFO.
-  Helps diagnose connection blips, stop-word timing, and stale-audio-after-stop.
+Current templates for reference:
+[esphome-builder.dhcp.yaml](https://github.com/xandervanerven/home-assistant-voice-pe/blob/main/esphome-builder.dhcp.yaml) ·
+[esphome-builder.static-ip.yaml](https://github.com/xandervanerven/home-assistant-voice-pe/blob/main/esphome-builder.static-ip.yaml)
 
 ## 0.4.26
 

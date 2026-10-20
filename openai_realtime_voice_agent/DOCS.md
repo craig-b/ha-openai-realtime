@@ -123,6 +123,22 @@ The add-on log shows each turn: `🗣️ user:` (when transcription language is 
 `🔌 …reconnecting` / `✅ reconnected` on a connection recovery. View it on the add-on
 **Log** tab.
 
+## Known limitations
+
+- **No voice timers or alarms yet.** Setting a timer by voice isn't supported (the
+  official Home Assistant timer intent isn't wired up). Everything else — lights,
+  switches, scenes, climate, and questions — works.
+- **A brief reconnect about once an hour.** OpenAI limits a realtime session to
+  60 minutes. The add-on refreshes proactively during a quiet moment, so you'll
+  rarely notice it, but a reconnect can occasionally cause a ~1–2 second pause.
+- **Rarely, the assistant may stop itself** on a word in its own reply that sounds
+  like "stop" — just ask again.
+
+**Using "stop":** say "stop" (or press the center button) to interrupt the assistant
+*while it's speaking* — during a reply, or during the short listening window right
+after one. It has no effect before the assistant has started answering (there's
+nothing to stop yet).
+
 ## Firmware (Home Assistant Voice PE only)
 
 This add-on expects the custom **Voice PE firmware** that turns the device into a

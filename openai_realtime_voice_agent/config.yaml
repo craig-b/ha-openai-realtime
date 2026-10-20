@@ -1,6 +1,6 @@
-name: OpenAI Realtime 2 Voice Agent (dev)
-version: "0.6.1"
-slug: openai_realtime_voice_agent_dev
+name: OpenAI Realtime 2 Voice Agent
+version: "0.6.0"
+slug: openai_realtime_voice_agent
 description: Talk to your home with OpenAI gpt-realtime-2 — a voice agent for the Home Assistant Voice PE, with live device control and web search.
 url: https://github.com/xandervanerven/ha-openai-realtime
 arch:
@@ -99,7 +99,7 @@ options:
   mcp_tool_allowlist: ""
 
   # --- ⚙️ Advanced ---
-  websocket_port: 8081  # dev add-on port (stable uses 8080)
+  websocket_port: 8080
   session_reuse_timeout_seconds: 300
   max_context_messages: 12
   transcription_model: "gpt-4o-transcribe"
@@ -108,7 +108,7 @@ options:
 
   # --- 🔍 Debug ---
   enable_recording: false
-  log_level: "DEBUG"  # dev-only option; the dev add-on defaults to DEBUG
+  log_level: "INFO"
 
 schema:
   # --- 🔑 Basics ---

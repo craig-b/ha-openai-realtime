@@ -4,9 +4,9 @@
   "maintainer": "xandervanerven (fork of Felix Fricke)",
   "addons": [
     {
-      "slug": "openai_realtime_voice_agent_dev",
-      "name": "OpenAI Realtime 2 Voice Agent (dev)",
-      "version": "0.6.1"
+      "slug": "openai_realtime_voice_agent",
+      "name": "OpenAI Realtime 2 Voice Agent",
+      "version": "0.6.0"
     }
   ]
 }
