@@ -34,9 +34,9 @@ substitutions:
 # every compile fetch the latest release.
 packages:
   realtime:
-    url: https://github.com/xandervanerven/home-assistant-voice-pe
+    url: https://github.com/craig-b/ha-openai-realtime
     ref: main
-    files: [home-assistant-voice.realtime.yaml]
+    files: [firmware/home-assistant-voice.realtime.yaml]
     refresh: 0s
   # Merge a manual_ip block into the firmware's wifi: config for a fixed IP:
   static_ip:
@@ -49,5 +49,5 @@ packages:
         dns2: ${dns2}
 
 dashboard_import:
-  package_import_url: github://xandervanerven/home-assistant-voice-pe/home-assistant-voice.realtime.yaml@main
+  package_import_url: github://craig-b/ha-openai-realtime/firmware/home-assistant-voice.realtime.yaml@main
   import_full_config: false
