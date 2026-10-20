@@ -942,7 +942,7 @@ wheels = [
 [[package]]
 name = "openai-realtime-voice-agent"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "pipecat-ai", extra = ["mcp", "openai", "websocket"] },

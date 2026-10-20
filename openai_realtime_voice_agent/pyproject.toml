@@ -17,12 +17,7 @@ dependencies = [
     "websockets>=13.0",
 ]
 
-[project.scripts]
-start = "app.main:main"
-
-[tool.poetry]
-packages = [{include = "app", from = "."}]
-
-[build-system]
-requires = ["poetry-core>=2.0"]
-build-backend = "poetry.core.masonry.api"
+# An application, not a distributable package: the image runs the app from
+# /app (`python3 -m app.main`) and only installs its locked dependencies.
+[tool.uv]
+package = false
