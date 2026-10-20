@@ -79,9 +79,7 @@ known-good starting point — you can fine-tune later:
 | `openai_speed` | `1.0` |
 | `max_output_tokens` | `0` (unlimited) |
 | `noise_reduction` | `off` |
-| `turn_detection_type` | `semantic_vad` |
 | `vad_eagerness` | `low` |
-| `interrupt_response` | `false` |
 | `transcription_language` | blank (set your ISO code, e.g. `nl`, to log what it heard) |
 | `transcription_model` | `gpt-4o-transcribe` |
 | `follow_up_listen_seconds` | `8` |
@@ -206,7 +204,8 @@ are **never** overwritten by an update.
 - **It hears its own tail** (a stray turn right after a reply, or it repeats
   its last answer): the default `follow_up_open_delay_ms` of `700` normally
   prevents this — raise it further (~1000) if it still happens.
-- **Crackle at the start of a reply:** raise `playback_prebuffer_ms` to ~150.
+- **Crackle at the start of a reply:** raise `playback_prebuffer_ms` above the
+  default 150 (e.g. ~250).
 - **See what it understood:** set `transcription_language` to your ISO code (e.g. `nl`)
   → the add-on log gains `🗣️ user: …` lines.
 - **Web search:** it answers weather / news / facts online out of the box
