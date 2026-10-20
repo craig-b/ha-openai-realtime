@@ -1,26 +1,28 @@
-[tool.poetry]
+[project]
 name = "openai-realtime-voice-agent"
 version = "0.1.0"
 description = "Home Assistant addon for OpenAI Realtime API voice control with WebSocket support using Pipecat"
-authors = ["Your Name <your.email@example.com>"]
-packages = [{include = "app", from = "."}]
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # Pinned to the 0.0.x line: this codebase targets the Pipecat 0.0.x API
+    # (FrameSerializerType, OpenAIRealtimeLLMService, SessionProperties events,
+    # WebsocketServerParams). Without a lockfile pip otherwise resolves Pipecat
+    # 1.x, whose changed API breaks the imports. 0.0.97 is the version this was
+    # developed/tested against.
+    "pipecat-ai[mcp,openai,websocket]==0.0.97",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "websockets>=13.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11,<3.14"
-# Pinned to the 0.0.x line: this codebase targets the Pipecat 0.0.x API
-# (FrameSerializerType, OpenAIRealtimeLLMService, SessionProperties events,
-# WebsocketServerParams). Without a lockfile pip otherwise resolves Pipecat
-# 1.x, whose changed API breaks the imports. 0.0.97 is the version this was
-# developed/tested against.
-pipecat-ai = {extras = ["mcp", "openai", "websocket"], version = "0.0.97"}
-python-dotenv = ">=1.0.0"
-fastapi = ">=0.100.0"
-uvicorn = {extras = ["standard"], version = ">=0.23.0"}
-websockets = ">=13.0"
-
-[tool.poetry.scripts]
+[project.scripts]
 start = "app.main:main"
 
+[tool.poetry]
+packages = [{include = "app", from = "."}]
+
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0"]
 build-backend = "poetry.core.masonry.api"
