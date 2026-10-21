@@ -130,6 +130,10 @@ class FakeRealtimeConnection:
             "transcript": text,
         })
 
+    def created_items(self) -> list[dict]:
+        """The conversation items the add-on created in this session."""
+        return [e["item"] for e in self.of_type("conversation.item.create")]
+
     async def start_response(self) -> "FakeResponse":
         """Begin an assistant response: response.created + the assistant item."""
         response = FakeResponse(self)

@@ -183,9 +183,14 @@ The add-on keeps one OpenAI Realtime session per conversation.
 - **Closing:** once nothing has happened for `session_reuse_timeout_seconds`
   (default 300): no mic audio, no reply playing, no response or tool running.
   The conversation ends with it; the next `wake` starts afresh.
+- **Rolling over:** at a `wake`, a session more than 50 minutes old (OpenAI
+  caps sessions at 60) is replaced by a new one, which starts with a transcript
+  of the conversation so far. The transcript has the user's words only when
+  input transcription is on (`transcription_language`).
 - **Losing it:** if OpenAI's connection dies, the session ends. Mid-turn the
   device gets `error`; between turns it is told nothing. Nothing reconnects
-  until the next `wake`.
+  until the next `wake`; if that comes within `session_reuse_timeout_seconds`,
+  the new session starts with the transcript as for a rollover.
 
 ## Mic gate
 

@@ -128,9 +128,11 @@ and end. View it on the add-on **Log** tab.
 - **No voice timers or alarms yet.** Setting a timer by voice isn't supported (the
   official Home Assistant timer intent isn't wired up). Everything else — lights,
   switches, scenes, climate, and questions — works.
-- **A conversation lasts at most an hour.** OpenAI limits a realtime session to
-  60 minutes. A conversation that keeps going that long is cut off, and the next
-  wake starts a new one.
+- **Past 50 minutes, a conversation moves to a new session.** OpenAI limits a
+  realtime session to 60 minutes, so at the next wake after 50 the add-on opens
+  a new one and carries the conversation over as a transcript. The transcript
+  includes your side only when `transcription_language` is set. The same
+  happens if the connection to OpenAI drops.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 
