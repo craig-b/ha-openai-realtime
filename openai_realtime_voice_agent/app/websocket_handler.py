@@ -26,10 +26,11 @@ from pipecat.frames.frames import (
 )
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 
 from app.device_transport import DeviceServerTransport
 from app.raw_audio_serializer import RawAudioSerializer
-from app.session_manager import SessionManager
 from app.audio_recording_service import AudioRecordingService
 from app.phase_emitter import PhaseEmitter
 from app.transcript_logger import TranscriptLogger
@@ -376,7 +377,6 @@ class WebSocketHandler:
         self,
         host: str = "0.0.0.0",
         port: int = 8080,
-        session_manager: Optional[SessionManager] = None,
         audio_recording_service: Optional[AudioRecordingService] = None,
         follow_up_ms: int = 0,
         follow_up_open_delay_ms: int = 700,
@@ -389,7 +389,6 @@ class WebSocketHandler:
         Args:
             host: Host address to bind to
             port: Port to listen on
-            session_manager: Session manager instance
             audio_recording_service: Audio recording service instance
             follow_up_ms: How long (ms) the device should keep the mic open
                 after a reply so the user can answer without a wake word. Sent to
@@ -403,7 +402,6 @@ class WebSocketHandler:
         """
         self.host = host
         self.port = port
-        self.session_manager = session_manager
         self.audio_recording_service = audio_recording_service
         self.follow_up_ms = max(0, int(follow_up_ms))
         self.follow_up_open_delay_ms = max(0, int(follow_up_open_delay_ms))
@@ -461,7 +459,6 @@ class WebSocketHandler:
         self,
         transport: WebsocketServerTransport,
         openai_service: OpenAIRealtimeLLMService,
-        client_id: str,
         activity_callback: Optional[Callable[[], None]] = None
     ) -> tuple[Pipeline, PipelineRunner, PipelineTask]:
         """
@@ -470,14 +467,11 @@ class WebSocketHandler:
         Args:
             transport: The WebSocket transport instance
             openai_service: The OpenAI service instance
-            client_id: Unique identifier for the client device
             activity_callback: Optional callback for session activity tracking
             
         Returns:
             Tuple of (Pipeline, PipelineRunner, PipelineTask)
         """
-        logger.info(f"🔗 Building pipeline for client: {client_id}")
-        
         if openai_service is None:
             raise RuntimeError("OpenAI service must be created before building pipeline")
         
@@ -491,12 +485,8 @@ class WebSocketHandler:
             activity_callback=activity_callback or (lambda: None)
         )
         
-        # Create context aggregator with cached context if available
-        context_aggregator = None
-        context_initializer = None
-        if self.session_manager:
-            context_aggregator = self.session_manager.create_context_aggregator(client_id)
-            context_initializer = self.session_manager.create_context_initializer(client_id, context_aggregator)
+        # The conversation as Pipecat records it: transcripts, replies, tool calls.
+        context_aggregator = LLMContextAggregatorPair(LLMContext())
         
         # Build pipeline components. InputResampler runs FIRST (right after the
         # transport) so every later stage — VAD, context aggregator, OpenAI
@@ -536,26 +526,17 @@ class WebSocketHandler:
         # response / TTS / interruption frames plus the VAD speech frames passing
         # through.
         _debug_taps = logging.getLogger().isEnabledFor(logging.DEBUG)
-        if context_aggregator:
-            pipeline_components.extend([
-                context_aggregator.user(),
-                TranscriptLogger(capture="user"),
-                openai_service,
-            ])
-            if _debug_taps:
-                pipeline_components.append(DebugFrameLogger(label="llm"))
-            pipeline_components.extend([
-                TranscriptLogger(capture="assistant"),
-                context_aggregator.assistant(),
-            ])
-        else:
-            pipeline_components.extend([
-                TranscriptLogger(capture="user"),
-                openai_service,
-            ])
-            if _debug_taps:
-                pipeline_components.append(DebugFrameLogger(label="llm"))
-            pipeline_components.append(TranscriptLogger(capture="assistant"))
+        pipeline_components.extend([
+            context_aggregator.user(),
+            TranscriptLogger(capture="user"),
+            openai_service,
+        ])
+        if _debug_taps:
+            pipeline_components.append(DebugFrameLogger(label="llm"))
+        pipeline_components.extend([
+            TranscriptLogger(capture="assistant"),
+            context_aggregator.assistant(),
+        ])
 
         pipeline_components.append(output_activity_tracker)
 
@@ -576,11 +557,7 @@ class WebSocketHandler:
             chunk_bytes=PIPELINE_SAMPLE_RATE // 100 * params.audio_out_channels * 2 * params.audio_out_10ms_chunks
         ))
         pipeline_components.append(transport.output())
-        
-        # Add context initializer if we have cached messages
-        if context_initializer:
-            pipeline_components.append(context_initializer)
-        
+
         pipeline = Pipeline(pipeline_components)
         logger.info("✅ Pipeline created for WebSocket connection")
         

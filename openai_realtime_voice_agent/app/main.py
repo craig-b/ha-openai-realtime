@@ -15,7 +15,6 @@ from app.realtime_service import SafeRealtimeLLMService
 from app.disconnect_tool import get_disconnect_tool_definition, create_disconnect_tool_handler
 from app.web_search_tool import get_web_search_tool_definition, create_web_search_tool_handler
 from app.audio_recording_service import AudioRecordingService
-from app.session_manager import SessionManager
 from app.websocket_handler import WebSocketHandler
 
 # Configure logging. LOG_LEVEL (add-on option) defaults to INFO; DEBUG turns on
@@ -73,9 +72,7 @@ class Application:
         self.openai_service: Optional[OpenAIRealtimeLLMService] = None
         self.mcp_service: Optional[HomeAssistantMCPService] = None
         self.audio_recording_service: Optional[AudioRecordingService] = None
-        self.session_manager: Optional[SessionManager] = None
         self.current_task: Optional[PipelineTask] = None
-        self._pipeline_lock: Optional[asyncio.Lock] = None
         
     async def initialize(self) -> None:
         """Initialize all components."""
@@ -115,7 +112,7 @@ class Application:
         # service only auto-creates a response for the FIRST context (turn 1) and
         # after tool results; plain 2nd/3rd user turns get NO response unless the
         # server makes it. FALSE reproduces the old single-turn-only behaviour
-        # (turn 1 answers, turn 2 hangs in "thinking"). See _ensure_openai_service.
+        # (turn 1 answers, turn 2 hangs in "thinking"). See _create_openai_service.
         semantic_vad_create_response = os.environ.get("SEMANTIC_VAD_CREATE_RESPONSE", "true").strip().lower() == "true"
         # Expose the `disconnect_client` tool to the model. DEFAULT FALSE: on the
         # Voice PE the device owns its own session lifecycle (wake word starts a
@@ -225,26 +222,6 @@ class Application:
             playback_prebuffer_ms = 150
         playback_prebuffer_ms = max(0, min(2000, playback_prebuffer_ms))
 
-        # Get session reuse timeout and initialize session manager
-        session_reuse_timeout = float(os.environ.get("SESSION_REUSE_TIMEOUT_SECONDS", "300"))
-        # Cap on restored conversation history (0 = unlimited). Bounds per-turn
-        # tokens so a long chat doesn't trip OpenAI's TPM rate limit (gpt-realtime
-        # re-bills the whole conversation on every response; pipecat has no
-        # truncation). Default 12 keeps recent continuity cheaply.
-        try:
-            max_context_messages = int(os.environ.get("MAX_CONTEXT_MESSAGES", "12"))
-        except (TypeError, ValueError):
-            max_context_messages = 12
-        max_context_messages = max(0, max_context_messages)
-        self.session_manager = SessionManager(
-            reuse_timeout=session_reuse_timeout,
-            max_restored_messages=max_context_messages,
-        )
-        logger.info(
-            f"Session reuse timeout: {session_reuse_timeout} seconds, "
-            f"max restored messages: {max_context_messages or 'unlimited'}"
-        )
-        
         if not openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
@@ -267,7 +244,6 @@ class Application:
         self.websocket_handler = WebSocketHandler(
             host=websocket_host,
             port=websocket_port,
-            session_manager=self.session_manager,
             audio_recording_service=self.audio_recording_service,
             follow_up_ms=follow_up_ms,
             follow_up_open_delay_ms=follow_up_open_delay_ms,
@@ -316,251 +292,201 @@ class Application:
         
         logger.info("✅ Application initialized - ready to accept WebSocket connections")
     
-    def _build_pipeline_for_transport(self, transport: WebsocketServerTransport, client_id: str):
-        """
-        Build pipeline for a WebSocket transport connection.
-        
-        Args:
-            transport: The WebSocket transport instance
-            client_id: Unique identifier for the client device
-        """
-        # Ensure OpenAI service exists
-        if self.openai_service is None:
-            raise RuntimeError("OpenAI service must be created before building pipeline")
-        
-        # Use WebSocket handler to build pipeline
-        self.pipeline, self.runner, self.current_task = self.websocket_handler.build_pipeline(
-            transport=transport,
-            openai_service=self.openai_service,
-            client_id=client_id,
-            activity_callback=self._update_session_activity
+    async def _create_openai_service(self):
+        """Create the OpenAI Realtime service, with its tools registered."""
+        logger.info("🆕 Creating the OpenAI service...")
+
+        # Create session properties with audio configuration
+        from pipecat.services.openai.realtime.events import (
+            SessionProperties,
+            AudioConfiguration,
+            AudioInput,
+            AudioOutput,
+            TurnDetection,
+            SemanticTurnDetection,
+            InputAudioTranscription,
+            InputAudioNoiseReduction,
         )
-    
-    def _update_session_activity(self):
-        """Update session activity timestamp (called by SessionActivityTracker)."""
-        pass
-    
-    async def _ensure_openai_service(self, client_id: Optional[str] = None):
-        """Create a new OpenAI service instance for a client.
         
-        Args:
-            client_id: Optional client ID for session management
-        """
-        if self._pipeline_lock is None:
-            self._pipeline_lock = asyncio.Lock()
-        
-        async with self._pipeline_lock:
-            if client_id is None:
-                logger.warning("⚠️ No client_id provided to _ensure_openai_service")
-            
-            # Create new session
-            if client_id:
-                logger.info(f"🆕 Creating new OpenAI Session for Client {client_id}...")
-            else:
-                logger.info("🆕 Creating new OpenAI Session...")
-            
-            # Cache context from old service before creating new one
-            if client_id and self.openai_service is not None:
-                try:
-                    self.session_manager.cleanup_before_new_session(client_id)
-                    logger.debug(f"Cached context from previous session for client {client_id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Error caching context from old service for client {client_id}: {e}")
-            
-            # Create session properties with audio configuration
-            from pipecat.services.openai.realtime.events import (
-                SessionProperties,
-                AudioConfiguration,
-                AudioInput,
-                AudioOutput,
-                TurnDetection,
-                SemanticTurnDetection,
-                InputAudioTranscription,
-                InputAudioNoiseReduction,
-            )
-            
-            # Collect all tool definitions for session properties. The
-            # disconnect_client tool is opt-in (see enable_disconnect_tool): by
-            # default we do NOT expose it, so the model can't hang up the device
-            # mid-conversation.
-            all_tools = []
-            if self.enable_disconnect_tool:
-                all_tools.append(get_disconnect_tool_definition())
+        # Collect all tool definitions for session properties. The
+        # disconnect_client tool is opt-in (see enable_disconnect_tool): by
+        # default we do NOT expose it, so the model can't hang up the device
+        # mid-conversation.
+        all_tools = []
+        if self.enable_disconnect_tool:
+            all_tools.append(get_disconnect_tool_definition())
 
-            # Web search tool (optional). Lets the model look things up online via
-            # a secondary OpenAI Responses web_search call in the handler.
-            if self.enable_web_search:
-                all_tools.append(get_web_search_tool_definition())
+        # Web search tool (optional). Lets the model look things up online via
+        # a secondary OpenAI Responses web_search call in the handler.
+        if self.enable_web_search:
+            all_tools.append(get_web_search_tool_definition())
 
-            # Get MCP tool definitions if available
-            mcp_tools_schema = None
-            if self.mcp_client:
-                try:
-                    logger.info("🔧 Fetching MCP tool definitions...")
-                    mcp_tools_schema = await self.mcp_client.get_tools_schema()
-                    
-                    # Convert MCP tool schemas to OpenAI format, applying the
-                    # optional allow-list so the realtime session isn't flooded
-                    # with ha-mcp's 80+ tools.
-                    exposed = 0
-                    for function_schema in mcp_tools_schema.standard_tools:
-                        if self.mcp_tool_allowlist and function_schema.name not in self.mcp_tool_allowlist:
-                            continue
-                        openai_tool = {
-                            "type": "function",
-                            "name": function_schema.name,
-                            "description": function_schema.description,
-                            "parameters": {
-                                "type": "object",
-                                "properties": function_schema.properties,
-                                "required": function_schema.required
-                            }
+        # Get MCP tool definitions if available
+        mcp_tools_schema = None
+        if self.mcp_client:
+            try:
+                logger.info("🔧 Fetching MCP tool definitions...")
+                mcp_tools_schema = await self.mcp_client.get_tools_schema()
+                
+                # Convert MCP tool schemas to OpenAI format, applying the
+                # optional allow-list so the realtime session isn't flooded
+                # with ha-mcp's 80+ tools.
+                exposed = 0
+                for function_schema in mcp_tools_schema.standard_tools:
+                    if self.mcp_tool_allowlist and function_schema.name not in self.mcp_tool_allowlist:
+                        continue
+                    openai_tool = {
+                        "type": "function",
+                        "name": function_schema.name,
+                        "description": function_schema.description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": function_schema.properties,
+                            "required": function_schema.required
                         }
-                        all_tools.append(openai_tool)
-                        exposed += 1
+                    }
+                    all_tools.append(openai_tool)
+                    exposed += 1
 
-                    if self.mcp_tool_allowlist:
-                        logger.info(f"✅ Fetched {len(mcp_tools_schema.standard_tools)} MCP tools, exposing {exposed} per allow-list")
-                    else:
-                        logger.info(f"✅ Fetched {len(mcp_tools_schema.standard_tools)} MCP tools")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to fetch MCP tool definitions: {e}")
-            
-            # Turn detection: semantic_vad (recommended — semantic end-of-turn,
-            # echo-resistant, doesn't cut the user off) or classic server_vad.
-            if self.turn_detection_type == "semantic_vad":
-                turn_detection = SemanticTurnDetection(
-                    eagerness=self.vad_eagerness,
-                    # create_response=True (default): the SERVER creates a
-                    # response on every detected end-of-turn. This is required for
-                    # multi-turn conversation. Pipecat 0.0.97's
-                    # OpenAIRealtimeLLMService._handle_context only auto-creates a
-                    # response for the FIRST context (turn 1) and after tool
-                    # results (its else-branch just updates the context); a plain
-                    # 2nd/3rd user turn therefore gets NO response unless the
-                    # server makes it. We previously set this False to stop a
-                    # turn-1 double-response (server + Pipecat first-context both
-                    # creating → `conversation_already_has_active_response`), but
-                    # that silently broke every turn after the first (device hung
-                    # in "thinking"). True is the correct trade: the server drives
-                    # all user-turn responses; Pipecat still creates the post-tool
-                    # response via _process_completed_function_calls. To stop the
-                    # turn-1 double (server + Pipecat-first-context both creating →
-                    # conversation_already_has_active_response), run() seeds
-                    # self._context once at startup with a kickoff LLMRunFrame, so
-                    # the user's first real turn hits the else-branch too.
-                    create_response=self.semantic_vad_create_response,
-                    interrupt_response=self.interrupt_response,
-                )
-            else:
-                turn_detection = TurnDetection(
-                    type="server_vad",
-                    threshold=self.vad_threshold,
-                    prefix_padding_ms=self.vad_prefix_padding_ms,
-                    silence_duration_ms=self.vad_silence_duration_ms,
-                )
-
-            # Optionally pin the input-transcription language to stop the model
-            # drifting between languages (e.g. "nl"). Empty -> auto-detect.
-            # transcription_model picks the STT used for the transcript text.
-            transcription = (
-                InputAudioTranscription(
-                    model=self.transcription_model,
-                    language=self.transcription_language,
-                )
-                if self.transcription_language
-                else None
+                if self.mcp_tool_allowlist:
+                    logger.info(f"✅ Fetched {len(mcp_tools_schema.standard_tools)} MCP tools, exposing {exposed} per allow-list")
+                else:
+                    logger.info(f"✅ Fetched {len(mcp_tools_schema.standard_tools)} MCP tools")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to fetch MCP tool definitions: {e}")
+        
+        # Turn detection: semantic_vad (recommended — semantic end-of-turn,
+        # echo-resistant, doesn't cut the user off) or classic server_vad.
+        if self.turn_detection_type == "semantic_vad":
+            turn_detection = SemanticTurnDetection(
+                eagerness=self.vad_eagerness,
+                # create_response=True (default): the SERVER creates a
+                # response on every detected end-of-turn. This is required for
+                # multi-turn conversation. Pipecat 0.0.97's
+                # OpenAIRealtimeLLMService._handle_context only auto-creates a
+                # response for the FIRST context (turn 1) and after tool
+                # results (its else-branch just updates the context); a plain
+                # 2nd/3rd user turn therefore gets NO response unless the
+                # server makes it. We previously set this False to stop a
+                # turn-1 double-response (server + Pipecat first-context both
+                # creating → `conversation_already_has_active_response`), but
+                # that silently broke every turn after the first (device hung
+                # in "thinking"). True is the correct trade: the server drives
+                # all user-turn responses; Pipecat still creates the post-tool
+                # response via _process_completed_function_calls. To stop the
+                # turn-1 double (server + Pipecat-first-context both creating →
+                # conversation_already_has_active_response), run() seeds
+                # self._context once at startup with a kickoff LLMRunFrame, so
+                # the user's first real turn hits the else-branch too.
+                create_response=self.semantic_vad_create_response,
+                interrupt_response=self.interrupt_response,
+            )
+        else:
+            turn_detection = TurnDetection(
+                type="server_vad",
+                threshold=self.vad_threshold,
+                prefix_padding_ms=self.vad_prefix_padding_ms,
+                silence_duration_ms=self.vad_silence_duration_ms,
             )
 
-            # Optional near/far-field input noise reduction (helps the VAD reject
-            # background noise / residual speaker leak). None = off (default).
-            noise_reduction = (
-                InputAudioNoiseReduction(type=self.noise_reduction)
-                if self.noise_reduction
-                else None
+        # Optionally pin the input-transcription language to stop the model
+        # drifting between languages (e.g. "nl"). Empty -> auto-detect.
+        # transcription_model picks the STT used for the transcript text.
+        transcription = (
+            InputAudioTranscription(
+                model=self.transcription_model,
+                language=self.transcription_language,
             )
+            if self.transcription_language
+            else None
+        )
 
-            session_properties = SessionProperties(
-                instructions=self.instructions,
-                # Cap the reply length: bounds runaway monologues + per-response
-                # output-token cost. None = unlimited (the API default "inf").
-                max_output_tokens=self.max_output_tokens,
-                audio=AudioConfiguration(
-                    input=AudioInput(
-                        turn_detection=turn_detection,
-                        transcription=transcription,
-                        noise_reduction=noise_reduction,
-                    ),
-                    # speed is a post-generation playback rate (0.25-1.5, 1.0 = normal).
-                    output=AudioOutput(voice=self.voice, speed=self.openai_speed)
+        # Optional near/far-field input noise reduction (helps the VAD reject
+        # background noise / residual speaker leak). None = off (default).
+        noise_reduction = (
+            InputAudioNoiseReduction(type=self.noise_reduction)
+            if self.noise_reduction
+            else None
+        )
+
+        session_properties = SessionProperties(
+            instructions=self.instructions,
+            # Cap the reply length: bounds runaway monologues + per-response
+            # output-token cost. None = unlimited (the API default "inf").
+            max_output_tokens=self.max_output_tokens,
+            audio=AudioConfiguration(
+                input=AudioInput(
+                    turn_detection=turn_detection,
+                    transcription=transcription,
+                    noise_reduction=noise_reduction,
                 ),
-                tools=all_tools
+                # speed is a post-generation playback rate (0.25-1.5, 1.0 = normal).
+                output=AudioOutput(voice=self.voice, speed=self.openai_speed)
+            ),
+            tools=all_tools
+        )
+
+        if self.turn_detection_type == "semantic_vad":
+            logger.info(
+                f"🎚️ Turn detection: semantic_vad (eagerness={self.vad_eagerness}, "
+                f"create_response={self.semantic_vad_create_response}, "
+                f"interrupt_response={self.interrupt_response})"
+                + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
+            )
+        else:
+            logger.info(
+                f"🎚️ Turn detection: server_vad (threshold={self.vad_threshold}, "
+                f"silence_duration_ms={self.vad_silence_duration_ms})"
+                + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
             )
 
-            if self.turn_detection_type == "semantic_vad":
-                logger.info(
-                    f"🎚️ Turn detection: semantic_vad (eagerness={self.vad_eagerness}, "
-                    f"create_response={self.semantic_vad_create_response}, "
-                    f"interrupt_response={self.interrupt_response})"
-                    + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
-                )
-            else:
-                logger.info(
-                    f"🎚️ Turn detection: server_vad (threshold={self.vad_threshold}, "
-                    f"silence_duration_ms={self.vad_silence_duration_ms})"
-                    + (f", transcription={self.transcription_model} (lang={self.transcription_language})" if self.transcription_language else " (transcription off)")
-                )
+        logger.info(f"🔧 Creating session with {len(all_tools)} tools: {[tool.get('name', 'unknown') for tool in all_tools]}")
+        
+        # Create new service instance
+        self.openai_service = SafeRealtimeLLMService(
+            api_key=self.openai_api_key,
+            model=self.model,
+            session_properties=session_properties,
+            start_audio_paused=False
+        )
+        logger.info(f"✅ OpenAI Service created: {type(self.openai_service).__name__}")
+        
+        # Register disconnect tool handler (only when the tool is exposed)
+        if self.enable_disconnect_tool:
+            disconnect_tool_handler = create_disconnect_tool_handler(self.websocket_transport)
+            self.openai_service.register_function("disconnect_client", disconnect_tool_handler)
+            logger.info("✅ Registered disconnect tool handler")
 
-            logger.info(f"🔧 Creating session with {len(all_tools)} tools: {[tool.get('name', 'unknown') for tool in all_tools]}")
-            
-            # Create new service instance
-            self.openai_service = SafeRealtimeLLMService(
-                api_key=self.openai_api_key,
-                model=self.model,
-                session_properties=session_properties,
-                start_audio_paused=False
+        # Register web search tool handler (only when the tool is exposed)
+        if self.enable_web_search:
+            self.openai_service.register_function(
+                "web_search",
+                create_web_search_tool_handler(self.openai_api_key, self.web_search_model),
             )
-            logger.info(f"✅ OpenAI Service created: {type(self.openai_service).__name__}")
-            
-            # Register disconnect tool handler (only when the tool is exposed)
-            if self.enable_disconnect_tool:
-                disconnect_tool_handler = create_disconnect_tool_handler(self.websocket_transport)
-                self.openai_service.register_function("disconnect_client", disconnect_tool_handler)
-                logger.info("✅ Registered disconnect tool handler")
+            logger.info(f"✅ Registered web_search tool handler (model={self.web_search_model})")
+        
+        # Register MCP tool handlers if available
+        if self.mcp_client and mcp_tools_schema:
+            try:
+                await self.mcp_client.register_tools_schema(mcp_tools_schema, self.openai_service)
+                logger.info(f"✅ Registered {len(mcp_tools_schema.standard_tools)} MCP tool handlers")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to register MCP tool handlers: {e}")
+        
+        logger.info("✅ New OpenAI Session created")
+        return self.openai_service
 
-            # Register web search tool handler (only when the tool is exposed)
-            if self.enable_web_search:
-                self.openai_service.register_function(
-                    "web_search",
-                    create_web_search_tool_handler(self.openai_api_key, self.web_search_model),
-                )
-                logger.info(f"✅ Registered web_search tool handler (model={self.web_search_model})")
-            
-            # Register MCP tool handlers if available
-            if self.mcp_client and mcp_tools_schema:
-                try:
-                    await self.mcp_client.register_tools_schema(mcp_tools_schema, self.openai_service)
-                    logger.info(f"✅ Registered {len(mcp_tools_schema.standard_tools)} MCP tool handlers")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to register MCP tool handlers: {e}")
-            
-            # Register service with session manager
-            if client_id:
-                self.session_manager.set_current_service(client_id, self.openai_service)
-            
-            logger.info("✅ New OpenAI Session created")
-            return self.openai_service
-    
     async def run(self) -> None:
         """Run the application."""
         await self.initialize()
         
-        # Create initial OpenAI service (will be replaced per connection)
-        await self._ensure_openai_service()
-        
-        # Build pipeline - based on pipecat-examples, one pipeline handles all connections
-        # The transport manages multiple connections internally
-        self._build_pipeline_for_transport(self.websocket_transport, "server")
+        await self._create_openai_service()
+
+        # One pipeline serves every device connection, one at a time.
+        self.pipeline, self.runner, self.current_task = self.websocket_handler.build_pipeline(
+            transport=self.websocket_transport,
+            openai_service=self.openai_service,
+        )
 
         # Consume pipecat's FIRST-context auto-response ONCE at startup — SILENTLY.
         # WHY: pipecat 0.0.97's OpenAIRealtimeLLMService._handle_context does
@@ -612,14 +538,11 @@ class Application:
         # Setup WebSocket event handlers
         async def on_client_connected(client_id: str):
             """Handle new client connection."""
-            await self._ensure_openai_service(client_id=client_id)
             if self.audio_recording_service:
                 self.audio_recording_service.start_new_session(client_id)
         
         def on_client_disconnected(client_id: str):
             """Handle client disconnection."""
-            if self.session_manager:
-                self.session_manager.handle_client_disconnect(client_id, self.openai_service)
             if self.audio_recording_service:
                 self.audio_recording_service.stop_recording()
         
