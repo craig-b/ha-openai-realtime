@@ -91,7 +91,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 ### `hello`
 ```json
-{"type":"hello","audio_out":"pcm","follow_up_ms":8000,"follow_up_open_delay_ms":700,"wake_open_delay_ms":700,"playback_prebuffer_ms":150}
+{"type":"hello","follow_up_ms":8000,"follow_up_open_delay_ms":700,"wake_open_delay_ms":700,"playback_prebuffer_ms":150}
 ```
 
 - **Sent:** once per connection, on connect, before anything else.
@@ -103,7 +103,6 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 | `follow_up_open_delay_ms` | Delay after a reply's audio drains before that mic opens | `follow_up_open_delay_ms` (700, 0–5000) | 1500 | ≤ 5000 |
 | `wake_open_delay_ms` | Delay after the wake chime before the mic opens | `wake_open_delay_ms` (700, 0–5000) | 700 | ≤ 5000 |
 | `playback_prebuffer_ms` | Audio to accumulate before starting playback of a reply | `playback_prebuffer_ms` (150, 0–2000) | 0 | ≤ 2000 |
-| `audio_out` | — | always `"pcm"` | ignored | — |
 
 ### `phase`
 `{"type":"phase","value":"listening"}`, with value `listening`, `thinking`,
@@ -221,7 +220,6 @@ device                         add-on
 
 - **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
   The add-on has no `request_follow_up` tool.
-- **`audio_out`** in `hello` is sent but ignored.
 - **Second client.** Pipecat closes the old connection before serving the new
   one, and waits for the old one's close handshake to finish. A device that
   reconnects after a Wi-Fi drop leaves its old connection half-open, which

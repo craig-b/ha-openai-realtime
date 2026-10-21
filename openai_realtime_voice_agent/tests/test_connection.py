@@ -16,7 +16,6 @@ async def test_hello_is_the_first_message(device):
 async def test_hello_carries_the_defaults(device):
     assert device.messages[0] == {
         "type": "hello",
-        "audio_out": "pcm",
         "follow_up_ms": 8000,
         "follow_up_open_delay_ms": 700,
         "wake_open_delay_ms": 700,

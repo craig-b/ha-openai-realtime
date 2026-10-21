@@ -802,7 +802,6 @@ class WebSocketHandler:
                 websocket,
                 {
                     "type": "hello",
-                    "audio_out": "pcm",
                     "follow_up_ms": self.follow_up_ms,
                     "follow_up_open_delay_ms": self.follow_up_open_delay_ms,
                     "wake_open_delay_ms": self.wake_open_delay_ms,
