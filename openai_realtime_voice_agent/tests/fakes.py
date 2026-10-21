@@ -92,17 +92,43 @@ class FakeRealtimeConnection:
         await self.send({"type": "input_audio_buffer.speech_started", "audio_start_ms": 0, "item_id": item_id})
         return item_id
 
-    async def speech_stopped(self, item_id: Optional[str] = None) -> None:
+    async def speech_stopped(self, item_id: Optional[str] = None) -> str:
+        """Turn detection ends the user's turn; OpenAI commits it as a user item."""
+        item_id = item_id or _id("item")
+        await self.send({"type": "input_audio_buffer.speech_stopped", "audio_end_ms": 1000, "item_id": item_id})
+        await self.send({"type": "input_audio_buffer.committed", "item_id": item_id})
         await self.send({
-            "type": "input_audio_buffer.speech_stopped",
-            "audio_end_ms": 1000,
-            "item_id": item_id or _id("item"),
+            "type": "conversation.item.added",
+            "item": {
+                "id": item_id,
+                "object": "realtime.item",
+                "type": "message",
+                "status": "completed",
+                "role": "user",
+                "content": [{"type": "input_audio", "transcript": None}],
+            },
         })
+        return item_id
 
     async def user_turn(self) -> None:
         """The server's turn detection hears the user start and stop speaking."""
         item_id = await self.speech_started()
         await self.speech_stopped(item_id)
+
+    async def user_said(self, text: str) -> None:
+        """A user turn, and its transcript (sent when transcription is on)."""
+        item_id = await self.speech_started()
+        await self.speech_stopped(item_id)
+        await self.transcript(item_id, text)
+
+    async def transcript(self, item_id: str, text: str) -> None:
+        """Transcription of a user item completes."""
+        await self.send({
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": item_id,
+            "content_index": 0,
+            "transcript": text,
+        })
 
     async def start_response(self) -> "FakeResponse":
         """Begin an assistant response: response.created + the assistant item."""

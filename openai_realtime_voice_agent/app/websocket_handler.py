@@ -14,6 +14,8 @@ from pipecat.transports.websocket.server import WebsocketServerTransport, Websoc
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
+    EmulateUserStartedSpeakingFrame,
+    EmulateUserStoppedSpeakingFrame,
     EndFrame,
     ErrorFrame,
     Frame,
@@ -155,6 +157,28 @@ class PadReplyToChunk(FrameProcessor):
             self._pending = 0
         elif isinstance(frame, InterruptionFrame):
             self._pending = 0  # the output transport drops its partial chunk too
+        await self.push_frame(frame, direction)
+
+
+class DropEmulatedVAD(FrameProcessor):
+    """Keep Pipecat from emulating the user's turns from transcripts.
+
+    Pipecat's user aggregator emulates VAD for pipelines without one: a
+    transcript arriving while it thinks the user isn't speaking makes it ask the
+    input transport for a user turn, which then broadcasts User{Started,Stopped}
+    SpeakingFrame and an interruption. Here OpenAI's turn detection is the VAD,
+    and its transcripts routinely arrive after the turn has ended: the emulated
+    turn sent `listening` mid-`thinking`, disarmed the post-stop response
+    cancel, flushed reply audio already queued, and a late emulated stop could
+    cancel the pending `idle`. The aggregator sends those requests upstream, so
+    this sits between the input transport and it and drops them; the
+    transcript still reaches the context.
+    """
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, (EmulateUserStartedSpeakingFrame, EmulateUserStoppedSpeakingFrame)):
+            return
         await self.push_frame(frame, direction)
 
 
@@ -374,6 +398,7 @@ class WebSocketHandler:
             # Watch for OpenAI connection-death ErrorFrames (they travel upstream
             # to the task source, so place this upstream of the service).
             SessionErrorWatch(openai_service=openai_service, phase_emitter=phase_emitter),
+            DropEmulatedVAD(),
             InputResampler(out_rate=PIPELINE_SAMPLE_RATE),
         ]
         

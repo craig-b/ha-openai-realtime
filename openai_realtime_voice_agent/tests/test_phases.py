@@ -136,3 +136,34 @@ async def test_a_failed_response_forces_idle(openai, device, session):
     await conn.send({"type": "response.done", "response": body})
     await device.wait_for_phase("idle")
     assert device.phases == ["listening", "thinking", "idle"]
+
+
+async def test_a_late_transcript_changes_no_phase(openai, start_addon, wake):
+    # OpenAI's transcript of the user's turn often arrives after the turn ended.
+    device = await (await start_addon(TRANSCRIPTION_LANGUAGE="en")).connect()
+    conn = await wake(device)
+    item_id = await conn.speech_started()
+    await conn.speech_stopped(item_id)
+    await device.wait_for_phase("thinking")
+    await conn.transcript(item_id, "What's the weather?")
+    await asyncio.sleep(1.5)  # past the transcript aggregation
+    assert device.phases == ["listening", "thinking"]
+    await conn.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("idle")
+    assert device.phases == ["listening", "thinking", "replying", "idle"]
+    await device.close()
+
+
+async def test_a_transcript_arriving_after_the_reply_does_not_hold_up_idle(openai, start_addon, wake):
+    device = await (await start_addon(TRANSCRIPTION_LANGUAGE="en", PHASE_IDLE_DEBOUNCE_MS="1000")).connect()
+    conn = await wake(device)
+    item_id = await conn.speech_started()
+    await conn.speech_stopped(item_id)
+    await conn.reply(pcm_tone(320, 24000))
+    await device.wait_for_audio(320 * 48)
+    # After the bot stops speaking (0.35 s), inside the 1 s idle debounce.
+    await asyncio.sleep(0.5)
+    await conn.transcript(item_id, "What's the weather?")
+    await device.wait_for_phase("idle", timeout=4.0)
+    assert device.phases == ["listening", "thinking", "replying", "idle"]
+    await device.close()
