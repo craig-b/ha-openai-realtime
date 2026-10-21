@@ -7,9 +7,12 @@
 # source and broke once it resolved to llvmlite 0.47 (which requires LLVM 20)
 # while the image only provided LLVM 15.
 #
-# Override the base per-arch via build.yaml (build_from) / --build-arg BUILD_FROM.
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-debian:bookworm@sha256:68f4c1a11d10facc5442ff11509a164463f98b154c80dc1dfeedbc267dd71665
-FROM ${BUILD_FROM}
+# The base is the multi-arch Debian index pinned by digest; Docker picks the
+# entry for the --platform the Supervisor builds for. There is no build.yaml:
+# the Supervisor deprecates it, and its build_from validation rejects digest
+# references, silently falling back to the Alpine ghcr.io/home-assistant/base.
+# To update: the digest is the Docker-Content-Digest of the bookworm tag's index.
+FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:0bf0b64cc09b5490fc06cb6d71ca45f3949cd2fb0bee1abf2e422a49ddae1640
 
 # uv installs the locked dependencies into /opt/venv, using Debian's python3.
 ENV PYTHONUNBUFFERED=1 \
