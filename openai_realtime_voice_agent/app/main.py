@@ -222,6 +222,17 @@ class Application:
             playback_prebuffer_ms = 150
         playback_prebuffer_ms = max(0, min(2000, playback_prebuffer_ms))
 
+        # How long the OpenAI session, and with it the conversation, stays open
+        # after the last thing that happened in it. A wake within this window
+        # continues the conversation; after it, the session closes and the next
+        # wake starts afresh. (The option keeps its old name for saved configs.)
+        try:
+            session_idle_timeout_s = int(os.environ.get("SESSION_REUSE_TIMEOUT_SECONDS", "300"))
+        except (TypeError, ValueError):
+            session_idle_timeout_s = 300
+        session_idle_timeout_s = max(0, session_idle_timeout_s)
+        logger.info(f"💬 Conversation stays open for {session_idle_timeout_s} s after its last exchange")
+
         if not openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
@@ -281,6 +292,7 @@ class Application:
         self.mcp_client = mcp_client
         self.enable_web_search = enable_web_search
         self.web_search_model = web_search_model
+        self.session_idle_timeout_s = session_idle_timeout_s
 
         # Initialize audio recording service (optional)
         self.audio_recording_service = AudioRecordingService(
@@ -447,7 +459,8 @@ class Application:
             api_key=self.openai_api_key,
             model=self.model,
             session_properties=session_properties,
-            start_audio_paused=False
+            start_audio_paused=False,
+            idle_timeout_s=self.session_idle_timeout_s,
         )
         logger.info(f"✅ OpenAI Service created: {type(self.openai_service).__name__}")
         

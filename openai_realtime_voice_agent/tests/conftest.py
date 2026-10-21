@@ -125,3 +125,21 @@ async def device(addon):
     dev = await addon.connect()
     yield dev
     await dev.close()
+
+
+@pytest_asyncio.fixture
+async def wake(openai):
+    """Wake a device, as the wake word does; return the OpenAI session that opens."""
+
+    async def wake(dev: FakeDevice):
+        index = len(openai.connections)
+        await dev.send({"type": "wake"})
+        return await openai.connection(index)
+
+    return wake
+
+
+@pytest_asyncio.fixture
+async def session(device, wake):
+    """The OpenAI session the connected device's wake opened."""
+    return await wake(device)

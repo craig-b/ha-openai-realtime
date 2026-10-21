@@ -10,10 +10,10 @@ from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineTask
 from pipecat.transports.websocket.server import WebsocketServerTransport, WebsocketServerParams
-from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.frames.frames import (
+    BotStoppedSpeakingFrame,
     EndFrame,
     ErrorFrame,
     Frame,
@@ -30,6 +30,7 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 
 from app.device_transport import DeviceServerTransport
+from app.realtime_service import SafeRealtimeLLMService
 from app.raw_audio_serializer import RawAudioSerializer
 from app.audio_recording_service import AudioRecordingService
 from app.phase_emitter import PhaseEmitter
@@ -66,11 +67,12 @@ class SessionActivityTracker(FrameProcessor):
             await self.push_frame(frame, direction)
             return
         
-        # Track activity on any audio frame
-        if isinstance(frame, (InputAudioRawFrame, OutputAudioRawFrame)):
+        # Track activity on any audio frame, and on the bot finishing speaking:
+        # reply audio passes here faster than the device plays it.
+        if isinstance(frame, (InputAudioRawFrame, OutputAudioRawFrame, BotStoppedSpeakingFrame)):
             if self.activity_callback:
                 self.activity_callback()
-            logger.debug(f"🎵 SessionActivityTracker: Processing {type(frame).__name__} ({len(frame.audio)} bytes)")
+            logger.debug(f"🎵 SessionActivityTracker: Processing {type(frame).__name__}")
         
         # Pass frame through to next processor
         await self.push_frame(frame, direction)
@@ -156,31 +158,22 @@ class PadReplyToChunk(FrameProcessor):
         await self.push_frame(frame, direction)
 
 
-class ConnectionRecovery(FrameProcessor):
-    """Auto-reconnect the OpenAI Realtime session when its WebSocket dies.
+class SessionErrorWatch(FrameProcessor):
+    """End the OpenAI session when its connection dies; unstick a turn that dies.
 
     pipecat 0.0.97's OpenAIRealtimeLLMService has NO reconnect logic: when the
     OpenAI WS drops (1011 keepalive ping timeout, 1001 going away on the 60-min
     cap, 1006, or any send/receive failure) it treats the send error as fatal and
-    floods ErrorFrame — ~15/s, one per forwarded mic frame — forever. The single
-    persistent session is then dead until the add-on restarts, so the device gets
-    no answer to any further turn (observed live: a 1011 flood after which the
-    next question got silence).
-
-    This processor watches the ErrorFrames as they travel upstream to the task
-    source, and on the first connection-death signature it:
-      1. emits `idle` to the device so it unsticks (LED + mic reset), and
-      2. calls service.reset_conversation() — the one PUBLIC method that does
-         _disconnect() + _connect() + re-sends the session config (instructions,
-         tools, turn detection) — to bring the session back IN PLACE. No pipeline
-         rebuild: the running pipeline keeps the same service object, which is
-         exactly the one reset_conversation reconnects.
-    A guard + cooldown collapse the error flood into a single reconnect attempt,
-    retrying at most every RECONNECT_COOLDOWN_S while the link stays down.
+    floods ErrorFrame — ~15/s, one per forwarded mic frame. This processor
+    watches the ErrorFrames as they travel upstream to the task source; on the
+    first connection-death signature it tells the service the session is lost,
+    which closes it (the next wake opens a new one). Any other error that ends a
+    turn without a reply — a rate limit, a failed response — leaves the device
+    in `thinking`, so it is put back to idle.
     """
 
     # Substrings that mark a dead/closed OpenAI websocket (vs an app-level error
-    # like a tool failure, which we must NOT reconnect on). These appear on the
+    # like a tool failure, which must NOT end the session). These appear on the
     # SEND-side flood ("Error sending client event: …"), so they're paired with
     # the "client event" check below to avoid reacting to a device disconnect.
     _DEATH_MARKERS = (
@@ -193,179 +186,63 @@ class ConnectionRecovery(FrameProcessor):
         "sent 1001",
         "1006",
     )
-    # Substrings that UNAMBIGUOUSLY mean OUR OpenAI session is gone and must be
-    # reconnected, regardless of how the error surfaced. The 60-minute cap can
-    # arrive as a proactive OpenAI *error event* (code='session_expired', "Your
-    # session hit the maximum duration of 60 minutes.") with NO "client event"
-    # send-flood and NO close-code marker — so the paired check above misses it
-    # and the session stays dead until the add-on restarts. These markers force a
-    # reconnect on their own. They can only come from OpenAI (not a device close),
-    # so no "client event" guard is needed.
+    # Substrings that UNAMBIGUOUSLY mean OUR OpenAI session is gone. The
+    # 60-minute cap can arrive as a proactive OpenAI *error event*
+    # (code='session_expired', "Your session hit the maximum duration of 60
+    # minutes.") with NO "client event" send-flood and NO close-code marker.
+    # These can only come from OpenAI (not a device close), so no "client
+    # event" guard is needed.
     _SESSION_DEAD_MARKERS = (
         "session_expired",
         "maximum duration",
     )
-    RECONNECT_COOLDOWN_S = 5.0
     IDLE_UNSTICK_COOLDOWN_S = 2.0
-    # Proactive refresh: reconnect BEFORE OpenAI's 60-min session cap, but only
-    # while the house is genuinely quiet, so the cap practically never lands
-    # mid-conversation (where it costs the user a turn).
-    REFRESH_AGE_S = 55 * 60   # refresh once the session is this old
-    REFRESH_QUIET_S = 60.0    # ... and no mic audio flowed for this long
-    REFRESH_CHECK_S = 60.0    # poll cadence of the background check
 
-    def __init__(self, openai_service, emit_idle=None, phase_emitter=None, **kwargs):
+    def __init__(self, openai_service, phase_emitter, **kwargs):
         super().__init__(**kwargs)
         self._service = openai_service
-        self._emit_idle = emit_idle  # async callable(value:str), e.g. send_phase
-        # Preferred idle route: PhaseEmitter.force_idle() keeps the emitter's
-        # phase state consistent AND suppresses the racing `thinking` from VAD
-        # stop events still in flight (observed: a raw broadcast idle was
-        # overridden 400 ms later and the device sat in `thinking` with an
-        # open mic for 44 s). emit_idle stays as fallback wiring.
+        # PhaseEmitter.force_idle() keeps the emitter's phase state consistent
+        # AND suppresses the racing `thinking` from VAD stop events still in
+        # flight (observed: a raw broadcast idle was overridden 400 ms later and
+        # the device sat in `thinking` with an open mic for 44 s).
         self._phase_emitter = phase_emitter
-        self._reconnecting = False
-        self._last_attempt = 0.0
         self._last_idle_unstick = 0.0
-        # Diagnostics: when the current OpenAI session connected, so we can log its
-        # age at a drop (the 60-min cap shows up as ~3600 s) and the reconnect
-        # duration (the brief gap the user hears).
-        self._connected_at = time.monotonic()
-        # Proactive-refresh state. This processor sits right behind
-        # transport.input(), so every mic frame passes through it — the cheapest
-        # possible "is anyone interacting?" signal (the device only streams the
-        # mic during an active turn or the follow-up window).
-        self._last_input_audio = time.monotonic()
-        self._refresh_task = None
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
-        if self._refresh_task is None:
-            self._refresh_task = asyncio.create_task(self._proactive_refresh_loop())
-        if isinstance(frame, InputAudioRawFrame):
-            # Only kept for the proactive-refresh "is anyone interacting?" check.
-            # (Stale-audio clearing is now done at the cut-off source — the device
-            # sends {"type":"flush"} when a follow-up window times out — not
-            # reactively on mic-resume, which disturbed the VAD and caused garbage.)
-            self._last_input_audio = time.monotonic()
-        if isinstance(frame, ErrorFrame) and not self._reconnecting:
+        if isinstance(frame, ErrorFrame):
             msg = str(getattr(frame, "error", "") or "")
-            # Two reconnect triggers:
+            # Three signs the session is gone:
             #  (a) the OpenAI send-side flood ("Error sending client event: …" +
-            #      a close-code marker) — OUR WS died mid-send. We require the
-            #      "client event" signature so a normal DEVICE-side disconnect
-            #      (also 1011/ConnectionClosed, but the device went away) does NOT
-            #      trigger an OpenAI reconnect.
-            #  (b) an unambiguous OpenAI session-dead error event (session_expired
-            #      / "maximum duration") — this is the 60-min cap surfacing as a
-            #      proactive error event with NO send-flood, so (a) misses it.
-            #      It can only come from OpenAI, so it needs no "client event" guard.
+            #      a close-code marker) — OUR WS died mid-send. The "client
+            #      event" signature keeps a DEVICE-side disconnect (also
+            #      1011/ConnectionClosed) from ending the session.
+            #  (b) an OpenAI session-dead error event (session_expired /
+            #      "maximum duration"), the 60-min cap.
+            #  (c) the OpenAI READ side died or ended (network drop / silent
+            #      server close), which SafeRealtimeLLMService reports with
+            #      this message because pipecat reports nothing.
             send_flood = "client event" in msg and any(m in msg for m in self._DEATH_MARKERS)
             session_dead = any(m in msg for m in self._SESSION_DEAD_MARKERS)
-            # (c) the OpenAI READ side died or ended (network drop / silent
-            #     server close). pipecat produces no ErrorFrame for these at
-            #     all — SafeRealtimeLLMService wraps the receive loop and
-            #     reports them with this message. Without it the session sat
-            #     deaf for hours until the next utterance hit the dead socket.
             reader_dead = "realtime receive loop" in msg
             if send_flood or session_dead or reader_dead:
-                now = time.monotonic()
-                if now - self._last_attempt >= self.RECONNECT_COOLDOWN_S:
-                    self._reconnecting = True
-                    self._last_attempt = now
-                    asyncio.create_task(self._recover(msg))
+                self._service.session_lost(msg)
             else:
-                # Non-connection-death error that ENDS a turn without a reply:
-                # most importantly an OpenAI rate-limit ("Rate limit reached …"),
-                # but also any other transient response.create failure. No bot
-                # speech was produced, so PhaseEmitter never fires
-                # BotStopped→idle; the device is left stuck in `thinking`
-                # (LED keeps blinking) with no device-side watchdog to recover.
-                # Emit one `idle` to unstick it so the user can just try again.
-                # Guarded by a short cooldown so a rare flood collapses to one.
+                # A turn ended on an error without a reply: most importantly an
+                # OpenAI rate-limit ("Rate limit reached …"). No bot speech was
+                # produced, so PhaseEmitter never fires BotStopped→idle; the
+                # device is left stuck in `thinking`. Emit one `idle` so the user
+                # can just try again; the cooldown collapses a rare flood.
                 now = time.monotonic()
                 if now - self._last_idle_unstick >= self.IDLE_UNSTICK_COOLDOWN_S:
                     self._last_idle_unstick = now
                     asyncio.create_task(self._unstick_idle(msg))
         await self.push_frame(frame, direction)
 
-    async def _recover(self, reason: str):
-        t0 = time.monotonic()
-        age_s = t0 - self._connected_at
-        try:
-            logger.warning(
-                f"🔌 OpenAI Realtime connection lost after {age_s:.0f}s "
-                f"({reason[:90]}) — reconnecting…"
-            )
-            # Unstick the device first, regardless of how the reconnect goes.
-            try:
-                await self._go_idle(f"reconnect: {reason[:60]}")
-            except Exception as e:
-                logger.warning(f"⚠️ could not emit idle during recovery: {e!r}")
-            reset = getattr(self._service, "reset_conversation", None)
-            if reset is None:
-                logger.error("❌ service has no reset_conversation(); cannot reconnect in place")
-                return
-            await reset()
-            self._connected_at = time.monotonic()
-            logger.info(
-                f"✅ OpenAI Realtime session reconnected in {self._connected_at - t0:.1f}s "
-                f"(gap the user may have heard)"
-            )
-        except Exception as e:
-            logger.error(f"❌ OpenAI reconnect attempt failed: {e!r}")
-        finally:
-            self._reconnecting = False
-
-    async def _proactive_refresh_loop(self):
-        """Refresh the OpenAI session BEFORE the 60-min cap, during real idle.
-
-        The cap reconnect is recoverable (~3 s), but when it lands
-        mid-conversation that turn hiccups. Refreshing proactively while
-        nothing is happening means users practically never meet the cap.
-        "Quiet" is double-checked: no assistant response in flight AND no mic
-        audio for REFRESH_QUIET_S — so it can never fire during a turn, a
-        reply, or an open follow-up window.
-        """
-        while True:
-            try:
-                await asyncio.sleep(self.REFRESH_CHECK_S)
-                if self._reconnecting:
-                    continue
-                now = time.monotonic()
-                age = now - self._connected_at
-                quiet = now - self._last_input_audio
-                busy = getattr(self._service, "_current_assistant_response", None) is not None
-                if (age >= self.REFRESH_AGE_S and quiet >= self.REFRESH_QUIET_S
-                        and not busy and now - self._last_attempt >= self.RECONNECT_COOLDOWN_S):
-                    self._reconnecting = True
-                    self._last_attempt = now
-                    logger.info(
-                        f"🔄 proactive session refresh (session {age/60:.0f} min old, "
-                        f"quiet for {quiet:.0f}s) — staying ahead of the 60-min cap"
-                    )
-                    await self._recover("proactive refresh before the 60-min session cap")
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.warning(f"⚠️ proactive refresh loop error: {e!r}")
-
-    async def _go_idle(self, reason: str) -> None:
-        """Put the device in idle for a dead turn — via PhaseEmitter when wired."""
-        if self._phase_emitter is not None:
-            await self._phase_emitter.force_idle(reason)
-        elif self._emit_idle is not None:
-            await self._emit_idle("idle")
-
     async def _unstick_idle(self, reason: str):
-        """Emit `idle` to the device after a turn-ending error (e.g. rate limit).
-
-        The session is still alive (no reconnect needed) — we just nudge the
-        device out of its stuck `thinking` blink so the user can retry.
-        """
         try:
             logger.warning(f"⚠️ turn ended on error, emitting idle to unstick device ({reason[:90]})")
-            await self._go_idle(f"turn ended on error: {reason[:60]}")
+            await self._phase_emitter.force_idle(f"turn ended on error: {reason[:60]}")
         except Exception as e:
             logger.warning(f"⚠️ could not emit idle after turn-ending error: {e!r}")
 
@@ -458,8 +335,7 @@ class WebSocketHandler:
     def build_pipeline(
         self,
         transport: WebsocketServerTransport,
-        openai_service: OpenAIRealtimeLLMService,
-        activity_callback: Optional[Callable[[], None]] = None
+        openai_service: SafeRealtimeLLMService,
     ) -> tuple[Pipeline, PipelineRunner, PipelineTask]:
         """
         Build pipeline for a WebSocket transport connection.
@@ -467,7 +343,6 @@ class WebSocketHandler:
         Args:
             transport: The WebSocket transport instance
             openai_service: The OpenAI service instance
-            activity_callback: Optional callback for session activity tracking
             
         Returns:
             Tuple of (Pipeline, PipelineRunner, PipelineTask)
@@ -477,14 +352,10 @@ class WebSocketHandler:
         
         logger.info(f"🔗 Building pipeline with WebSocket transport and OpenAI service: {type(openai_service).__name__}")
         
-        # Create activity trackers
-        input_activity_tracker = SessionActivityTracker(
-            activity_callback=activity_callback or (lambda: None)
-        )
-        output_activity_tracker = SessionActivityTracker(
-            activity_callback=activity_callback or (lambda: None)
-        )
-        
+        # Reply audio keeps the session from closing as idle; the service
+        # notes mic audio itself.
+        output_activity_tracker = SessionActivityTracker(activity_callback=openai_service.note_activity)
+
         # The conversation as Pipecat records it: transcripts, replies, tool calls.
         context_aggregator = LLMContextAggregatorPair(LLMContext())
         
@@ -492,21 +363,18 @@ class WebSocketHandler:
         # transport) so every later stage — VAD, context aggregator, OpenAI
         # service — sees correctly-rated 24 kHz audio instead of the device's
         # raw 16 kHz (which OpenAI would otherwise read 1.5x too fast).
-        # Built early so ConnectionRecovery can route its unstick/reconnect
-        # idle through PhaseEmitter.force_idle() (consistent phase state +
-        # racing-`thinking` suppression); it is APPENDED near the end of the
-        # pipeline below, before transport.output().
+        # Built early so SessionErrorWatch can route its unstick idle through
+        # PhaseEmitter.force_idle() (consistent phase state + racing-`thinking`
+        # suppression); it is APPENDED near the end of the pipeline below,
+        # before transport.output().
         phase_emitter = PhaseEmitter(send_phase=self.send_phase)
 
         pipeline_components = [
             transport.input(),
             # Watch for OpenAI connection-death ErrorFrames (they travel upstream
-            # to the task source, so place this upstream of the service) and
-            # reconnect in place. Without it a 1011/1001 drop bricks the session.
-            ConnectionRecovery(openai_service=openai_service, emit_idle=self.send_phase,
-                               phase_emitter=phase_emitter),
+            # to the task source, so place this upstream of the service).
+            SessionErrorWatch(openai_service=openai_service, phase_emitter=phase_emitter),
             InputResampler(out_rate=PIPELINE_SAMPLE_RATE),
-            input_activity_tracker,
         ]
         
         # Add input audio recorder to capture ONLY InputAudioRawFrame
@@ -544,7 +412,7 @@ class WebSocketHandler:
         # the device, derived from Pipecat speaking frames as they pass
         # downstream. Placed before transport.output() so it sees both the
         # user (UserStarted/Stopped) and bot (BotStarted/Stopped) frames.
-        # (Constructed above, before ConnectionRecovery.)
+        # (Constructed above, before SessionErrorWatch.)
         pipeline_components.append(phase_emitter)
 
         # Add output audio recorder to capture ONLY OutputAudioRawFrame
@@ -636,11 +504,8 @@ class WebSocketHandler:
             # the 1.5 s time-window alone misses responses that land later —
             # OpenAI replying to the spoken "stop", or a slow tool's answer.
             _kill_next_response["v"] = True
-            try:
-                await openai_service.send_client_event(openai_rt_events.InputAudioBufferClearEvent())
-                logger.info("🛑 device interrupt → input_audio_buffer.clear sent (drop in-flight user audio)")
-            except Exception as e:
-                logger.info(f"🛑 device interrupt → input_audio_buffer.clear no-op ({e!r})")
+            await openai_service.clear_input_audio()
+            logger.info("🛑 device interrupt → input audio cleared (drop in-flight user audio)")
             try:
                 if getattr(openai_service, "_current_assistant_response", None) is not None:
                     await openai_service.send_client_event(openai_rt_events.ResponseCancelEvent())
@@ -677,15 +542,12 @@ class WebSocketHandler:
         async def _on_device_session_start():
             # va_client sends {"type":"start"} once per WebSocket CONNECTION
             # (on connect) — NOT per wake. A reconnect mid-utterance (wifi
-            # blip, backend restart with session reuse) can leave half an
-            # utterance in OpenAI's input buffer; start every (re)connection
-            # with a clean one. The per-WAKE/follow-up stale-buffer case is
-            # covered by the device's {"type":"flush"} on follow-up timeout.
-            try:
-                await openai_service.send_client_event(openai_rt_events.InputAudioBufferClearEvent())
-                logger.info("🎬 device (re)connected → input_audio_buffer.clear (clean start)")
-            except Exception as e:
-                logger.debug(f"🎬 connect-time input clear no-op ({e!r})")
+            # blip) can leave half an utterance in the open session's input
+            # buffer; start every (re)connection with a clean one. The
+            # per-WAKE/follow-up stale-buffer case is covered by the device's
+            # {"type":"flush"} on follow-up timeout.
+            await openai_service.clear_input_audio()
+            logger.info("🎬 device (re)connected → input audio cleared (clean start)")
 
         async def _on_device_mic_flush():
             # The device sends {"type":"flush"} when a follow-up window times out
@@ -696,11 +558,8 @@ class WebSocketHandler:
             # Also a turn boundary for the dangling-VAD guard: the follow-up
             # closed without speech, so any later server-VAD stop is dangling.
             phase_emitter.note_wake()
-            try:
-                await openai_service.send_client_event(openai_rt_events.InputAudioBufferClearEvent())
-                logger.info("🧽 follow-up cut-off → input_audio_buffer.clear (drop partial utterance)")
-            except Exception as e:
-                logger.debug(f"🧽 mic-flush input clear no-op ({e!r})")
+            await openai_service.clear_input_audio()
+            logger.info("🧽 follow-up cut-off → input audio cleared (drop partial utterance)")
 
         async def _on_device_wake():
             # va_client sends {"type":"wake"} on every wake (start_session). Mark
@@ -712,6 +571,22 @@ class WebSocketHandler:
             # New turn boundary: drop any pending post-tool kill so it can't
             # leak onto this fresh turn's response.
             _kill_next_response["v"] = False
+            # The user is about to speak: open a session if none is open.
+            openai_service.on_wake()
+
+        async def _on_session_failed(reason: str):
+            # The device plays its error sound and goes idle on `error`.
+            await self.send_to_device({"type": "error", "message": reason[:200]})
+            await phase_emitter.force_idle(f"session failed to open: {reason}")
+
+        async def _on_session_lost(reason: str):
+            # Mid-turn, the turn is lost with the session: say so. Between
+            # turns there's nothing to tell the device; the next wake reopens.
+            if phase_emitter.current not in (None, "idle"):
+                await self.send_to_device({"type": "error", "message": "connection to OpenAI lost"})
+                await phase_emitter.force_idle(f"session lost: {reason}")
+
+        openai_service.set_session_handlers(on_failed=_on_session_failed, on_lost=_on_session_lost)
 
         # Wire the dangling-VAD guard's kill-window into the PhaseEmitter. It
         # reuses the SAME _interrupt_kill_until + _kill_racing_response machinery

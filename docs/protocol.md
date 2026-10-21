@@ -49,8 +49,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 `{"type":"start"}`
 
 - **Sent:** once per connection, immediately on connect.
-- **Add-on:** clears OpenAI's input audio buffer (`input_audio_buffer.clear`),
-  so a reconnect mid-utterance can't leave half a sentence behind.
+- **Add-on:** if an OpenAI session is open, clears its input audio buffer
+  (`input_audio_buffer.clear`), so a reconnect mid-utterance can't leave half a
+  sentence behind. Opens no session.
 
 ### `wake`
 `{"type":"wake"}`
@@ -58,18 +59,21 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 - **Sent:** at the start of every session (`start_session()`): the wake word,
   or the centre button pressed while idle. Sent after any `interrupt` that
   session start sends for a reply still playing or being generated.
-- **Add-on:** marks a turn boundary. Until the user actually speaks, an
-  end-of-turn from OpenAI's turn detection is treated as a stale segment from
-  before the wake: its `thinking` is suppressed and the response it creates is
-  cancelled. Also clears any pending post-stop response cancel.
+- **Add-on:** opens an OpenAI session if none is open (see
+  [OpenAI session](#openai-session)). Marks a turn boundary: until the user
+  actually speaks, an end-of-turn from OpenAI's turn detection is treated as a
+  stale segment from before the wake: its `thinking` is suppressed and the
+  response it creates is cancelled. Also clears any pending post-stop response
+  cancel.
 
 ### `flush`
 `{"type":"flush"}`
 
 - **Sent:** when a follow-up window expires with the mic still open (no speech
   arrived).
-- **Add-on:** clears OpenAI's input audio buffer, dropping any uncommitted
-  partial utterance, and marks a turn boundary as for `wake`.
+- **Add-on:** clears the session's input audio buffer (or the audio held while
+  one opens), dropping any uncommitted partial utterance, and marks a turn
+  boundary as for `wake`.
 
 ### `interrupt`
 `{"type":"interrupt"}`
@@ -82,8 +86,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   gate, cancels follow-up timers, drops all incoming audio until the next
   `listening`, ignores `thinking` until the next wake, and suppresses the
   follow-up window the next `idle` would open.
-- **Add-on:** drops the reply audio it has queued for the device; clears
-  OpenAI's input audio buffer; sends `response.cancel` if a response is active;
+- **Add-on:** drops the reply audio it has queued for the device; clears the
+  session's input audio buffer (or the audio held while one opens); sends
+  `response.cancel` if a response is active;
   then cancels the next assistant response to appear, whenever it appears, plus
   any appearing within 1.5 s. Real user speech disarms both; a `wake` disarms
   the first.
@@ -153,12 +158,34 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 The device also applies `idle` locally on every disconnect.
 
-### `error` (handled by the device, never sent)
-`{"type":"error",...}`. The device plays the error chime and goes `idle`.
+### `error`
+`{"type":"error","message":"could not connect to OpenAI"}`
+
+- **Sent:** when an OpenAI session can't be opened (the connection fails, or
+  the session isn't configured within 10 s), and when the open session's
+  connection dies mid-turn. `message` is for logs.
+- **Device:** plays the error chime and goes `idle`.
 
 ### `request_follow_up` (handled by the device, never sent)
 `{"type":"request_follow_up"}`. The device waits for playback to drain, plays a
 chime, then opens the mic for 10 s.
+
+## OpenAI session
+
+The add-on keeps one OpenAI Realtime session per conversation.
+
+- **Opening:** on `wake`, or on mic audio arriving with no session open. Mic
+  audio that arrives while the session opens is held, up to 10 s, and sent
+  once OpenAI has configured the session. Opening typically takes under a
+  second, about as long as the device's `wake_open_delay_ms`.
+- **Continuing:** a `wake` while the session is open continues the same
+  conversation.
+- **Closing:** once nothing has happened for `session_reuse_timeout_seconds`
+  (default 300): no mic audio, no reply playing, no response or tool running.
+  The conversation ends with it; the next `wake` starts afresh.
+- **Losing it:** if OpenAI's connection dies, the session ends. Mid-turn the
+  device gets `error`; between turns it is told nothing. Nothing reconnects
+  until the next `wake`.
 
 ## Mic gate
 
@@ -187,6 +214,8 @@ it when the gate opens: it contains the wake chime.
 | Add-on | Idle debounce | 1500 ms | See `phase` |
 | Add-on | Thinking watchdog | 15 s (paused while a tool runs) | Forced `idle` |
 | Add-on | Post-interrupt cancel window | 1.5 s | See `interrupt` |
+| Add-on | Session open timeout | 10 s | Gives up opening; sends `error` |
+| Add-on | Conversation idle timeout | `session_reuse_timeout_seconds` (300 s) | Closes the OpenAI session |
 
 ## Typical sequences
 
@@ -197,7 +226,7 @@ device                         add-on
   ◀──────────────────── hello
   ── start ───────────────────▶
   (wake word; wake_open_delay_ms)
-  ── wake ────────────────────▶
+  ── wake ────────────────────▶   opens an OpenAI session
   ── mic audio … ─────────────▶
   ◀──────── phase listening
   ◀───────── phase thinking
@@ -219,5 +248,5 @@ device                         add-on
 
 ## Gaps
 
-- **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
-  The add-on has no `request_follow_up` tool.
+- **A device handler the add-on never triggers:** `request_follow_up`. The
+  add-on has no `request_follow_up` tool.

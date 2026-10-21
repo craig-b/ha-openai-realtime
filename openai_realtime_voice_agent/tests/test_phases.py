@@ -14,31 +14,31 @@ def short_thinking_timeout(monkeypatch):
     monkeypatch.setattr(PhaseEmitter, "THINKING_TIMEOUT_S", 1.0)
 
 
-async def test_a_turn_runs_listening_thinking_replying_idle(openai, device):
-    conn = await openai.connection()
+async def test_a_turn_runs_listening_thinking_replying_idle(openai, device, session):
+    conn = session
     await conn.user_turn()
     await conn.reply(pcm_tone(320, 24000))
     await device.wait_for_phase("idle")
     assert device.phases == ["listening", "thinking", "replying", "idle"]
 
 
-async def test_listening_follows_speech_started(openai, device):
-    conn = await openai.connection()
+async def test_listening_follows_speech_started(openai, device, session):
+    conn = session
     await conn.speech_started()
     await device.wait_for_phase("listening")
     assert device.phases == ["listening"]
 
 
-async def test_thinking_follows_speech_stopped(openai, device):
-    conn = await openai.connection()
+async def test_thinking_follows_speech_stopped(openai, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
 
 
-async def test_idle_waits_out_the_debounce(openai, start_addon):
+async def test_idle_waits_out_the_debounce(openai, start_addon, wake):
     addon = await start_addon(PHASE_IDLE_DEBOUNCE_MS="1000")
     device = await addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     audio = pcm_tone(320, 24000)
     await conn.reply(audio)
@@ -50,10 +50,10 @@ async def test_idle_waits_out_the_debounce(openai, start_addon):
     await device.close()
 
 
-async def test_the_debounce_defaults_to_1500_ms(openai, start_addon):
+async def test_the_debounce_defaults_to_1500_ms(openai, start_addon, wake):
     addon = await start_addon(PHASE_IDLE_DEBOUNCE_MS=None)
     device = await addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     audio = pcm_tone(320, 24000)
     await conn.reply(audio)
@@ -64,10 +64,10 @@ async def test_the_debounce_defaults_to_1500_ms(openai, start_addon):
     await device.close()
 
 
-async def test_the_debounce_bridges_gaps_inside_a_reply(openai, start_addon):
+async def test_the_debounce_bridges_gaps_inside_a_reply(openai, start_addon, wake):
     addon = await start_addon(PHASE_IDLE_DEBOUNCE_MS="1500")
     device = await addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     first = pcm_tone(320, 24000)
     await conn.reply(first)
@@ -79,23 +79,23 @@ async def test_the_debounce_bridges_gaps_inside_a_reply(openai, start_addon):
     await device.close()
 
 
-async def test_a_repeated_phase_is_not_resent(openai, device):
-    conn = await openai.connection()
+async def test_a_repeated_phase_is_not_resent(openai, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
     await conn.speech_stopped()
     await device.assert_no_phase("thinking", within=0.3, after=1)
 
 
-async def test_listening_is_always_sent(openai, device):
-    conn = await openai.connection()
+async def test_listening_is_always_sent(openai, device, session):
+    conn = session
     await conn.speech_started()
     await conn.speech_started()
     await device.wait_for_phase("listening", count=2)
 
 
-async def test_end_of_turn_during_a_reply_keeps_replying(openai, device):
-    conn = await openai.connection()
+async def test_end_of_turn_during_a_reply_keeps_replying(openai, device, session):
+    conn = session
     await conn.user_turn()
     response = await conn.start_response()
     await response.audio(pcm_tone(2000, 24000))
@@ -106,8 +106,8 @@ async def test_end_of_turn_during_a_reply_keeps_replying(openai, device):
     assert device.phases[-1] == "replying"
 
 
-async def test_thinking_without_activity_is_forced_idle(openai, short_thinking_timeout, device):
-    conn = await openai.connection()
+async def test_thinking_without_activity_is_forced_idle(openai, short_thinking_timeout, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
     started = time.monotonic()
@@ -116,8 +116,8 @@ async def test_thinking_without_activity_is_forced_idle(openai, short_thinking_t
     assert time.monotonic() - started >= 0.9
 
 
-async def test_after_a_forced_idle_thinking_waits_for_real_speech(openai, short_thinking_timeout, device):
-    conn = await openai.connection()
+async def test_after_a_forced_idle_thinking_waits_for_real_speech(openai, short_thinking_timeout, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("idle", timeout=4.0)
     await conn.speech_stopped()
@@ -126,8 +126,8 @@ async def test_after_a_forced_idle_thinking_waits_for_real_speech(openai, short_
     await device.wait_for_phase("thinking", count=2)
 
 
-async def test_a_failed_response_forces_idle(openai, device):
-    conn = await openai.connection()
+async def test_a_failed_response_forces_idle(openai, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
     response = await conn.start_response()

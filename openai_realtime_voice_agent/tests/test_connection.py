@@ -56,38 +56,45 @@ async def test_hello_values_are_clamped(start_addon, env, field, expected):
     await device.close()
 
 
-async def test_add_on_sends_compact_json(openai, device):
-    conn = await openai.connection()
+async def test_add_on_sends_compact_json(openai, device, session):
+    conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
     for text in device.raw_text:
         assert text == json.dumps(json.loads(text), separators=(",", ":"))
 
 
-async def test_start_clears_the_openai_input_buffer(openai, addon):
-    conn = await openai.connection()
-    device = await addon.connect(send_start=False)
-    await conn.assert_none("input_audio_buffer.clear", within=0.2)
-    await device.send({"type": "start"})
-    await conn.wait_for("input_audio_buffer.clear")
-    await device.close()
-
-
-async def test_device_can_reconnect(openai, addon):
-    conn = await openai.connection()
+async def test_start_clears_the_open_sessions_input_buffer(openai, addon, wake):
     first = await addon.connect()
+    conn = await wake(first)
+    await first.close()
+    # The device reconnects mid-conversation.
+    second = await addon.connect(send_start=False)
+    await conn.assert_none("input_audio_buffer.clear", within=0.2)
+    await second.send({"type": "start"})
+    await conn.wait_for("input_audio_buffer.clear")
+    await second.close()
+
+
+async def test_start_opens_no_session(openai, device):
+    await asyncio.sleep(0.3)
+    assert openai.connections == []
+
+
+async def test_device_can_reconnect(openai, addon, wake):
+    first = await addon.connect()
+    conn = await wake(first)
     await first.close()
 
     second = await addon.connect()
-    await conn.wait_for("input_audio_buffer.clear", count=2)
     await conn.user_turn()
     await second.wait_for_phase("listening")
     await second.close()
 
 
-async def test_new_connection_replaces_the_old_one(openai, addon):
-    conn = await openai.connection()
+async def test_new_connection_replaces_the_old_one(openai, addon, wake):
     old = await addon.connect()
+    conn = await wake(old)
 
     new = await addon.connect()
     await asyncio.wait_for(old.closed.wait(), 3.0)
@@ -99,11 +106,11 @@ async def test_new_connection_replaces_the_old_one(openai, addon):
     await new.close()
 
 
-async def test_new_connection_is_served_while_the_old_one_is_half_open(openai, addon):
+async def test_new_connection_is_served_while_the_old_one_is_half_open(openai, addon, wake):
     # A device that dropped off Wi-Fi and reconnected leaves its old TCP
     # connection half-open: the old socket never answers the close handshake.
-    conn = await openai.connection()
     old = await addon.connect()
+    conn = await wake(old)
     old.websocket.transport.pause_reading()
     try:
         new = await addon.device().connect()
@@ -115,9 +122,9 @@ async def test_new_connection_is_served_while_the_old_one_is_half_open(openai, a
     await new.close()
 
 
-async def test_the_old_connection_ending_late_leaves_the_new_one_alone(openai, addon):
-    conn = await openai.connection()
+async def test_the_old_connection_ending_late_leaves_the_new_one_alone(openai, addon, wake):
     old = await addon.connect()
+    conn = await wake(old)
     old.websocket.transport.pause_reading()
     new = await addon.connect()
     # The old connection's close completes only after the new one took over.
@@ -132,8 +139,8 @@ async def test_the_old_connection_ending_late_leaves_the_new_one_alone(openai, a
     await new.close()
 
 
-async def test_device_audio_is_resampled_to_24_khz(openai, device):
-    conn = await openai.connection()
+async def test_device_audio_is_resampled_to_24_khz(openai, device, session):
+    conn = session
     # 1 s at 16 kHz, in 20 ms frames as the microphone delivers it.
     frame = pcm_tone(20, 16000)
     for _ in range(50):
@@ -147,8 +154,8 @@ async def test_device_audio_is_resampled_to_24_khz(openai, device):
     assert len(conn.appended_audio()) <= expected
 
 
-async def test_odd_length_audio_frames_are_dropped(openai, device):
-    conn = await openai.connection()
+async def test_odd_length_audio_frames_are_dropped(openai, device, session):
+    conn = session
     await device.send_audio(pcm_silence(100, 16000) + b"\x00")
     await device.send_audio(pcm_tone(500, 16000))
     await wait_until(lambda: conn.appended_audio(), 3.0, "audio appended")
@@ -157,8 +164,8 @@ async def test_odd_length_audio_frames_are_dropped(openai, device):
     assert len(conn.appended_audio()) <= 500 * 24 * 2
 
 
-async def test_reply_audio_reaches_the_device_unchanged(openai, device):
-    conn = await openai.connection()
+async def test_reply_audio_reaches_the_device_unchanged(openai, device, session):
+    conn = session
     await conn.user_turn()
     audio = pcm_tone(1000, 24000)
     await conn.reply(audio)
@@ -166,8 +173,8 @@ async def test_reply_audio_reaches_the_device_unchanged(openai, device):
     assert bytes(device.audio) == audio
 
 
-async def test_a_reply_that_is_not_whole_chunks_reaches_the_device_in_full(openai, device):
-    conn = await openai.connection()
+async def test_a_reply_that_is_not_whole_chunks_reaches_the_device_in_full(openai, device, session):
+    conn = session
     await conn.user_turn()
     audio = pcm_tone(OUTPUT_CHUNK_MS * 7 + 20, 24000)
     await conn.reply(audio)
@@ -176,8 +183,8 @@ async def test_a_reply_that_is_not_whole_chunks_reaches_the_device_in_full(opena
     assert bytes(device.audio) == audio + bytes(20 * 48)
 
 
-async def test_two_replies_back_to_back_reach_the_device_in_full(openai, device):
-    conn = await openai.connection()
+async def test_two_replies_back_to_back_reach_the_device_in_full(openai, device, session):
+    conn = session
     await conn.user_turn()
     first = pcm_tone(OUTPUT_CHUNK_MS * 3 + 10, 24000)
     second = pcm_tone(OUTPUT_CHUNK_MS * 2 + 30, 24000)
@@ -187,8 +194,8 @@ async def test_two_replies_back_to_back_reach_the_device_in_full(openai, device)
     assert bytes(device.audio) == first + bytes(30 * 48) + second + bytes(10 * 48)
 
 
-async def test_reply_audio_is_paced_at_real_time(openai, device):
-    conn = await openai.connection()
+async def test_reply_audio_is_paced_at_real_time(openai, device, session):
+    conn = session
     await conn.user_turn()
     audio = pcm_tone(3000, 24000)
     started = time.monotonic()

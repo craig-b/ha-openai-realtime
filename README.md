@@ -73,8 +73,8 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 - **No voice timers or alarms yet** — every other Assist action (lights, switches,
   scenes, climate) and online questions work.
-- **A brief reconnect about once an hour** (OpenAI's 60-minute session cap; the
-  add-on refreshes proactively during a quiet moment, so it rarely interrupts).
+- **A conversation lasts at most an hour** (OpenAI's 60-minute session cap); one
+  that keeps going that long is cut off, and the next wake starts a new one.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 

@@ -120,17 +120,17 @@ Every option has a description on the **Configuration** tab. The ones worth know
 
 The add-on log shows each turn: `🗣️ user:` (when transcription language is set),
 `🤖 assistant:` (the reply text), `📞 phase ->` (device state), tool calls, and
-`🔌 …reconnecting` / `✅ reconnected` on a connection recovery. View it on the add-on
-**Log** tab.
+`🔌 opening an OpenAI session` / `🔌 OpenAI session closed` as conversations start
+and end. View it on the add-on **Log** tab.
 
 ## Known limitations
 
 - **No voice timers or alarms yet.** Setting a timer by voice isn't supported (the
   official Home Assistant timer intent isn't wired up). Everything else — lights,
   switches, scenes, climate, and questions — works.
-- **A brief reconnect about once an hour.** OpenAI limits a realtime session to
-  60 minutes. The add-on refreshes proactively during a quiet moment, so you'll
-  rarely notice it, but a reconnect can occasionally cause a ~1–2 second pause.
+- **A conversation lasts at most an hour.** OpenAI limits a realtime session to
+  60 minutes. A conversation that keeps going that long is cut off, and the next
+  wake starts a new one.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 

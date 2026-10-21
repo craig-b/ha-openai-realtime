@@ -47,6 +47,10 @@ class FakeRealtimeConnection:
 
     # --- what the add-on sent ------------------------------------------------
 
+    def index_of(self, event_type: str) -> int:
+        """Position of the first event of `event_type` among those received."""
+        return next(i for i, e in enumerate(self.events) if e.get("type") == event_type)
+
     def of_type(self, event_type: str) -> list[dict]:
         return [e for e in self.events if e.get("type") == event_type]
 
@@ -236,19 +240,31 @@ class FakeRealtimeServer:
         self.connections: list[FakeRealtimeConnection] = []
         self._server = None
         self.port: Optional[int] = None
+        # Knobs for failure tests: refuse connections with this HTTP status;
+        # delay, or never send, session.updated.
+        self.reject_status: Optional[int] = None
+        self.rejected = 0
+        self.session_updated_delay = 0.0
+        self.configure_sessions = True
 
     @property
     def url(self) -> str:
         return f"ws://127.0.0.1:{self.port}/v1/realtime"
 
     async def start(self) -> None:
-        self._server = await serve(self._handle, "127.0.0.1", 0)
+        self._server = await serve(self._handle, "127.0.0.1", 0, process_request=self._process_request)
         self.port = self._server.sockets[0].getsockname()[1]
 
     async def stop(self) -> None:
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
+
+    def _process_request(self, connection, request):
+        if self.reject_status is not None:
+            self.rejected += 1
+            return connection.respond(self.reject_status, "rejected by the test\n")
+        return None
 
     async def _handle(self, websocket) -> None:
         conn = FakeRealtimeConnection(websocket, websocket.request.path)
@@ -261,7 +277,9 @@ class FakeRealtimeServer:
             async for message in websocket:
                 event = json.loads(message)
                 conn.events.append(event)
-                if event.get("type") == "session.update":
+                if event.get("type") == "session.update" and self.configure_sessions:
+                    if self.session_updated_delay:
+                        await asyncio.sleep(self.session_updated_delay)
                     await conn.send({"type": "session.updated", "session": event["session"]})
         except websockets.ConnectionClosed:
             pass
@@ -324,6 +342,10 @@ class FakeDevice:
             await self.websocket.close()
         if self._reader is not None:
             await self._reader
+
+    @property
+    def errors(self) -> list[dict]:
+        return [m for m in self.messages if m.get("type") == "error"]
 
     @property
     def phases(self) -> list[str]:

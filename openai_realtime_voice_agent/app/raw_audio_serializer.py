@@ -35,11 +35,10 @@ class RawAudioSerializer(FrameSerializer):
         # Async callback invoked when the device sends {"type":"start"}. NB the
         # va_client sends this once per WebSocket CONNECTION (on connect), NOT
         # per wake-word session. Used to start every (re)connection with a
-        # clean OpenAI input buffer — a reconnect mid-utterance leaves half an
-        # utterance behind, which session reuse would replay ahead of the next
-        # turn. The per-WAKE stale-buffer case (follow-up window cutting a
-        # sentence; observed live 2026-06-12) is covered separately by
-        # ConnectionRecovery's mic-resume gap detector in websocket_handler.py.
+        # clean input buffer — a reconnect mid-utterance leaves half an
+        # utterance behind, which the open session would complete ahead of the
+        # next turn. The per-WAKE stale-buffer case (follow-up window cutting a
+        # sentence; observed live 2026-06-12) is covered by {"type":"flush"}.
         self._on_session_start = None
         # Async callback for {"type":"flush"} — the device sends this when a
         # follow-up window times out mid-stream, to drop any uncommitted partial

@@ -8,6 +8,7 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 from app.phase_emitter import PhaseEmitter
+from app.realtime_service import SafeRealtimeLLMService
 from tests.fakes import pcm_tone, wait_until
 
 
@@ -66,20 +67,22 @@ async def ha_addon(start_addon, home_assistant):
     return await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token")
 
 
-async def test_mcp_tools_are_offered_to_the_model(openai, ha_addon):
-    conn = await openai.connection()
+async def test_mcp_tools_are_offered_to_the_model(openai, ha_addon, wake):
+    device = await ha_addon.connect()
+    conn = await wake(device)
     assert sorted(t["name"] for t in conn.session["tools"]) == ["HassTurnOff", "HassTurnOn"]
 
 
-async def test_the_allowlist_limits_the_tools(openai, start_addon, home_assistant):
-    await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", MCP_TOOL_ALLOWLIST="HassTurnOn")
-    conn = await openai.connection()
+async def test_the_allowlist_limits_the_tools(openai, start_addon, home_assistant, wake):
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", MCP_TOOL_ALLOWLIST="HassTurnOn")
+    device = await addon.connect()
+    conn = await wake(device)
     assert [t["name"] for t in conn.session["tools"]] == ["HassTurnOn"]
 
 
-async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant, ha_addon):
+async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant, ha_addon, wake):
     device = await ha_addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     call_id = await conn.function_call("HassTurnOn", {"name": "kitchen light"})
     output = await conn.wait_for("conversation.item.create")
@@ -92,10 +95,10 @@ async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant,
     await device.close()
 
 
-async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_addon):
+async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_addon, wake):
     home_assistant.delay = 1.0
     device = await ha_addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     await conn.function_call("HassTurnOn", {"name": "kitchen light"})
     await wait_until(lambda: home_assistant.calls, 3.0, "the tool call")
@@ -105,11 +108,11 @@ async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_
     await device.close()
 
 
-async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assistant, ha_addon, monkeypatch):
+async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assistant, ha_addon, monkeypatch, wake):
     monkeypatch.setattr(PhaseEmitter, "THINKING_TIMEOUT_S", 0.5)
     home_assistant.delay = 2.0
     device = await ha_addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await conn.user_turn()
     await device.wait_for_phase("thinking")
     await conn.function_call("HassTurnOn", {"name": "kitchen light"})
@@ -120,13 +123,28 @@ async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assi
     await device.close()
 
 
-async def test_an_unreachable_home_assistant_is_reported_to_the_model(openai, home_assistant, ha_addon):
+async def test_an_unreachable_home_assistant_is_reported_to_the_model(openai, home_assistant, ha_addon, wake):
     device = await ha_addon.connect()
-    conn = await openai.connection()
+    conn = await wake(device)
     await home_assistant.stop()
     await conn.user_turn()
     await conn.function_call("HassTurnOn", {"name": "kitchen light"})
     output = await conn.wait_for("conversation.item.create", timeout=5.0)
     assert "Error calling mcp tool HassTurnOn" in output["item"]["output"]
     await conn.wait_for("response.create")
+    await device.close()
+
+
+async def test_a_running_tool_keeps_the_session_open(openai, start_addon, home_assistant, wake, monkeypatch):
+    monkeypatch.setattr(SafeRealtimeLLMService, "IDLE_CHECK_S", 0.05)
+    addon = await start_addon(
+        HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", SESSION_REUSE_TIMEOUT_SECONDS="0"
+    )
+    home_assistant.delay = 1.0
+    device = await addon.connect()
+    conn = await wake(device)
+    await conn.user_turn()
+    await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    await conn.wait_for("conversation.item.create", timeout=3.0)
+    assert not conn.closed.is_set()
     await device.close()

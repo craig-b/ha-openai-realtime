@@ -173,11 +173,13 @@ configuration:
       firmware (default 8080). Only change this on a port clash —
       and update the device firmware stub to match.
   session_reuse_timeout_seconds:
-    name: "⚙️ Advanced · Conversation resume window (seconds)"
+    name: "⚙️ Advanced · Conversation idle timeout (seconds)"
     description: >-
-      If the device reconnects within this many seconds (Wi-Fi blip, add-on
-      restart), the conversation continues where it left off. 300 (5 min) is
-      a good default; 0 = always start fresh.
+      How long a conversation stays open after its last exchange. Waking the
+      assistant within this time continues the conversation; after it, the
+      OpenAI session closes and the next wake starts afresh. 300 (5 min) is a
+      good default; 0 = close as soon as each reply ends, so even a follow-up
+      answer starts afresh.
   max_context_messages:
     name: "⚙️ Advanced · Conversation memory size"
     description: >-

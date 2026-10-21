@@ -177,11 +177,13 @@ configuration:
       de apparaat-firmware (standaard 8080). Alleen wijzigen bij een
       poortconflict — en pas dan ook de firmware-stub aan.
   session_reuse_timeout_seconds:
-    name: "⚙️ Geavanceerd · Gesprek hervatten binnen (seconden)"
+    name: "⚙️ Geavanceerd · Gesprek blijft open (seconden)"
     description: >-
-      Verbindt het apparaat binnen dit aantal seconden opnieuw (wifi-hapering,
-      add-on-herstart), dan gaat het gesprek verder waar het was. 300 (5 min)
-      is een goede standaard; 0 = altijd opnieuw beginnen.
+      Hoe lang een gesprek openblijft na de laatste uitwisseling. Wek je de
+      assistent binnen deze tijd, dan gaat het gesprek verder; daarna sluit de
+      OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
+      goede standaard; 0 = sluiten zodra elk antwoord klaar is, zodat zelfs
+      een vervolgantwoord opnieuw begint.
   max_context_messages:
     name: "⚙️ Geavanceerd · Gespreksgeheugen (berichten)"
     description: >-

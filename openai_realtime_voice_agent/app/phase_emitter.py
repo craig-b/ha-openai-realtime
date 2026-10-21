@@ -39,9 +39,9 @@ IMPORTANT — thinking watchdog + forced idle (v0.5.3):
     2026-06-12: 44 s stuck, during which the mic picked up unrelated talking
     and the model answered it). Two defenses here:
 
-    1. `force_idle(reason)` — the turn-death paths (ConnectionRecovery's
-       rate-limit unstick + reconnect) call this INSTEAD of broadcasting idle
-       around this processor, so the internal state stays consistent, AND it
+    1. `force_idle(reason)` — the turn-death paths (SessionErrorWatch's
+       rate-limit unstick, a lost or failed session) call this INSTEAD of
+       sending idle around this processor, so the internal state stays consistent, AND it
        suppresses subsequent `thinking` emissions until real activity (user
        or bot speech) follows. Without the suppression, a VAD stop event
        already in flight re-emits `thinking` right after the unstick idle —
@@ -161,6 +161,11 @@ class PhaseEmitter(FrameProcessor):
         # genuine new utterance — never cancel ITS response).
         self._on_dangling_stop = None
         self._on_real_speech = None
+
+    @property
+    def current(self):
+        """The phase last sent to the device, or None before the first."""
+        return self._current
 
     def note_wake(self) -> None:
         """Device woke (or a follow-up window closed without speech). Until the
