@@ -5,11 +5,14 @@ description = "Home Assistant addon for OpenAI Realtime API voice control with W
 authors = [{name = "Your Name", email = "your.email@example.com"}]
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    # Pinned to the 0.0.x line: this codebase targets the Pipecat 0.0.x API
-    # (FrameSerializerType, OpenAIRealtimeLLMService, SessionProperties events,
-    # WebsocketServerParams). Without a lockfile pip otherwise resolves Pipecat
-    # 1.x, whose changed API breaks the imports. 0.0.97 is the version this was
-    # developed/tested against.
+    # Pinned to 0.0.97, checked against 1.12 (2026-10). The add-on patches
+    # OpenAIRealtimeLLMService's turn, error and truncation handling; 1.x
+    # changes the APIs those patches hook into (Proposed*SpeakingFrame, the
+    # Settings model) but still has every behaviour they correct, except two
+    # error codes it no longer treats as fatal. Its WebsocketServerTransport
+    # also rejects a new client while the old connection is open, which locks
+    # a reconnecting device out until a half-open connection's keepalive
+    # fails.
     "pipecat-ai[mcp,openai,websocket]==0.0.97",
     "python-dotenv>=1.0.0",
     "fastapi>=0.100.0",
