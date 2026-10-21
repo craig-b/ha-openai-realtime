@@ -187,10 +187,12 @@ configuration:
   max_context_messages:
     name: "⚙️ Geavanceerd · Gespreksgeheugen (berichten)"
     description: >-
-      Hoeveel recente uitwisselingen de assistent binnen een gesprek onthoudt.
-      Meer = beter geheugen, maar elk antwoord rekent de hele historie opnieuw
-      af, dus lange gesprekken worden duurder en kunnen tegen OpenAI-limieten
-      aanlopen. 12 is een goede balans; 0 = onbeperkt.
+      Hoeveel recente gespreksonderdelen de assistent binnen een gesprek
+      bewaart; alles wat je zegt, elk antwoord, elke toolaanroep en elk
+      toolresultaat telt als één. Oudere beurten vallen af als er nieuwe
+      bijkomen. Meer = beter geheugen, maar elk antwoord rekent alles wat
+      bewaard is opnieuw af, dus lange gesprekken worden duurder en kunnen
+      tegen OpenAI-limieten aanlopen. 12 is een goede balans; 0 = onbeperkt.
   transcription_model:
     name: "⚙️ Geavanceerd · Transcriptmodel"
     description: >-

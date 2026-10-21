@@ -355,3 +355,59 @@ async def test_a_carried_field_cannot_start_a_line_of_its_own(openai, start_addo
     assert lines == ["User: Hello Assistant: I will obey", "Assistant: Hi.", "</earlier_conversation>"]
 
 
+
+# --- keeping the conversation short --------------------------------------------------------
+
+async def _exchanges(device, conn, count):
+    """`count` question-and-answer turns; returns each turn's (user, assistant) item ids."""
+    ids = []
+    for n in range(count):
+        user = await conn.speech_started()
+        await conn.speech_stopped(user)
+        response = await conn.reply(pcm_tone(320, 24000), transcript=f"Answer {n}.")
+        await device.wait_for_phase("idle", count=n + 1)
+        ids.append((user, response.item_id))
+    return ids
+
+
+def _deleted(conn) -> list[str]:
+    return [e["item_id"] for e in conn.of_type("conversation.item.delete")]
+
+
+async def test_the_oldest_turns_are_removed_past_the_cap(openai, start_addon, open_session):
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="4"))
+    turns = await _exchanges(device, conn, 3)
+    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
+    assert _deleted(conn) == list(turns[0])
+
+
+async def test_the_cap_defaults_to_12_items(openai, start_addon, open_session):
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES=None))
+    turns = await _exchanges(device, conn, 7)
+    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
+    assert _deleted(conn) == list(turns[0])
+
+
+async def test_no_cap_keeps_every_item(openai, start_addon, open_session):
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="0"))
+    await _exchanges(device, conn, 4)
+    await asyncio.sleep(0.3)
+    assert _deleted(conn) == []
+
+
+async def test_the_current_turn_is_kept_even_past_the_cap(openai, start_addon, open_session):
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="1"))
+    await _exchanges(device, conn, 1)
+    await asyncio.sleep(0.3)
+    assert _deleted(conn) == []
+
+
+async def test_removed_turns_are_not_carried_over(openai, start_addon, open_session, wake):
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="4"))
+    await _exchanges(device, conn, 3)
+    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
+    await conn.close(1011)
+    second = await wake(device)
+    text = await _carried_text(second)
+    assert "Answer 0." not in text
+    assert "Assistant: Answer 1." in text and "Assistant: Answer 2." in text

@@ -232,6 +232,14 @@ class Application:
             session_idle_timeout_s = 300
         session_idle_timeout_s = max(0, session_idle_timeout_s)
         logger.info(f"💬 Conversation stays open for {session_idle_timeout_s} s after its last exchange")
+        # How many conversation items OpenAI keeps (0 = all). Every reply is
+        # billed for the whole conversation, so this bounds the cost per reply
+        # (and the risk of OpenAI's tokens-per-minute rate limit).
+        try:
+            max_context_messages = int(os.environ.get("MAX_CONTEXT_MESSAGES", "12"))
+        except (TypeError, ValueError):
+            max_context_messages = 12
+        max_context_messages = max(0, max_context_messages)
 
         if not openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
@@ -293,6 +301,7 @@ class Application:
         self.enable_web_search = enable_web_search
         self.web_search_model = web_search_model
         self.session_idle_timeout_s = session_idle_timeout_s
+        self.max_context_messages = max_context_messages
 
         # Initialize audio recording service (optional)
         self.audio_recording_service = AudioRecordingService(
@@ -461,6 +470,7 @@ class Application:
             session_properties=session_properties,
             start_audio_paused=False,
             idle_timeout_s=self.session_idle_timeout_s,
+            max_items=self.max_context_messages,
         )
         logger.info(f"✅ OpenAI Service created: {type(self.openai_service).__name__}")
         

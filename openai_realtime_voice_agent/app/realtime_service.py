@@ -7,6 +7,10 @@ mic audio until it is configured, and closes once nothing has happened for the
 idle timeout. A connection that dies ends the session; the next wake opens a
 new one.
 
+Within a session, it keeps OpenAI's conversation to the last `max_items` items
+(each question, reply, tool call and tool result is one), deleting the oldest
+whole turns; OpenAI otherwise keeps everything and bills it all on every reply.
+
 The conversation outlives its session in two cases: at a wake once the session
 nears OpenAI's 60-minute cap, the add-on rolls over to a new session; and after
 a lost connection, a wake within the idle timeout opens one. Either way the new
@@ -111,9 +115,10 @@ class SafeRealtimeLLMService(OpenAIRealtimeLLMService):
     BUFFER_LIMIT_S = 10.0
     IDLE_CHECK_S = 1.0
 
-    def __init__(self, *, idle_timeout_s: float = 300.0, **kwargs):
+    def __init__(self, *, idle_timeout_s: float = 300.0, max_items: int = 0, **kwargs):
         super().__init__(**kwargs)
         self._idle_timeout_s = max(0.0, idle_timeout_s)
+        self._max_items = max(0, max_items)  # 0 = keep everything
         self._state = SessionState.CLOSED
         self._session_ready = asyncio.Event()
         self._opened_at = 0.0
@@ -285,6 +290,39 @@ class SafeRealtimeLLMService(OpenAIRealtimeLLMService):
         # Recorded now, as lines only, so a later carry doesn't nest the markers.
         self._record(RecordedItem(transcript.id, "carried", lines))
         return [note, transcript]
+
+    async def _handle_evt_response_done(self, evt):  # type: ignore[override]
+        await super()._handle_evt_response_done(evt)
+        await self._trim_conversation()
+
+    async def _trim_conversation(self) -> None:
+        """Delete the oldest whole turns until at most `max_items` items remain."""
+        if not self._max_items or self._state is not SessionState.OPEN:
+            return
+        if self._current_assistant_response is not None:
+            return  # a response is still being generated from this conversation
+        turns: list[list[RecordedItem]] = []
+        for item in self._conversation:
+            # A turn starts with what the user said (or with the carried history).
+            if not turns or item.kind in ("user", "carried"):
+                turns.append([item])
+            else:
+                turns[-1].append(item)
+        excess = len(self._conversation) - self._max_items
+        dropped: list[RecordedItem] = []
+        while excess > 0 and len(turns) > 1:
+            turn = turns.pop(0)
+            excess -= len(turn)
+            dropped += turn
+        for item in dropped:
+            await self.send_client_event(events.ConversationItemDeleteEvent(item_id=item.item_id))
+            self._conversation.remove(item)
+            del self._items_by_id[item.item_id]
+        if dropped:
+            logger.info(
+                f"✂️ removed the {len(dropped)} oldest conversation items "
+                f"({len(self._conversation)} kept, cap {self._max_items})"
+            )
 
     async def _fail_open(self, reason: str) -> None:
         if self._state is not SessionState.OPENING:

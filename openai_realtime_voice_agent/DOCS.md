@@ -77,7 +77,7 @@ option has plain-language inline help.
 | `wake_open_delay_ms` | `700` | the same echo guard right after the wake chime; lower = snappier wake but risks a ghost turn |
 | `vad_eagerness` | `low` | waits longest before deciding you're done talking |
 | `playback_prebuffer_ms` | `150` | raise to ~250 if you hear crackle; 0 = play immediately |
-| `max_context_messages` | `12` | bounds per-turn token cost |
+| `max_context_messages` | `12` | conversation items kept (each question, reply, tool call and result is one); bounds per-reply token cost |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
 | `web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
 

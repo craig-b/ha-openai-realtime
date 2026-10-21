@@ -183,10 +183,12 @@ configuration:
   max_context_messages:
     name: "⚙️ Advanced · Conversation memory size"
     description: >-
-      How many recent exchanges the assistant remembers within a
-      conversation. More = better memory, but every answer re-bills the whole
-      history, so long chats get expensive and can hit OpenAI rate limits.
-      12 is a good balance; 0 = unlimited.
+      How many recent conversation items the assistant keeps within a
+      conversation; each thing you say, each reply, each tool call and each
+      tool result is one. Older turns are dropped as new ones come. More =
+      better memory, but every answer re-bills everything kept, so long chats
+      get expensive and can hit OpenAI rate limits. 12 is a good balance; 0 =
+      unlimited.
   transcription_model:
     name: "⚙️ Advanced · Transcript model"
     description: >-

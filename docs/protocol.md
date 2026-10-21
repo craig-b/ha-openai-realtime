@@ -179,7 +179,10 @@ The add-on keeps one OpenAI Realtime session per conversation.
   once OpenAI has configured the session. Opening typically takes under a
   second, about as long as the device's `wake_open_delay_ms`.
 - **Continuing:** a `wake` while the session is open continues the same
-  conversation.
+  conversation. After each response the add-on deletes the oldest whole turns
+  from OpenAI's conversation until at most `max_context_messages` items remain
+  (default 12; each question, reply, tool call and tool result is one); the
+  current turn always stays.
 - **Closing:** once nothing has happened for `session_reuse_timeout_seconds`
   (default 300): no mic audio, no reply playing, no response or tool running.
   The conversation ends with it; the next `wake` starts afresh.
