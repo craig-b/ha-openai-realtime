@@ -35,8 +35,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   accepts any even length and drops odd-length frames.
 - The add-on resamples device audio 16 → 24 kHz before sending it to OpenAI.
 - OpenAI delivers reply audio faster than real time; the add-on queues it and
-  sends it on one 40 ms chunk every 40 ms. A final partial chunk is dropped
-  (see [Gaps](#gaps)).
+  sends it on one 40 ms chunk every 40 ms. It pads the end of each reply with
+  silence to a whole chunk.
 - The device queues incoming audio in a 2 MB ring and plays it out; if the ring
   is full, the excess is dropped. It scales samples by the media player volume
   before queueing.
@@ -221,5 +221,3 @@ device                         add-on
 
 - **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
   The add-on has no `request_follow_up` tool.
-- **The last partial chunk of each reply is dropped.** Up to 40 ms at the end
-  of every reply never reaches the device.

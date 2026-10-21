@@ -166,14 +166,25 @@ async def test_reply_audio_reaches_the_device_unchanged(openai, device):
     assert bytes(device.audio) == audio
 
 
-@pytest.mark.xfail(strict=True, reason="docs/protocol.md Gaps: last partial chunk")
 async def test_a_reply_that_is_not_whole_chunks_reaches_the_device_in_full(openai, device):
     conn = await openai.connection()
     await conn.user_turn()
     audio = pcm_tone(OUTPUT_CHUNK_MS * 7 + 20, 24000)
     await conn.reply(audio)
     await device.wait_for_phase("idle")
-    assert bytes(device.audio) == audio
+    # Padded with silence to a whole chunk.
+    assert bytes(device.audio) == audio + bytes(20 * 48)
+
+
+async def test_two_replies_back_to_back_reach_the_device_in_full(openai, device):
+    conn = await openai.connection()
+    await conn.user_turn()
+    first = pcm_tone(OUTPUT_CHUNK_MS * 3 + 10, 24000)
+    second = pcm_tone(OUTPUT_CHUNK_MS * 2 + 30, 24000)
+    await conn.reply(first)
+    await conn.reply(second)
+    await device.wait_for_phase("idle")
+    assert bytes(device.audio) == first + bytes(30 * 48) + second + bytes(10 * 48)
 
 
 async def test_reply_audio_is_paced_at_real_time(openai, device):

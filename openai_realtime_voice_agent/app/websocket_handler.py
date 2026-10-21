@@ -21,6 +21,8 @@ from pipecat.frames.frames import (
     InterruptionFrame,
     OutputAudioRawFrame,
     StartFrame,
+    TTSAudioRawFrame,
+    TTSStoppedFrame,
 )
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
@@ -118,6 +120,38 @@ class InputResampler(FrameProcessor):
                 sample_rate=self._out_rate,
                 num_channels=frame.num_channels,
             )
+        await self.push_frame(frame, direction)
+
+
+class PadReplyToChunk(FrameProcessor):
+    """Pad the end of each reply's audio with silence to a whole output chunk.
+
+    The output transport sends audio in fixed chunks and, when the bot stops
+    speaking, discards the partial chunk left over, so up to a chunk of every
+    reply's ending never reached the device. OpenAI ends each item's audio with
+    response.output_audio.done, which Pipecat turns into TTSStoppedFrame; this
+    sits before the output transport and tops the audio up there.
+    """
+
+    def __init__(self, chunk_bytes: int, sample_rate: int = PIPELINE_SAMPLE_RATE, **kwargs):
+        super().__init__(**kwargs)
+        self._chunk_bytes = chunk_bytes
+        self._sample_rate = sample_rate
+        self._pending = 0  # bytes since the last whole chunk
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, TTSAudioRawFrame):
+            self._pending = (self._pending + len(frame.audio)) % self._chunk_bytes
+        elif isinstance(frame, TTSStoppedFrame) and self._pending:
+            await self.push_frame(TTSAudioRawFrame(
+                audio=b"\x00" * (self._chunk_bytes - self._pending),
+                sample_rate=self._sample_rate,
+                num_channels=1,
+            ), direction)
+            self._pending = 0
+        elif isinstance(frame, InterruptionFrame):
+            self._pending = 0  # the output transport drops its partial chunk too
         await self.push_frame(frame, direction)
 
 
@@ -384,6 +418,7 @@ class WebSocketHandler:
         # build_pipeline can wire its device-interrupt callback to the OpenAI
         # service.
         self._serializer: Optional[RawAudioSerializer] = None
+        self._transport_params: Optional[WebsocketServerParams] = None
         # The device connection, used to push va_client control/phase messages
         # as TEXT frames (the audio path uses the binary serializer). Only the
         # current one: a superseded connection may be half-open, and sending to
@@ -405,17 +440,18 @@ class WebSocketHandler:
         serializer = RawAudioSerializer()
         self._serializer = serializer
 
+        self._transport_params = WebsocketServerParams(
+            serializer=serializer,
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            audio_in_sample_rate=PIPELINE_SAMPLE_RATE,
+            audio_out_sample_rate=PIPELINE_SAMPLE_RATE,
+        )
         # The transport will start its own server automatically
         self.transport = DeviceServerTransport(
             host=self.host,
             port=self.port,
-            params=WebsocketServerParams(
-                serializer=serializer,
-                audio_in_enabled=True,
-                audio_out_enabled=True,
-                audio_in_sample_rate=PIPELINE_SAMPLE_RATE,
-                audio_out_sample_rate=PIPELINE_SAMPLE_RATE,
-            )
+            params=self._transport_params,
         )
         
         logger.info(f"✅ WebSocket transport created - will listen on ws://{self.host}:{self.port}/")
@@ -535,6 +571,10 @@ class WebSocketHandler:
         if output_recorder:
             pipeline_components.append(output_recorder)
 
+        params = self._transport_params
+        pipeline_components.append(PadReplyToChunk(
+            chunk_bytes=PIPELINE_SAMPLE_RATE // 100 * params.audio_out_channels * 2 * params.audio_out_10ms_chunks
+        ))
         pipeline_components.append(transport.output())
         
         # Add context initializer if we have cached messages
