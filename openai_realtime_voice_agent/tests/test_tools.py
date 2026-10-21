@@ -1,0 +1,132 @@
+"""Tool calls: the model calls a Home Assistant MCP tool through the add-on."""
+
+import asyncio
+import socket
+
+import pytest_asyncio
+import uvicorn
+from mcp.server.fastmcp import FastMCP
+
+from app.phase_emitter import PhaseEmitter
+from tests.fakes import pcm_tone, wait_until
+
+
+class FakeHomeAssistant:
+    """Home Assistant's MCP server, with two tools that record their calls."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
+        self.delay = 0.0
+        self.mcp = FastMCP("Home Assistant", log_level="WARNING")
+        self.mcp.tool(name="HassTurnOn", description="Turns on a device")(self._turn_on)
+        self.mcp.tool(name="HassTurnOff", description="Turns off a device")(self._turn_off)
+        self.server = None
+        self.task = None
+        self.port = None
+
+    async def _turn_on(self, name: str) -> str:
+        self.calls.append(("HassTurnOn", {"name": name}))
+        await asyncio.sleep(self.delay)
+        return f"Turned on {name}"
+
+    async def _turn_off(self, name: str) -> str:
+        self.calls.append(("HassTurnOff", {"name": name}))
+        return f"Turned off {name}"
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}/mcp"
+
+    async def start(self) -> None:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            self.port = s.getsockname()[1]
+        config = uvicorn.Config(
+            self.mcp.streamable_http_app(), host="127.0.0.1", port=self.port, log_level="warning"
+        )
+        self.server = uvicorn.Server(config)
+        self.task = asyncio.create_task(self.server.serve())
+        await wait_until(lambda: self.server.started, 5.0, "fake Home Assistant MCP server")
+
+    async def stop(self) -> None:
+        self.server.should_exit = True
+        await asyncio.wait({self.task}, timeout=5)
+
+
+@pytest_asyncio.fixture
+async def home_assistant():
+    ha = FakeHomeAssistant()
+    await ha.start()
+    yield ha
+    await ha.stop()
+
+
+@pytest_asyncio.fixture
+async def ha_addon(start_addon, home_assistant):
+    return await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token")
+
+
+async def test_mcp_tools_are_offered_to_the_model(openai, ha_addon):
+    conn = await openai.connection()
+    assert sorted(t["name"] for t in conn.session["tools"]) == ["HassTurnOff", "HassTurnOn"]
+
+
+async def test_the_allowlist_limits_the_tools(openai, start_addon, home_assistant):
+    await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", MCP_TOOL_ALLOWLIST="HassTurnOn")
+    conn = await openai.connection()
+    assert [t["name"] for t in conn.session["tools"]] == ["HassTurnOn"]
+
+
+async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant, ha_addon):
+    device = await ha_addon.connect()
+    conn = await openai.connection()
+    await conn.user_turn()
+    call_id = await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    output = await conn.wait_for("conversation.item.create")
+    assert home_assistant.calls == [("HassTurnOn", {"name": "kitchen light"})]
+    assert output["item"]["type"] == "function_call_output"
+    assert output["item"]["call_id"] == call_id
+    assert "Turned on kitchen light" in output["item"]["output"]
+    # And the model is asked to answer with the result.
+    await conn.wait_for("response.create")
+    await device.close()
+
+
+async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_addon):
+    home_assistant.delay = 1.0
+    device = await ha_addon.connect()
+    conn = await openai.connection()
+    await conn.user_turn()
+    await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    await wait_until(lambda: home_assistant.calls, 3.0, "the tool call")
+    await conn.user_turn()  # the user carries on talking
+    output = await conn.wait_for("conversation.item.create", timeout=4.0)
+    assert "Turned on kitchen light" in output["item"]["output"]
+    await device.close()
+
+
+async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assistant, ha_addon, monkeypatch):
+    monkeypatch.setattr(PhaseEmitter, "THINKING_TIMEOUT_S", 0.5)
+    home_assistant.delay = 2.0
+    device = await ha_addon.connect()
+    conn = await openai.connection()
+    await conn.user_turn()
+    await device.wait_for_phase("thinking")
+    await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    await device.assert_no_phase("idle", within=1.5)
+    await conn.wait_for("conversation.item.create", timeout=3.0)
+    await conn.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("replying")
+    await device.close()
+
+
+async def test_an_unreachable_home_assistant_is_reported_to_the_model(openai, home_assistant, ha_addon):
+    device = await ha_addon.connect()
+    conn = await openai.connection()
+    await home_assistant.stop()
+    await conn.user_turn()
+    await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    output = await conn.wait_for("conversation.item.create", timeout=5.0)
+    assert "Error calling mcp tool HassTurnOn" in output["item"]["output"]
+    await conn.wait_for("response.create")
+    await device.close()
