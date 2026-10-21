@@ -2092,10 +2092,12 @@ micro_wake_word:
     # The stock start words (okay_nabu / hey_jarvis / hey_mycroft) were
     # removed on purpose. "stop" stays — it's the reliable barge-in/interrupt
     # word, armed only while the assistant is replying (see on_phase below).
-    # kahrendt/microWakeWord redirects to the OHF-Voice org automatically.
-    - model: https://github.com/kahrendt/microWakeWord/releases/download/v2.1_models/alexa.json
+    # Models come from OHF-Voice/micro-wake-word, the project's home. The old
+    # kahrendt/microWakeWord URLs no longer redirect there: that name is now a
+    # separate repo with only a few releases (no v2.1_models).
+    - model: https://github.com/OHF-Voice/micro-wake-word/releases/download/v2.1_models/alexa.json
       id: alexa
-    - model: https://github.com/kahrendt/microWakeWord/releases/download/stop/stop.json
+    - model: https://github.com/OHF-Voice/micro-wake-word/releases/download/stop/stop.json
       id: stop
       internal: true
       # The model ships with cutoff 0.5. This baked 0.4 is only the boot/quiet
