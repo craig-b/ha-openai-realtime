@@ -134,7 +134,6 @@ async def test_real_speech_disarms_the_post_interrupt_cancel(openai, device):
 
 
 async def test_ping_gets_no_reply(openai, device):
-    # docs/protocol.md Gaps: the handler that would answer pong never runs.
     await device.send({"type": "ping"})
     await asyncio.sleep(0.2)
     assert [m["type"] for m in device.messages] == ["hello"]

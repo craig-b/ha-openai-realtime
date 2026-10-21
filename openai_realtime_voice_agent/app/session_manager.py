@@ -167,17 +167,6 @@ class SessionManager:
             logger.info(f"🆕 Creating new empty context for client {client_id}")
             return LLMContext()
     
-    def get_current_service(self, client_id: str) -> Optional[OpenAIRealtimeLLMService]:
-        """Get current OpenAI service for a specific client.
-        
-        Args:
-            client_id: Unique identifier for the client device
-            
-        Returns:
-            Current OpenAIRealtimeLLMService if exists, None otherwise
-        """
-        return self.current_services.get(client_id)
-    
     def set_current_service(self, client_id: str, service: OpenAIRealtimeLLMService):
         """Set the current active service for a client.
         

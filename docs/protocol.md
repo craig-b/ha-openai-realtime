@@ -219,10 +219,6 @@ device                         add-on
 
 ## Gaps
 
-- **Dead add-on handler.** `websocket_handler.py` registers `on_client_message`
-  (answers `ping` with `pong`, handles `start` and `interrupt`), but Pipecat
-  0.0.97's server transport never emits that event. Every text frame actually
-  arrives through `RawAudioSerializer.deserialize`. The firmware sends no `ping`.
 - **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
   The add-on has no `request_follow_up` tool.
 - **`audio_out`** in `hello` is sent but ignored.
