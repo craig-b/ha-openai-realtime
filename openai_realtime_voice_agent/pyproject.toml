@@ -21,3 +21,15 @@ dependencies = [
 # /app (`python3 -m app.main`) and only installs its locked dependencies.
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
