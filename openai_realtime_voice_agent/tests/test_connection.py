@@ -99,17 +99,37 @@ async def test_new_connection_replaces_the_old_one(openai, addon):
     await new.close()
 
 
-@pytest.mark.xfail(strict=True, reason="docs/protocol.md Gaps: Second client")
 async def test_new_connection_is_served_while_the_old_one_is_half_open(openai, addon):
     # A device that dropped off Wi-Fi and reconnected leaves its old TCP
     # connection half-open: the old socket never answers the close handshake.
+    conn = await openai.connection()
     old = await addon.connect()
     old.websocket.transport.pause_reading()
     try:
         new = await addon.device().connect()
-        await wait_until(lambda: new.messages, 2.0, "hello on the new connection")
+        await wait_until(lambda: new.messages, 1.0, "hello on the new connection")
+        await conn.user_turn()
+        await new.wait_for_phase("listening", timeout=1.0)
     finally:
         old.websocket.transport.resume_reading()
+    await new.close()
+
+
+async def test_the_old_connection_ending_late_leaves_the_new_one_alone(openai, addon):
+    conn = await openai.connection()
+    old = await addon.connect()
+    old.websocket.transport.pause_reading()
+    new = await addon.connect()
+    # The old connection's close completes only after the new one took over.
+    old.websocket.transport.resume_reading()
+    await asyncio.wait_for(old.closed.wait(), 3.0)
+    await asyncio.sleep(0.3)
+    assert not new.closed.is_set()
+    await conn.user_turn()
+    await new.wait_for_phase("listening")
+    await conn.reply(pcm_tone(OUTPUT_CHUNK_MS * 5, 24000))
+    await new.wait_for_audio(OUTPUT_CHUNK_MS * 5 * 48)
+    await new.close()
 
 
 async def test_device_audio_is_resampled_to_24_khz(openai, device):

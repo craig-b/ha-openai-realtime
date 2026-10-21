@@ -17,6 +17,7 @@ from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
 
+from app.device_transport import DeviceServerTransport
 from app.raw_audio_serializer import RawAudioSerializer
 from app.session_manager import SessionManager
 from app.audio_recording_service import AudioRecordingService
@@ -173,7 +174,7 @@ class ConnectionRecovery(FrameProcessor):
     def __init__(self, openai_service, emit_idle=None, phase_emitter=None, **kwargs):
         super().__init__(**kwargs)
         self._service = openai_service
-        self._emit_idle = emit_idle  # async callable(value:str), e.g. broadcast_phase
+        self._emit_idle = emit_idle  # async callable(value:str), e.g. send_phase
         # Preferred idle route: PhaseEmitter.force_idle() keeps the emitter's
         # phase state consistent AND suppresses the racing `thinking` from VAD
         # stop events still in flight (observed: a raw broadcast idle was
@@ -375,9 +376,11 @@ class WebSocketHandler:
         # build_pipeline can wire its device-interrupt callback to the OpenAI
         # service.
         self._serializer: Optional[RawAudioSerializer] = None
-        # Connected device websockets, used to push va_client control/phase
-        # messages as TEXT frames (the audio path uses the binary serializer).
-        self._websockets: set = set()
+        # The device connection, used to push va_client control/phase messages
+        # as TEXT frames (the audio path uses the binary serializer). Only the
+        # current one: a superseded connection may be half-open, and sending to
+        # a closing connection waits until it has closed.
+        self._websocket = None
     
     def create_transport(self) -> WebsocketServerTransport:
         """
@@ -394,9 +397,8 @@ class WebSocketHandler:
         serializer = RawAudioSerializer()
         self._serializer = serializer
 
-        # Create WebsocketServerTransport with WebsocketServerParams
         # The transport will start its own server automatically
-        self.transport = WebsocketServerTransport(
+        self.transport = DeviceServerTransport(
             host=self.host,
             port=self.port,
             params=WebsocketServerParams(
@@ -460,14 +462,14 @@ class WebSocketHandler:
         # idle through PhaseEmitter.force_idle() (consistent phase state +
         # racing-`thinking` suppression); it is APPENDED near the end of the
         # pipeline below, before transport.output().
-        phase_emitter = PhaseEmitter(send_phase=self.broadcast_phase)
+        phase_emitter = PhaseEmitter(send_phase=self.send_phase)
 
         pipeline_components = [
             transport.input(),
             # Watch for OpenAI connection-death ErrorFrames (they travel upstream
             # to the task source, so place this upstream of the service) and
             # reconnect in place. Without it a 1011/1001 drop bricks the session.
-            ConnectionRecovery(openai_service=openai_service, emit_idle=self.broadcast_phase,
+            ConnectionRecovery(openai_service=openai_service, emit_idle=self.send_phase,
                                phase_emitter=phase_emitter),
             InputResampler(out_rate=PIPELINE_SAMPLE_RATE),
             input_activity_tracker,
@@ -756,17 +758,15 @@ class WebSocketHandler:
         except Exception as e:
             logger.warning(f"⚠️ Could not send {obj.get('type')} to device: {e!r}")
 
-    async def broadcast_json(self, obj: dict) -> None:
-        """Send a JSON object to every connected device as a TEXT frame."""
-        for ws in list(self._websockets):
-            await self._send_json(ws, obj)
+    async def send_to_device(self, obj: dict) -> None:
+        """Send a JSON object to the connected device, if any, as a TEXT frame."""
+        if self._websocket is not None:
+            await self._send_json(self._websocket, obj)
 
-    async def broadcast_phase(self, value: str) -> None:
-        """Send a va_client phase message to every connected device."""
-        # TEMP instrumentation: log the broadcast + how many device sockets we
-        # think are connected (was debug).
-        logger.info(f"➡️ broadcast phase '{value}' to {len(self._websockets)} device(s)")
-        await self.broadcast_json({"type": "phase", "value": value})
+    async def send_phase(self, value: str) -> None:
+        """Send a va_client phase message to the connected device."""
+        logger.info(f"➡️ phase '{value}' to {'the device' if self._websocket else 'no device'}")
+        await self.send_to_device({"type": "phase", "value": value})
     
     def setup_event_handlers(
         self,
@@ -788,7 +788,7 @@ class WebSocketHandler:
             client_id = self.extract_client_id(websocket)
             logger.info(f"🔗 New WebSocket connection from IP: {client_id}")
             # Track the raw connection so we can push phase/control TEXT frames.
-            self._websockets.add(websocket)
+            self._websocket = websocket
             # Handshake ack expected by the va_client protocol (server -> device
             # "hello"). The Voice PE firmware tolerates its absence, but sending
             # it keeps both sides in lockstep with the documented protocol.
@@ -810,7 +810,8 @@ class WebSocketHandler:
         @transport.event_handler("on_client_disconnected")
         async def on_client_disconnected(transport: WebsocketServerTransport, websocket, *args, **kwargs):
             """Handle client disconnection."""
-            self._websockets.discard(websocket)
+            if self._websocket is websocket:
+                self._websocket = None
             client_id = self.extract_client_id(websocket)
             if client_id:
                 logger.info(f"🔌 Client {client_id} disconnected")

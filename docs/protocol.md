@@ -9,8 +9,8 @@ never exercises, it is listed under [Gaps](#gaps).
 
 - One WebSocket. The device is the client, the add-on the server, at
   `ws://<host>:8080/` (`va_url` in the firmware, `websocket_port` in the add-on).
-- One device at a time. When a second client connects, Pipecat closes the first
-  and keeps the new one.
+- One device at a time. When a second client connects, it takes over at once,
+  and the add-on closes the first in the background.
 - TEXT frames carry JSON control messages. BINARY frames carry audio.
 - The device keeps the connection open permanently and reconnects itself on any
   disconnect, close or error, backing off 1 s → 2 s → 5 s → 10 s (capped). The
@@ -220,11 +220,6 @@ device                         add-on
 
 - **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
   The add-on has no `request_follow_up` tool.
-- **Second client.** Pipecat closes the old connection before serving the new
-  one, and waits for the old one's close handshake to finish. A device that
-  reconnects after a Wi-Fi drop leaves its old connection half-open, which
-  never answers, so the new connection gets no `hello` and nothing it sends is
-  read until the close times out after 10 s.
 - **A stopped reply's audio keeps coming.** After an `interrupt` the add-on
   cancels the response at OpenAI but keeps sending, at real-time pace, the
   reply audio it has already queued. The device drops it only until the next
