@@ -13,7 +13,15 @@ from pipecat.transports.websocket.server import WebsocketServerTransport, Websoc
 from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
-from pipecat.frames.frames import Frame, InputAudioRawFrame, OutputAudioRawFrame, StartFrame, EndFrame, ErrorFrame
+from pipecat.frames.frames import (
+    EndFrame,
+    ErrorFrame,
+    Frame,
+    InputAudioRawFrame,
+    InterruptionFrame,
+    OutputAudioRawFrame,
+    StartFrame,
+)
 from pipecat.audio.utils import create_stream_resampler
 from pipecat.services.openai.realtime import events as openai_rt_events
 
@@ -550,29 +558,21 @@ class WebSocketHandler:
         # Wire the device "stop" interrupt. The serializer calls this when it
         # sees {"type":"interrupt"} from the device.
         #
-        # The DEVICE stops playback AUTHORITATIVELY: on "stop" its firmware
-        # flushes the PSRAM queue and drops all further incoming TTS
-        # (suppress_incoming_audio_) until the next turn boundary. So the backend
-        # does NOT need to clear its own output here — the user already hears
-        # silence. The backend's only job is to stop OpenAI generating MORE
-        # tokens: a plain response.cancel, and ONLY while a response is actually
-        # active (avoids the noisy response_cancel_not_active in the common
-        # already-burst-finished case).
+        # The device stops playback itself: on "stop" its firmware flushes its
+        # queue and drops incoming audio until the next `listening`. The add-on
+        # stops OpenAI generating more (response.cancel, only while a response
+        # is active, to avoid response_cancel_not_active) and flushes the reply
+        # audio it has queued for the device, which it would otherwise keep
+        # sending at real-time pace: a `listening` arriving before that ran out
+        # would lift the device's drop and play the rest of the stopped reply.
         #
-        # We deliberately do NOT queue an InterruptionTaskFrame anymore. It made
-        # pipecat run _handle_interruption → _truncate_current_audio_response(),
-        # which tells OpenAI to truncate the assistant audio at the *playback*
-        # position. But OpenAI bursts the reply faster than real-time, so that
-        # position overshoots the audio that actually exists and OpenAI rejects
-        # the truncate with invalid_request_error ("Audio content of N ms is
-        # already shorter than M ms"). That error left the realtime session in a
-        # broken state where the user's VERY NEXT turn got NO response — the
-        # recurring "say stop, then immediately ask again → silence" bug. Since
-        # the device already silenced playback, dropping the truncate costs us
-        # nothing and keeps the next turn alive. (The backend still drains its
-        # already-buffered output to the device, which the device discards —
-        # minor wasted bandwidth, tracked as roadmap #3; no extra tokens because
-        # response.cancel stops further generation.)
+        # The flush is an InterruptionFrame through the pipeline, the same frame
+        # Pipecat sends when OpenAI hears the user start speaking. It runs
+        # _handle_interruption, whose audio truncate SafeRealtimeLLMService
+        # turns into a no-op: Pipecat computed its position from wall-clock
+        # playback, overshooting audio OpenAI had burst faster than real time,
+        # and the rejected truncate left the session not answering the next
+        # turn.
         # FOLLOW-UP-WINDOW STOP (the "stop heard as a question" bug). During the
         # post-reply follow-up window the device mic is OPEN and streaming, so by
         # the time the device's local wake-word detects "stop" and sends us the
@@ -613,6 +613,7 @@ class WebSocketHandler:
         _kill_next_response = {"v": False}
 
         async def _on_device_interrupt():
+            await task.queue_frame(InterruptionFrame())
             _interrupt_kill_until["t"] = time.monotonic() + INTERRUPT_KILL_WINDOW_S
             # Arm the next-response kill on EVERY stop (see the flag comment):
             # the 1.5 s time-window alone misses responses that land later —

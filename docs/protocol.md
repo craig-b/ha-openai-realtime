@@ -82,10 +82,11 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   gate, cancels follow-up timers, drops all incoming audio until the next
   `listening`, ignores `thinking` until the next wake, and suppresses the
   follow-up window the next `idle` would open.
-- **Add-on:** clears OpenAI's input audio buffer; sends `response.cancel` if a
-  response is active; then cancels the next assistant response to appear,
-  whenever it appears, plus any appearing within 1.5 s. Real user speech disarms
-  both; a `wake` disarms the first.
+- **Add-on:** drops the reply audio it has queued for the device; clears
+  OpenAI's input audio buffer; sends `response.cancel` if a response is active;
+  then cancels the next assistant response to appear, whenever it appears, plus
+  any appearing within 1.5 s. Real user speech disarms both; a `wake` disarms
+  the first.
 
 ## Add-on → device messages
 
@@ -220,9 +221,5 @@ device                         add-on
 
 - **Device handlers the add-on never triggers:** `error` and `request_follow_up`.
   The add-on has no `request_follow_up` tool.
-- **A stopped reply's audio keeps coming.** After an `interrupt` the add-on
-  cancels the response at OpenAI but keeps sending, at real-time pace, the
-  reply audio it has already queued. The device drops it only until the next
-  `listening`; if that comes first, the rest of the stopped reply plays.
 - **The last partial chunk of each reply is dropped.** Up to 40 ms at the end
   of every reply never reaches the device.

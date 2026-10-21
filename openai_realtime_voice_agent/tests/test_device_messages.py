@@ -2,8 +2,6 @@
 
 import asyncio
 
-import pytest
-
 from tests.fakes import pcm_tone
 
 
@@ -149,7 +147,6 @@ async def test_unknown_text_is_ignored(openai, device):
     assert [m["type"] for m in device.messages] == ["hello"]
 
 
-@pytest.mark.xfail(strict=True, reason="docs/protocol.md Gaps: stopped reply's audio")
 async def test_interrupt_stops_the_reply_audio_being_sent(openai, device):
     conn = await openai.connection()
     await conn.user_turn()
