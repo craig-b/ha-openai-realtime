@@ -109,27 +109,9 @@ async def start_addon(openai, addon_env, monkeypatch):
     yield start
 
     for addon in started:
-        if addon.app.runner is not None:
-            await addon.app.runner.cancel()
-    # Application.run() runs its pipeline task twice (build_pipeline also starts
-    # it), and one of the two runs waits forever on a push task the other
-    # replaced, swallowing the first cancellation. Keep cancelling whatever the
-    # add-on left running until it has all gone.
-    await _cancel_leftover_tasks(timeout=5.0)
-
-
-async def _cancel_leftover_tasks(timeout: float) -> None:
-    current = asyncio.current_task()
-    deadline = asyncio.get_running_loop().time() + timeout
-    while True:
-        leftover = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
-        if not leftover:
-            return
-        if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError(f"add-on tasks would not stop: {leftover}")
-        for task in leftover:
-            task.cancel()
-        await asyncio.wait(leftover, timeout=0.1)
+        # Cancelling the pipeline is what a signal does; run() then returns.
+        await addon.app.runner.cancel()
+        await asyncio.wait_for(addon.task, timeout=5.0)
 
 
 @pytest_asyncio.fixture

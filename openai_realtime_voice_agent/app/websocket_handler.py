@@ -542,10 +542,7 @@ class WebSocketHandler:
         # Disable idle timeout - server should always stay ready for connections
         runner = PipelineRunner()
         task = PipelineTask(pipeline, idle_timeout_secs=None, cancel_on_idle_timeout=False)
-        
-        # Start pipeline in background
-        asyncio.create_task(runner.run(task))
-        logger.info("✅ Pipeline started for WebSocket connection")
+        # The caller runs it (runner.run(task)), once.
         logger.info("✅ Pipeline initialized successfully")
 
         # Wire the device "stop" interrupt. The serializer calls this when it
