@@ -289,3 +289,27 @@ async def test_the_bus_reconnects_after_home_assistant_restarts(
     conn = await openai.connection(0)
     await conn.wait_for("response.create")
     await device.close()
+
+
+async def test_a_stop_while_a_tool_runs_reports_idle(openai, home_assistant, ha_device, wake):  # noqa: F811
+    # No reply plays to end in an idle phase: the device goes idle by itself.
+    device = await ha_device()
+    conn = await wake(device)
+    await conn.user_turn()
+    await device.wait_for_phase("thinking")
+    await wait_until(lambda: states(home_assistant)[-1:] == [{"state": "processing", "connected": True}], 5.0, "processing")
+    await device.send({"type": "interrupt"})
+    await wait_until(lambda: states(home_assistant)[-1] == {"state": "idle", "connected": True}, 5.0,
+                     lambda: f"idle (states {states(home_assistant)})")
+    await device.close()
+
+
+async def test_a_follow_up_window_closing_reports_idle(openai, home_assistant, ha_device, wake):  # noqa: F811
+    device = await ha_device()
+    conn = await wake(device)
+    await conn.speech_started()
+    await wait_until(lambda: states(home_assistant)[-1:] == [{"state": "listening", "connected": True}], 5.0, "listening")
+    await device.send({"type": "flush"})
+    await wait_until(lambda: states(home_assistant)[-1] == {"state": "idle", "connected": True}, 5.0,
+                     lambda: f"idle (states {states(home_assistant)})")
+    await device.close()

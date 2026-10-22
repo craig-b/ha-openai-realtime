@@ -197,8 +197,7 @@ class Agent:
         self._end_unasked(self.FAILED)
         self._end_engagement()
         # The device goes idle when its connection drops.
-        self._satellite_state = "idle"
-        self.on_state(self._satellite_state, False)
+        self._report_state("idle")
 
     async def device_message(self, message_type: str) -> None:
         if message_type == "start":
@@ -221,6 +220,8 @@ class Agent:
             # utterance, so a later wake can't complete it into a stale answer.
             logger.info("🧽 device flush → input audio cleared")
             self._end_engagement()
+            # The device has gone idle by itself.
+            self._report_state("idle")
             await self._clear_input_audio()
         elif message_type == "interrupt":
             await self._interrupt()
@@ -253,6 +254,9 @@ class Agent:
         self._end_unasked(self.STOPPED)
         self._stopped = True
         self._end_engagement()
+        # The device has gone idle by itself; no reply may have been playing
+        # to end in an `idle` (a stop while a tool runs).
+        self._report_state("idle")
         self._reply.flush()
         self._resampler.reset()
         if self._state is SessionState.OPEN:
@@ -275,8 +279,12 @@ class Agent:
     def _send_phase(self, value: str) -> None:
         logger.info(f"➡️ phase '{value}' to {'the device' if self.device.connected else 'no device'}")
         self.device.send_json({"type": "phase", "value": value})
-        self._satellite_state = self.SATELLITE_STATE[value]
-        self.on_state(self._satellite_state, self.device.connected)
+        self._report_state(self.SATELLITE_STATE[value])
+
+    def _report_state(self, state: str) -> None:
+        """The conversation's state on the device, as an Assist satellite's, for on_state."""
+        self._satellite_state = state
+        self.on_state(state, self.device.connected)
 
     def _end_engagement(self) -> None:
         """The conversation on the device has ended; the idle timeout counts from now."""
