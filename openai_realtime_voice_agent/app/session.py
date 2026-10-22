@@ -127,6 +127,9 @@ class Session(Protocol):
     async def send_tool_results(self, results: list[tuple[str, str]]) -> None:
         """Each (call_id, output), then continue the response."""
 
+    async def speak(self, instruction: str) -> None:
+        """Have the model speak first, unasked, as `instruction` says (app/prompts.py)."""
+
     def woke(self) -> None:
         """The device woke."""
 

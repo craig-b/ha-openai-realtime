@@ -196,6 +196,20 @@ class RealtimeSession:
             })
         await self._send({"type": "response.create"})
 
+    async def speak(self, instruction: str) -> None:
+        """Tell the model, as a system message in the conversation, and ask for a response.
+
+        Nothing armed by an earlier "stop" may cancel it: it isn't the stop
+        word's turn.
+        """
+        self._kill_until = 0.0
+        self._kill_next = False
+        await self._send({
+            "type": "conversation.item.create",
+            "item": {"type": "message", "role": "system", "content": [{"type": "input_text", "text": instruction}]},
+        })
+        await self._send({"type": "response.create"})
+
     async def _send(self, event: dict) -> None:
         if self._connection is None or self._closing:
             return

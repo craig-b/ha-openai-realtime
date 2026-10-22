@@ -183,6 +183,23 @@ The device also applies `idle` locally on every disconnect.
 - **Add-on:** the conversation on the device ends with that `idle`, as after an
   `interrupt`, so the session closes after the engine's idle timeout.
 
+### `speak`
+`{"type":"speak","listen_ms":0}`
+
+- **Sent:** when an automation asks the add-on to speak unasked (see
+  [Speaking unasked](#speaking-unasked)), just before it asks the model to: for an
+  announcement with `listen_ms` 0; to start a conversation with the follow-up
+  window's length (`follow_up_ms`, or 8000 when that is 0).
+- **Device:** the reply that follows is played though nobody woke it: whatever an
+  earlier `interrupt` or `end` left behind is cleared (the incoming-audio drop, the
+  stale-`thinking` guard, the suppressed follow-up). The mic stays closed. After
+  the reply, the `idle` that ends it opens a follow-up window of `listen_ms`
+  instead of `follow_up_ms`; 0 opens none. A `wake` or an `interrupt` cancels that.
+  "stop" works during the reply, as during any other.
+- **Add-on:** the conversation on the device runs until that `idle`, and, if the
+  device listens, until its window would have closed (as for a reply's follow-up
+  window).
+
 ### `error`
 `{"type":"error","message":"could not connect to OpenAI"}`
 
@@ -202,7 +219,8 @@ The add-on keeps one OpenAI session per conversation: a Realtime session, or a
 GPT-Live one (`engine`). What follows is the Realtime engine's; GPT-Live differs
 as described [below](#with-gpt-live).
 
-- **Opening:** on `wake`, or on mic audio arriving with no session open. Mic
+- **Opening:** on `wake`, on mic audio arriving with no session open, or for an
+  automation's request to speak (see [Speaking unasked](#speaking-unasked)). Mic
   audio that arrives while the session opens is held, up to 10 s, and sent
   once OpenAI has configured the session. Opening typically takes under a
   second, about as long as the device's `wake_open_delay_ms`.
@@ -236,6 +254,27 @@ debounce. The session closes when the conversation on the device ends
 A device `interrupt` drops GPT-Live's voice until the next `wake`, and asks
 GPT-Live to stop speaking.
 
+## Speaking unasked
+
+Home Assistant's automations ask for it by firing an event, which the add-on
+subscribes to over Home Assistant's WebSocket API (`app/automations.py`):
+
+| Event | Data | What the model is told |
+|---|---|---|
+| `openai_realtime_voice_agent_announce` | `message` | Say it word for word, and nothing else. The device doesn't listen after it |
+| `openai_realtime_voice_agent_start_conversation` | `prompt` | Speak first about it, in a sentence or two, then wait for the answer. The device listens after it |
+
+- The request waits, up to 120 s, until the device is connected and free: no
+  conversation going on it (see [OpenAI session](#openai-session)), no turn,
+  nothing playing. After that it is dropped, with a warning in the log. Requests
+  are taken one at a time.
+- Then the add-on opens a session if none is open, sends `speak`, and tells the
+  model as a system message in the conversation, followed by `response.create`
+  (with GPT-Live, `session.instructions.append` to its voice). The reply goes
+  like any other: `replying`, its audio, `idle`. It is part of the conversation,
+  so "what did you say?" can follow.
+- If the model hasn't begun speaking within 15 s, the request is given up.
+
 ## Mic gate
 
 The device forwards mic audio only while its gate is open:
@@ -264,6 +303,8 @@ it when the gate opens: it contains the wake chime.
 | Add-on | Thinking watchdog | 15 s (paused while a tool runs) | Forced `idle` |
 | Add-on | Post-interrupt cancel window | 1.5 s (Realtime) | See `interrupt` |
 | Add-on | Session open timeout | 10 s | Gives up opening; sends `error` |
+| Add-on | Wait to speak unasked | 120 s | An automation's request is dropped if the device isn't free by then |
+| Add-on | Unasked reply start | 15 s | An automation's request is given up if the model hasn't begun speaking |
 | Add-on | Conversation idle timeout | `realtime → session_reuse_timeout_seconds` (300 s), `live → session_reuse_timeout_seconds` (0 s) | Closes the OpenAI session |
 | Add-on | GPT-Live end of speech | 0.6 s of silence | The reply ends (`idle` follows after the debounce) |
 
@@ -287,6 +328,15 @@ device                         add-on
   ── mic audio … ─────────────▶
   (follow-up expires)
   ── flush ───────────────────▶
+```
+
+**An automation's announcement**
+```
+  (the automation fires openai_realtime_voice_agent_announce)
+  ◀────── speak listen_ms 0   then the add-on asks the model to say it
+  ◀───────── phase replying
+  ◀──────── reply audio …
+  ◀───────────── phase idle   no follow-up: listen_ms is 0
 ```
 
 **"Stop" during a reply**

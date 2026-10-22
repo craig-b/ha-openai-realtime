@@ -7,6 +7,8 @@ import pytest_asyncio
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
+from starlette.routing import WebSocketRoute
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.agent import Agent
 from app.phases import PhaseTracker
@@ -14,7 +16,8 @@ from tests.fakes import pcm_tone, wait_until
 
 
 class FakeHomeAssistant:
-    """Home Assistant's API: its MCP server, with two tools that record their calls, and its config."""
+    """Home Assistant's API: its MCP server, with two tools that record their calls, its config,
+    and its WebSocket API's event subscriptions."""
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
@@ -24,6 +27,8 @@ class FakeHomeAssistant:
         self.config_delay = 0.0
         self.language = "en"
         self.added_tools: list[str] = []
+        # (websocket, subscription id, event type), for each subscribe_events.
+        self.subscriptions: list[tuple[WebSocket, int, str]] = []
         self.server = None
         self.task = None
         self.port = None
@@ -42,6 +47,36 @@ class FakeHomeAssistant:
             "time_zone": "Europe/London",
             "unit_system": {"temperature": "°C", "length": "km"},
         })
+
+    async def _websocket(self, ws: WebSocket) -> None:
+        await ws.accept()
+        await ws.send_json({"type": "auth_required", "ha_version": "2026.10.0"})
+        auth = await ws.receive_json()
+        if auth != {"type": "auth", "access_token": "ha-token"}:
+            await ws.send_json({"type": "auth_invalid", "message": "Invalid access token"})
+            await ws.close()
+            return
+        await ws.send_json({"type": "auth_ok", "ha_version": "2026.10.0"})
+        try:
+            while True:
+                message = await ws.receive_json()
+                if message.get("type") == "subscribe_events":
+                    self.subscriptions.append((ws, message["id"], message["event_type"]))
+                    await ws.send_json({"id": message["id"], "type": "result", "success": True, "result": None})
+        except WebSocketDisconnect:
+            self.subscriptions = [s for s in self.subscriptions if s[0] is not ws]
+
+    def subscribed(self, event_type: str) -> bool:
+        return any(subscribed == event_type for _, _, subscribed in self.subscriptions)
+
+    async def fire(self, event_type: str, data: dict) -> None:
+        """Fire an event on the bus, as an automation's event action does."""
+        await wait_until(lambda: self.subscribed(event_type), 5.0, f"a subscription to {event_type}")
+        for ws, number, subscribed in list(self.subscriptions):
+            if subscribed == event_type:
+                await ws.send_json({"id": number, "type": "event", "event": {
+                    "event_type": event_type, "data": data, "origin": "LOCAL",
+                    "time_fired": "2026-10-22T17:00:00+00:00", "context": {"id": "x", "parent_id": None, "user_id": None}}})
 
     async def _turn_off(self, name: str) -> str:
         self.calls.append(("HassTurnOff", {"name": name}))
@@ -82,9 +117,9 @@ class FakeHomeAssistant:
                 s.bind(("127.0.0.1", 0))
                 self.port = s.getsockname()[1]
         self.mcp = self._make_mcp()
-        config = uvicorn.Config(
-            self.mcp.streamable_http_app(), host="127.0.0.1", port=self.port, log_level="warning"
-        )
+        app = self.mcp.streamable_http_app()
+        app.router.routes.append(WebSocketRoute("/api/websocket", self._websocket))
+        config = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="warning")
         self.server = uvicorn.Server(config)
         self.task = asyncio.create_task(self.server.serve())
         await wait_until(lambda: self.server.started, 5.0, "fake Home Assistant MCP server")

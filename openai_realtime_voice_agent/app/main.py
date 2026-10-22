@@ -9,6 +9,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.agent import Agent
+from app.automations import AutomationRequests
 from app.realtime import RealtimeSession, takes_reasoning
 from app.session import Home, SessionSetup
 from app.config import Settings, device_secret_problem
@@ -112,7 +113,7 @@ class Application:
     async def _read_home_assistant_config(self) -> dict:
         """Home Assistant's configuration (/api/config), or the last read if it can't be read."""
         s = self.settings
-        api_url = s.ha_mcp_url.removesuffix("/mcp")
+        api_url = self._home_assistant_api_url()
         try:
             async with httpx.AsyncClient(timeout=self.HOME_ASSISTANT_TIMEOUT_S) as http:
                 response = await http.get(f"{api_url}/config", headers={"Authorization": f"Bearer {s.ha_token}"})
@@ -123,6 +124,10 @@ class Application:
             return self._last_config
         self._last_config = config
         return config
+
+    def _home_assistant_api_url(self) -> str:
+        """Home Assistant's REST API, where its MCP server is."""
+        return self.settings.ha_mcp_url.removesuffix("/mcp")
 
     def _transcription_languages(self, config: dict) -> list[str]:
         """The languages set, or else Home Assistant's own (e.g. "en-GB" → "en"), or English."""
@@ -163,7 +168,18 @@ class Application:
             f"wake-open delay {s.wake_open_delay_ms} ms, playback prebuffer {s.playback_prebuffer_ms} ms"
         )
         logger.info(f"💬 Conversation stays open for {s.session_idle_timeout_s} s after its last exchange")
-        await self.agent.run()
+        if not s.ha_token:
+            await self.agent.run()
+            return
+        requests = AutomationRequests(
+            self._home_assistant_api_url(), s.ha_token, self.agent.announce, self.agent.start_conversation
+        )
+        listening = asyncio.create_task(requests.run(), name="automation_requests")
+        try:
+            await self.agent.run()
+        finally:
+            listening.cancel()
+            await asyncio.gather(listening, return_exceptions=True)
 
 
 def main() -> None:

@@ -20,6 +20,10 @@ session. At a wake once a session that has an age limit nears it, the add-on
 rolls over to a new one, so a turn isn't cut off by the limit; the new session
 starts afresh, as one after a lost connection does.
 
+The model can also speak unasked, when an automation asks (app/automations.py):
+an announcement, or the start of a conversation. That waits until the device
+is free, and then goes like a reply, opening a session if none is open.
+
 The session itself, the connection to OpenAI and what its events mean, is the
 engine's (app/session.py); the agent owns the rest.
 """
@@ -35,6 +39,7 @@ from openai import AsyncOpenAI
 from app.audio import OPENAI_RATE, InputResampler, ReplyAudio, SessionRecording
 from app.config import Settings
 from app.device import DeviceServer
+from app import prompts
 from app.phases import PhaseTracker, TurnLiveness
 from app.live import LiveSession
 from app.realtime import RealtimeSession
@@ -67,6 +72,15 @@ class Agent:
     # audio drains, then opens it; this much more covers the network.
     PLAYBACK_DRAIN_FALLBACK_S = 3.0
     FOLLOW_UP_MARGIN_S = 1.0
+    # How long an automation's request waits for the device to be free.
+    SPEAK_WAIT_S = 120.0
+    SPEAK_POLL_S = 0.2
+    # How long the model has to begin speaking once asked; then the request is given up.
+    SPEAK_START_TIMEOUT_S = 15.0
+    # How long the device listens after a conversation an automation started,
+    # when follow-up windows are off: that conversation wants an answer.
+    STARTED_CONVERSATION_LISTEN_MS = 8000
+
     def __init__(
         self, settings: Settings, client: AsyncOpenAI, session_setup: Callable[[], Awaitable[SessionSetup]]
     ):
@@ -116,6 +130,12 @@ class Agent:
         self._engaged_until = 0.0
         # A stop since the wake: the next `idle` opens no follow-up window.
         self._stopped = False
+        # The follow-up window the device was told to open after the reply
+        # the model speaks unasked; None for the usual one.
+        self._speak_listen_ms: Optional[int] = None
+        # One request to speak at a time; set when the reply it asked for starts.
+        self._speak_lock = asyncio.Lock()
+        self._reply_began = asyncio.Event()
         self._open_task: Optional[asyncio.Task] = None
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
@@ -240,10 +260,12 @@ class Agent:
 
     def _device_went_idle(self) -> None:
         s = self.settings
-        if self._stopped or not s.follow_up_ms:
+        follow_up_ms = s.follow_up_ms if self._speak_listen_ms is None else self._speak_listen_ms
+        self._speak_listen_ms = None
+        if self._stopped or not follow_up_ms:
             self._end_engagement()
         else:
-            follow_up_s = s.follow_up_open_delay_ms / 1000 + s.follow_up_ms / 1000
+            follow_up_s = s.follow_up_open_delay_ms / 1000 + follow_up_ms / 1000
             self._engaged_until = (
                 time.monotonic() + self.PLAYBACK_DRAIN_FALLBACK_S + follow_up_s + self.FOLLOW_UP_MARGIN_S
             )
@@ -270,11 +292,74 @@ class Agent:
             self._recording.reply(chunk)
 
     def _reply_started(self) -> None:
+        self._reply_began.set()
         self.phases.bot_started()
 
     def _reply_stopped(self) -> None:
         self._note_activity()
         self.phases.bot_stopped()
+
+    # --- speaking unasked -------------------------------------------------------------------
+
+    async def announce(self, message: str) -> None:
+        """An automation's announcement: said word for word, and the device doesn't listen after it."""
+        await self._speak_unasked(prompts.announcement(message), 0, f"announcement {message[:60]!r}")
+
+    async def start_conversation(self, prompt: str) -> None:
+        """A conversation an automation starts: the model speaks first, then the device listens."""
+        listen_ms = self.settings.follow_up_ms or self.STARTED_CONVERSATION_LISTEN_MS
+        await self._speak_unasked(prompts.conversation_start(prompt), listen_ms, f"conversation about {prompt[:60]!r}")
+
+    async def _speak_unasked(self, instruction: str, listen_ms: int, what: str) -> None:
+        """Have the model speak once the device is free, then listen for `listen_ms`.
+
+        Free means connected, with no conversation going on it and nothing
+        being said or done: the request waits for that up to SPEAK_WAIT_S,
+        and is dropped after. The device is told first (`speak`), so it plays
+        the reply though nobody woke it, and knows how long to listen after.
+        """
+        async with self._speak_lock:
+            logger.info(f"📣 An automation asks: {what}")
+            deadline = time.monotonic() + self.SPEAK_WAIT_S
+            while not self._free_to_speak():
+                if time.monotonic() >= deadline:
+                    why = "offline" if not self.device.connected else "busy"
+                    logger.warning(f"⚠️ Dropped the {what}: the device was {why} for {self.SPEAK_WAIT_S:.0f} s")
+                    return
+                await asyncio.sleep(self.SPEAK_POLL_S)
+            if not await self._session_open(what):
+                return
+            self._note_activity()
+            self._engaged_until = float("inf")
+            self._stopped = False
+            self._speak_listen_ms = listen_ms
+            self._reply_began.clear()
+            self.device.send_json({"type": "speak", "listen_ms": listen_ms})
+            await self._session.speak(instruction)
+            try:
+                await asyncio.wait_for(self._reply_began.wait(), self.SPEAK_START_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                logger.warning(f"⚠️ The model didn't speak the {what} within {self.SPEAK_START_TIMEOUT_S:.0f} s")
+                self._speak_listen_ms = None
+                self._end_engagement()
+
+    def _free_to_speak(self) -> bool:
+        # The conversation on the device, not the last phase sent: a stop
+        # mid-sentence ends the one and leaves the other at `listening`.
+        return (
+            self.device.connected
+            and self._state in (SessionState.CLOSED, SessionState.OPEN)
+            and not self._busy()
+            and time.monotonic() >= self._engaged_until
+        )
+
+    async def _session_open(self, what: str) -> bool:
+        """Open a session if none is; False if it fails (the failure is logged and told to the device)."""
+        if self._state is SessionState.CLOSED:
+            self._begin_open(what)
+        while self._state is SessionState.OPENING:
+            await asyncio.sleep(self.SPEAK_POLL_S)
+        return self._state is SessionState.OPEN
 
     # --- opening a session --------------------------------------------------------------
 
@@ -284,6 +369,7 @@ class Agent:
         self._awaiting_speech = True
         self._engaged_until = float("inf")
         self._stopped = False
+        self._speak_listen_ms = None
         if self._state is SessionState.CLOSED:
             self._begin_open("wake")
         elif self._state is SessionState.CLOSING:

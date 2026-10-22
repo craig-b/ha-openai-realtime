@@ -196,6 +196,14 @@ class LiveSession:
     def real_speech(self) -> None:
         pass  # no turns
 
+    async def speak(self, instruction: str) -> None:
+        """Tell the voice, which speaks on its own when it has something to say.
+
+        Its voice is let through again, if a "stop" had dropped it.
+        """
+        self._muted = False
+        await self._send({"type": "session.instructions.append", "delegation_id": None, "content": instruction})
+
     async def send_tool_results(self, results: list[tuple[str, str]]) -> None:
         """Each call's result, then continue the backend's work."""
         for call_id, output in results:

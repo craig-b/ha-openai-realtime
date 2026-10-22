@@ -163,7 +163,41 @@ a search tool of its own. For the Realtime engine:
 - If the model name is rejected, the assistant just says it couldn't search — it
   won't crash the session, so you can change `realtime → web_search_model` and retry.
 
-## 7. Options reference & tuning
+## 7. Announcements and conversations from automations
+
+An automation can have the assistant speak, in its own voice, without anyone
+waking it. It fires an event (the **Event** action), which the add-on hears on
+Home Assistant's event bus; there is nothing to set up. It needs the add-on to
+read Home Assistant (the default, section 3) and firmware 1.4.0 or later.
+
+**An announcement** is said word for word, and the device doesn't listen after it:
+
+```yaml
+actions:
+  - event: openai_realtime_voice_agent_announce
+    event_data:
+      message: "The washing machine has finished."
+```
+
+**Starting a conversation** has the assistant speak first about the prompt, in its
+own words, and then listen for the answer, as after any reply:
+
+```yaml
+actions:
+  - event: openai_realtime_voice_agent_start_conversation
+    event_data:
+      prompt: >-
+        The back door has been open for ten minutes. Ask whether to leave it
+        open; it can't be closed remotely.
+```
+
+Both take templates, like any event data. A request waits until the device is free
+(no conversation going on, nothing playing), for up to two minutes; after that it is
+dropped, and the log says so. What was said is part of the conversation, so you can
+ask about it straight after. "Stop" interrupts it as it does any reply. The log
+shows each request as a `📣` line.
+
+## 8. Options reference & tuning
 
 Every option has a description on the **Configuration** tab. The ones worth knowing:
 
@@ -186,7 +220,7 @@ doesn't open: the device plays its error sound, and the log names the setting to
 change, e.g. `OpenAI refused the session's settings: … check the setting realtime →
 reasoning_effort`.
 
-## 8. Reading the logs
+## 9. Reading the logs
 
 The add-on log shows each turn: `🤖 assistant:` (the reply text), `🗣️ user:`
 (what it heard you say, with `log_what_you_say` on), `📞 phase ->` (device state), tool calls, and
