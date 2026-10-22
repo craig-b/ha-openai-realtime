@@ -49,14 +49,15 @@
    MCP connection).
 2. In **Builder → Secrets**, add the keys from
    [`secrets.yaml.example`](secrets.yaml.example): `wifi_ssid`, `wifi_password`,
-   `ota_password`, `api_key`, `va_secret` (the add-on's `device_secret`) (plus `static_ip`/`gateway`/`subnet`/`dns1`/`dns2`
+   `ota_password`, `api_key`, `va_secret` (the add-on's `device_secret`),
+   `va_certificate` (the certificate the add-on prints in its log) (plus `static_ip`/`gateway`/`subnet`/`dns1`/`dns2`
    only if you want a fixed IP).
 3. Create a new device in the dashboard and replace its YAML with a ready-made
    stub — [`esphome-builder.dhcp.yaml`](esphome-builder.dhcp.yaml) for DHCP, or
    [`esphome-builder.static-ip.yaml`](esphome-builder.static-ip.yaml) for a fixed IP.
    Set `name`/`friendly_name` and keep the `packages:`/`dashboard_import:` lines.
    Optionally override the `va_url` substitution if your add-on isn't at
-   `ws://homeassistant.local:8080/`.
+   `wss://homeassistant.local:8080/`.
 4. **Install** once (USB, then wireless thereafter). The device adopts the
    firmware and connects to the add-on.
 

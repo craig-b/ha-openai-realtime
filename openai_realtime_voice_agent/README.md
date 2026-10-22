@@ -37,7 +37,7 @@ drop-in for the stock HA voice pipeline.
    Server** integration, expose a few entities to Assist, and **Start** the add-on.
 4. Flash the **Voice PE firmware** from
    **[`firmware/`](https://github.com/craig-b/ha-openai-realtime/tree/main/firmware)**
-   with the same device secret
+   with the same device secret and the certificate the add-on prints in its log
    (one-click adopt-and-update in ESPHome Builder; full steps in its INSTALL guide).
 
 Full step-by-step instructions are on the **Documentation** tab (`DOCS.md`).

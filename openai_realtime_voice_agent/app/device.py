@@ -1,6 +1,7 @@
 """The WebSocket server the Voice PE connects to (docs/protocol.md).
 
-Only a device that presents the shared secret, as `Authorization: Bearer
+The connection is TLS, with the add-on's own certificate (app/tls.py), which
+the device trusts and no other. Only a device that presents the shared secret, as `Authorization: Bearer
 <secret>` on the upgrade request, is let in; anything else is turned away
 before it can take over from the device that is connected.
 
@@ -16,6 +17,7 @@ import asyncio
 import hmac
 import json
 import logging
+import ssl
 from http import HTTPStatus
 from typing import Optional, Protocol
 
@@ -56,9 +58,12 @@ class _Connection:
 
 
 class DeviceServer:
-    def __init__(self, host: str, port: int, secret: str, hello: dict, handler: DeviceHandler):
+    def __init__(
+        self, host: str, port: int, secret: str, tls: ssl.SSLContext, hello: dict, handler: DeviceHandler
+    ):
         self._host = host
         self._port = port
+        self._tls = tls
         self._authorization = f"Bearer {secret}".encode()
         self._hello = hello
         self._handler = handler
@@ -72,9 +77,9 @@ class DeviceServer:
     async def serve(self) -> None:
         """Serve devices until cancelled."""
         async with serve(
-            self._serve_connection, self._host, self._port, process_request=self._authorize
+            self._serve_connection, self._host, self._port, ssl=self._tls, process_request=self._authorize
         ):
-            logger.info(f"✅ Listening for the device on ws://{self._host}:{self._port}/")
+            logger.info(f"✅ Listening for the device on wss://{self._host}:{self._port}/")
             await asyncio.Future()
 
     def _authorize(self, websocket: ServerConnection, request: Request) -> Optional[Response]:

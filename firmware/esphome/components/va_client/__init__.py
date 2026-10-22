@@ -9,6 +9,7 @@ CODEOWNERS = ["@maxmaxme"]
 DEPENDENCIES = ["network", "microphone", "speaker"]
 
 CONF_SECRET = "secret"
+CONF_CERTIFICATE = "certificate"
 CONF_MICROPHONE = "microphone"
 CONF_MIC_CHANNEL = "mic_channel"
 CONF_SPEAKER = "speaker"
@@ -40,11 +41,31 @@ def device_secret(value):
     return value
 
 
+def encrypted_url(value):
+    """The add-on's address: wss://, so the secret and the audio are never sent in clear."""
+    value = cv.string_strict(value)
+    if not value.startswith("wss://"):
+        raise cv.Invalid("url must start with wss://: the add-on only accepts encrypted connections")
+    return value
+
+
+def certificate(value):
+    """The add-on's own certificate, the only one the device trusts."""
+    value = cv.string_strict(value).strip()
+    if not (value.startswith("-----BEGIN CERTIFICATE-----") and value.endswith("-----END CERTIFICATE-----")):
+        raise cv.Invalid(
+            "certificate must be the add-on's certificate in PEM form, "
+            "from -----BEGIN CERTIFICATE----- to -----END CERTIFICATE-----, as its log prints it"
+        )
+    return value + "\n"
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VaClient),
-        cv.Required(CONF_URL): cv.string,
+        cv.Required(CONF_URL): encrypted_url,
         cv.Required(CONF_SECRET): device_secret,
+        cv.Required(CONF_CERTIFICATE): certificate,
         cv.Required(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
         cv.Optional(CONF_MIC_CHANNEL, default=0): cv.int_range(min=0, max=1),
         cv.Optional(CONF_BARGE_IN, default=True): cv.boolean,
@@ -80,6 +101,7 @@ async def to_code(config):
 
     cg.add(var.set_url(config[CONF_URL]))
     cg.add(var.set_secret(config[CONF_SECRET]))
+    cg.add(var.set_certificate(config[CONF_CERTIFICATE]))
     cg.add(var.set_mic_channel(config[CONF_MIC_CHANNEL]))
     cg.add(var.set_barge_in(config[CONF_BARGE_IN]))
 

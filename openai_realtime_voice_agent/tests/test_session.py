@@ -504,8 +504,9 @@ async def test_recording_writes_each_sessions_audio(openai, start_addon, open_se
 
 
 async def test_no_recording_unless_enabled(openai, start_addon, open_session, tmp_path):
-    device, conn = await open_session(await start_addon(RECORDING_DIR=str(tmp_path)))
+    recordings = tmp_path / "recordings"
+    device, conn = await open_session(await start_addon(RECORDING_DIR=str(recordings)))
     await device.send_audio(pcm_tone(100, 16000))
     await conn.close(1011)
     await asyncio.sleep(0.3)
-    assert list(tmp_path.iterdir()) == []
+    assert not recordings.exists() or list(recordings.iterdir()) == []

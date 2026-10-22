@@ -102,6 +102,13 @@ Click **Start**, then open the **Log** tab. A healthy start shows
 `✅ Fetched N MCP tools` and `Creating session with N tools` (with `Hass*` names).
 The add-on now listens on port **8080**.
 
+The log also prints the add-on's **certificate**, a block from
+`-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`. The connection to
+the device is encrypted with it, and the device only connects to an add-on with
+exactly this certificate. Copy the whole block for step 2.3. The add-on makes it
+on first start and keeps it, in `certificate.pem` in the `tls` folder of its
+`addon_configs` folder.
+
 ---
 
 ## Part 2 — The device firmware
@@ -141,6 +148,10 @@ wifi_password: "your-wifi-password"
 ota_password: "the-OTA-password-from-step-2.2"
 api_key: "the-API-encryption-key-from-step-2.2"   # 44-char base64
 va_secret: "the-device_secret-from-step-1.2"
+va_certificate: |
+  -----BEGIN CERTIFICATE-----
+  the lines of the certificate from step 1.5, indented like this
+  -----END CERTIFICATE-----
 
 # Optional — ONLY if you want a fixed IP (otherwise the device uses DHCP):
 # static_ip: "192.168.1.50"
@@ -162,9 +173,9 @@ va_secret: "the-device_secret-from-step-1.2"
    Set `name` and `friendly_name`, and **keep** the `packages:` / `dashboard_import:`
    lines — those are what pull the full firmware from the repo. Save.
 
-   > Optional: if your add-on isn't reachable at `ws://homeassistant.local:8080/`, add a
+   > Optional: if your add-on isn't reachable at `wss://homeassistant.local:8080/`, add a
    > `va_url:` line under `substitutions:` with your HA host, e.g.
-   > `va_url: "ws://192.168.1.10:8080/"`.
+   > `va_url: "wss://192.168.1.10:8080/"`.
 
 2. Click **Install →**
    - **First time:** choose **Plug into this computer** — the first flash from stock

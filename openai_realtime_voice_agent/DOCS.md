@@ -37,6 +37,12 @@ Voice PE device  ──WebSocket──▶  this add-on  ──▶  OpenAI Realti
    or your home's controls through the add-on. The add-on doesn't start until it's
    set.
 
+The connection to the device is also encrypted, so nobody on your network can
+listen to your microphone or read the secret. The add-on makes its own
+certificate on first start, keeps it, and prints it in its log at every start;
+the device needs it as `va_certificate` in your ESPHome secrets (see the
+firmware's INSTALL guide).
+
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
 > tier. `gpt-realtime-2` audio is token-heavy, so if you see *"Rate limit reached"*
 > in the logs, raise your usage tier in the OpenAI dashboard, or keep

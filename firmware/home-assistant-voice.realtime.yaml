@@ -7,14 +7,16 @@
 # a small per-device stub, so updates are one click in the dashboard (no more
 # copy-pasting the whole file). The stub provides the device identity + secrets
 # as SUBSTITUTIONS (a remote package can't use !secret):
-#   name, friendly_name, wifi_ssid, wifi_password, ota_password, api_key, va_secret
+#   name, friendly_name, wifi_ssid, wifi_password, ota_password, api_key, va_secret,
+#   va_certificate
 #   (+ static_ip/gateway/subnet/dns1/dns2 and a manual_ip override for a fixed IP)
 # See esphome-builder.dhcp.yaml in this repo for the stub template.
 # ============================================================================
 substitutions:
   # Device identity comes from the per-device stub (esphome-builder.dhcp.yaml); these
   # are safe defaults the stub overrides. Wi-Fi + secrets (wifi_ssid, wifi_password,
-  # ota_password, api_key, va_secret) MUST be provided by the stub as substitutions, because
+  # ota_password, api_key, va_secret, va_certificate) MUST be provided by the stub as
+  # substitutions, because
   # a remote `packages:` include can't use !secret.
   name: home-assistant-voice
   friendly_name: Home Assistant Voice
@@ -57,8 +59,9 @@ substitutions:
   # add-on (this fork's backend). The add-on runs with host_network and
   # listens on port 8080. homeassistant.local resolves via mDNS on the LAN;
   # change this if your HA host has a different name/IP, e.g.
-  # "ws://192.168.1.10:8080/".
-  va_url: "ws://homeassistant.local:8080/"
+  # "wss://192.168.1.10:8080/". Always wss://: the add-on only accepts
+  # encrypted connections.
+  va_url: "wss://homeassistant.local:8080/"
 
 esphome:
   name: ${name}
@@ -1925,6 +1928,7 @@ va_client:
   id: va
   url: ${va_url}
   secret: ${va_secret}
+  certificate: ${va_certificate}
   microphone: i2s_mics
   mic_channel: 0
   # Handsfree barge-in: keep the mic open while the assistant is speaking so

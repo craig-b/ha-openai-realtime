@@ -128,6 +128,8 @@ class Settings:
     max_context_tokens: int
     enable_recording: bool
     recording_dir: str
+    # Where the device connection's certificate and key are kept.
+    tls_dir: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -174,4 +176,5 @@ class Settings:
             enable_recording=_bool("ENABLE_RECORDING", False),
             # The add-on's own folder in Home Assistant's addon_configs share.
             recording_dir=_str("RECORDING_DIR", "/config/recordings"),
+            tls_dir=_str("TLS_DIR", "/config/tls"),
         )

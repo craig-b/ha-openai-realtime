@@ -39,6 +39,7 @@ from app.conversation import Conversation, new_item_id
 from app.device import DeviceServer
 from app.phases import PhaseTracker, TurnLiveness
 from app.realtime import RealtimeSession
+from app.tls import server_context
 from app.tools import Tools
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,7 @@ class Agent:
             settings.websocket_host,
             settings.websocket_port,
             secret=settings.device_secret,
+            tls=server_context(settings.tls_dir),
             hello={
                 "follow_up_ms": settings.follow_up_ms,
                 "follow_up_open_delay_ms": settings.follow_up_open_delay_ms,

@@ -284,6 +284,10 @@ void VaClient::connect_() {
   esp_websocket_client_config_t cfg = {};
   cfg.uri = this->url_.c_str();
   cfg.headers = this->headers_.c_str();
+  cfg.cert_pem = this->certificate_.c_str();
+  // The certificate is trusted itself, not for a host name: the add-on is
+  // reached by whatever name or address va_url gives.
+  cfg.skip_cert_common_name_check = true;
   cfg.disable_auto_reconnect = true;  // we drive reconnects ourselves with exponential backoff
   cfg.reconnect_timeout_ms = 5000;    // ignored because disable_auto_reconnect=true
 

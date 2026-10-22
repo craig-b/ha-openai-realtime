@@ -2,12 +2,44 @@
 
 import asyncio
 import json
+import ssl
 import time
 
 import pytest
-from websockets.exceptions import InvalidStatus
+import websockets
+from websockets.exceptions import InvalidMessage, InvalidStatus
+
+from app import tls
 
 from tests.fakes import OUTPUT_CHUNK_MS, pcm_silence, pcm_tone, wait_until
+
+
+async def test_an_unencrypted_connection_is_refused(addon):
+    with pytest.raises(InvalidMessage):
+        async with websockets.connect(f"ws://127.0.0.1:{addon.port}/", open_timeout=3):
+            pass
+
+
+async def test_a_device_does_not_connect_to_a_server_with_another_certificate(addon, tmp_path):
+    tls.server_context(str(tmp_path / "other"))
+    other = ssl.create_default_context(cafile=tmp_path / "other" / tls.CERTIFICATE_FILE)
+    other.check_hostname = False
+    with pytest.raises(ssl.SSLCertVerificationError):
+        await addon.device(tls=other).connect()
+
+
+async def test_the_certificate_is_kept_across_restarts(start_addon, addon_env):
+    certificate = f"{addon_env['TLS_DIR']}/{tls.CERTIFICATE_FILE}"
+    first = await start_addon()
+    with open(certificate) as f:
+        made = f.read()
+    first.task.cancel()
+    await asyncio.wait({first.task}, timeout=5.0)
+    second = await start_addon()
+    with open(certificate) as f:
+        assert f.read() == made
+    device = await second.connect()
+    await device.close()
 
 
 @pytest.mark.parametrize("secret", [None, "not-the-device-secret"])

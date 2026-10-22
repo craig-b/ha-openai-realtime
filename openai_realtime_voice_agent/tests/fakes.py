@@ -8,6 +8,7 @@ timeouts so tests can assert on order and timing.
 import asyncio
 import base64
 import json
+import ssl
 import time
 import uuid
 from typing import Any, Callable, Optional
@@ -332,10 +333,11 @@ class FakeRealtimeServer:
 class FakeDevice:
     """A WebSocket client speaking the va_client side of docs/protocol.md."""
 
-    def __init__(self, url: str, secret: Optional[str]):
+    def __init__(self, url: str, secret: Optional[str], tls: ssl.SSLContext):
         self.url = url
         # Sent as the firmware does; None sends no Authorization header.
         self.secret = secret
+        self.tls = tls
         self.websocket = None
         self.raw_text: list[str] = []
         self.messages: list[dict] = []
@@ -345,7 +347,7 @@ class FakeDevice:
 
     async def connect(self, send_start: bool = True) -> "FakeDevice":
         headers = {"Authorization": f"Bearer {self.secret}"} if self.secret is not None else {}
-        self.websocket = await websockets.connect(self.url, additional_headers=headers)
+        self.websocket = await websockets.connect(self.url, additional_headers=headers, ssl=self.tls)
         self._reader = asyncio.create_task(self._read())
         if send_start:
             await self.send({"type": "start"})

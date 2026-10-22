@@ -2,6 +2,8 @@
 
 import asyncio
 import socket
+import ssl
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -28,19 +30,26 @@ async def openai(monkeypatch):
 class Addon:
     """The add-on's Application running in this event loop."""
 
-    def __init__(self, port: int, secret: str | None):
+    def __init__(self, port: int, secret: str | None, tls_dir: str):
         self.port = port
         self.secret = secret
+        self.tls_dir = Path(tls_dir)
         self.app = None
         self.task = None
 
     @property
     def url(self) -> str:
-        return f"ws://127.0.0.1:{self.port}/"
+        return f"wss://127.0.0.1:{self.port}/"
 
-    def device(self, secret: str | None = ...) -> FakeDevice:
+    def trusting_context(self) -> ssl.SSLContext:
+        """A client context that trusts the add-on's certificate and nothing else, as the firmware does."""
+        context = ssl.create_default_context(cafile=self.tls_dir / "certificate.pem")
+        context.check_hostname = False
+        return context
+
+    def device(self, secret: str | None = ..., tls: ssl.SSLContext | None = None) -> FakeDevice:
         """A device presenting the add-on's secret, or `secret` if one is given."""
-        return FakeDevice(self.url, self.secret if secret is ... else secret)
+        return FakeDevice(self.url, self.secret if secret is ... else secret, tls or self.trusting_context())
 
     async def connect(self, send_start: bool = True) -> FakeDevice:
         """Connect a device and wait for its hello, so the add-on has taken it on."""
@@ -62,12 +71,13 @@ class Addon:
 
 
 @pytest.fixture
-def addon_env(monkeypatch):
+def addon_env(monkeypatch, tmp_path):
     """Environment for the add-on, as run.sh would export it. Tests may override."""
     port = _free_port()
     env = {
         "OPENAI_API_KEY": "test-key",
         "DEVICE_SECRET": "test-device-secret",
+        "TLS_DIR": str(tmp_path / "tls"),
         "WEBSOCKET_HOST": "127.0.0.1",
         "WEBSOCKET_PORT": str(port),
         "ENABLE_WEB_SEARCH": "false",
@@ -99,7 +109,7 @@ async def start_addon(openai, addon_env, monkeypatch, running):
                 monkeypatch.delenv(name, raising=False)
             else:
                 monkeypatch.setenv(name, value)
-        addon = Addon(int(env["WEBSOCKET_PORT"]), env.get("DEVICE_SECRET"))
+        addon = Addon(int(env["WEBSOCKET_PORT"]), env.get("DEVICE_SECRET"), env["TLS_DIR"])
         addon.app = Application()
         addon.task = asyncio.create_task(addon.app.run())
         started.append(addon)

@@ -24,6 +24,8 @@ class VaClient : public Component {
   void set_url(const std::string &url) { url_ = url; }
   // The add-on's device secret, presented on every connect.
   void set_secret(const std::string &secret) { headers_ = "Authorization: Bearer " + secret + "\r\n"; }
+  // The add-on's own certificate (PEM), the only one trusted.
+  void set_certificate(const std::string &certificate) { certificate_ = certificate; }
   void set_microphone(microphone::Microphone *m) { mic_ = m; }
   void set_mic_channel(uint8_t c) { mic_channel_ = c; }
   void set_speaker(speaker::Speaker *s) { speaker_ = s; }
@@ -116,6 +118,7 @@ class VaClient : public Component {
 
   std::string url_;
   std::string headers_;
+  std::string certificate_;
   uint8_t mic_channel_{0};
 
   microphone::Microphone *mic_{nullptr};

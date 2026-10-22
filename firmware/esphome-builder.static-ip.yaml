@@ -9,6 +9,7 @@
 #   1. Set `name` / `friendly_name` for your device.
 #   2. Put these keys in your ESPHome secrets.yaml (Builder -> Secrets):
 #        wifi_ssid, wifi_password, ota_password, api_key, va_secret,
+#        va_certificate,
 #        static_ip, gateway, subnet, dns1, dns2
 #   3. Install once. After that, click Update whenever a new version ships.
 #
@@ -23,6 +24,7 @@ substitutions:
   ota_password: !secret ota_password
   api_key: !secret api_key
   va_secret: !secret va_secret
+  va_certificate: !secret va_certificate
   static_ip: !secret static_ip
   gateway: !secret gateway
   subnet: !secret subnet

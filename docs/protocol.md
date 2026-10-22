@@ -7,8 +7,11 @@ never exercises, it is listed under [Gaps](#gaps).
 
 ## Connection
 
-- One WebSocket. The device is the client, the add-on the server, at
-  `ws://<host>:8080/` (`va_url` in the firmware, `websocket_port` in the add-on).
+- One WebSocket over TLS. The device is the client, the add-on the server, at
+  `wss://<host>:8080/` (`va_url` in the firmware, `websocket_port` in the add-on).
+  The add-on makes its own self-signed certificate on first start and keeps it;
+  the device trusts that certificate alone (`va_certificate`), whatever host
+  name it connects by. The firmware refuses a `va_url` that isn't `wss://`.
 - The device authenticates with a shared secret, sent on the upgrade request as
   `Authorization: Bearer <secret>` (`va_secret` in the firmware, `device_secret`
   in the add-on). The add-on answers anything else with HTTP 401, before the
