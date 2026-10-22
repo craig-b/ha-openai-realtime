@@ -48,7 +48,6 @@ from typing import Any, Awaitable, Callable, Optional
 
 import httpx
 from websockets.asyncio.client import connect
-from websockets.exceptions import ConnectionClosed
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +139,12 @@ class EventBus:
     # --- listening ---------------------------------------------------------------------------
 
     async def _listen_and_reconnect(self) -> None:
+        """Keep the subscription up, whatever ends it: Home Assistant restarting
+        (its connection closes, then the Supervisor turns connections away with
+        an HTTP error until it's back), a network error, a refused token.
+
+        The first failure of each outage is logged, and so is the end of it.
+        """
         failures = 0
         while True:
             try:
@@ -154,9 +159,10 @@ class EventBus:
                     self.fire(STATE, self._state)
                     await self._offer_integration(ws)
                     await self._listen(ws)
+                logger.warning("⚠️ Home Assistant closed the connection for automations' requests; reconnecting")
             except asyncio.CancelledError:
                 raise
-            except (OSError, ConnectionClosed, asyncio.TimeoutError, _Refused) as e:
+            except Exception as e:
                 if failures == 0:
                     logger.warning(f"⚠️ Not listening for automations' requests: {e!r}; retrying")
             delay = self.RETRY_S[min(failures, len(self.RETRY_S) - 1)]
@@ -191,7 +197,7 @@ class EventBus:
             return
         result = await self._command(ws, len(SUBSCRIBED) + 1, {"type": "manifest/get", "integration": INTEGRATION})
         if not result.get("success"):
-            logger.debug(f"The integration isn't installed: {result.get('error')}")
+            logger.info("🧩 The integration isn't installed, so there's nothing to offer Home Assistant")
             return
         try:
             async with httpx.AsyncClient(timeout=self.OPEN_TIMEOUT_S) as http:

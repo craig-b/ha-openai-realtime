@@ -271,3 +271,21 @@ async def test_no_integration_no_discovery(openai, home_assistant, supervisor, s
     fake = await start_with_supervisor(start_addon, home_assistant, supervisor)
     await asyncio.sleep(0.5)
     assert fake.discoveries == []
+
+
+# --- reconnecting -------------------------------------------------------------------------
+
+async def test_the_bus_reconnects_after_home_assistant_restarts(
+    openai, home_assistant, ha_device, monkeypatch  # noqa: F811
+):
+    from app.event_bus import EventBus
+
+    monkeypatch.setattr(EventBus, "RETRY_S", (0.1,))
+    device = await ha_device()
+    # Home Assistant restarts; the Supervisor turns the first attempts away with an HTTP error.
+    await home_assistant.restart(refused=3)
+    await wait_until(lambda: home_assistant.subscribed(ANNOUNCE), 5.0, "the subscriptions again")
+    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done.", "request_id": "after"})
+    conn = await openai.connection(0)
+    await conn.wait_for("response.create")
+    await device.close()

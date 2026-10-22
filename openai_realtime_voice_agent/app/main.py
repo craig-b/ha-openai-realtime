@@ -181,11 +181,20 @@ class Application:
         )
         self.agent.on_state = bus.set_state
         listening = asyncio.create_task(bus.run(), name="event_bus")
+        listening.add_done_callback(_report_end)
         try:
             await self.agent.run()
         finally:
             listening.cancel()
             await asyncio.gather(listening, return_exceptions=True)
+
+
+def _report_end(task: asyncio.Task) -> None:
+    """A background task that should run until shutdown ended: say so, and why."""
+    if task.cancelled():
+        return
+    error = task.exception()
+    logger.error(f"❌ {task.get_name()} stopped: {error!r}" if error else f"❌ {task.get_name()} stopped")
 
 
 def main() -> None:

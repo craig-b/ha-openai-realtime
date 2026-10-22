@@ -33,6 +33,9 @@ class FakeHomeAssistant:
         self.fired: list[tuple[str, dict]] = []
         # Integrations installed, as manifest/get finds them.
         self.installed: set[str] = set()
+        # WebSocket connections to turn away with an HTTP error, as the
+        # Supervisor does while Home Assistant restarts.
+        self.refuse_websockets = 0
         self.server = None
         self.task = None
         self.port = None
@@ -59,6 +62,10 @@ class FakeHomeAssistant:
         return JSONResponse({"message": f"Event {event_type} fired."})
 
     async def _websocket(self, ws: WebSocket) -> None:
+        if self.refuse_websockets:
+            self.refuse_websockets -= 1
+            await ws.close()  # before accepting: an HTTP 403 to the client
+            return
         await ws.accept()
         await ws.send_json({"type": "auth_required", "ha_version": "2026.10.0"})
         auth = await ws.receive_json()
@@ -82,6 +89,14 @@ class FakeHomeAssistant:
                                             "error": {"code": "not_found", "message": "Integration not found"}})
         except WebSocketDisconnect:
             self.subscriptions = [s for s in self.subscriptions if s[0] is not ws]
+
+    async def restart(self, refused: int) -> None:
+        """Home Assistant restarts: its WebSocket connections close, and the next `refused` are turned away."""
+        self.refuse_websockets = refused
+        sockets = {ws for ws, _, _ in self.subscriptions}
+        self.subscriptions = []
+        for ws in sockets:
+            await ws.close()
 
     def subscribed(self, event_type: str) -> bool:
         return any(subscribed == event_type for _, _, subscribed in self.subscriptions)
