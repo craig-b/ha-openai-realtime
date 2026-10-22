@@ -1,7 +1,8 @@
 {
   "config": {
     "abort": {
-      "single_instance_allowed": "The add-on's Voice PE is set up already: the add-on serves one device."
+      "single_instance_allowed": "The add-on's Voice PE is set up already: the add-on serves one device.",
+      "already_configured": "The add-on's Voice PE is set up already."
     },
     "step": {
       "user": {
@@ -10,8 +11,13 @@
         "data": {
           "device_id": "Voice PE"
         }
+      },
+      "discovery_confirm": {
+        "title": "The add-on's Voice PE",
+        "description": "Set up {name}, the Voice PE that runs the add-on's firmware, as an Assist satellite? Home Assistant's announce and start conversation actions will then reach the OpenAI assistant on it."
       }
-    }
+    },
+    "flow_title": "{name}"
   },
   "entity": {
     "assist_satellite": {

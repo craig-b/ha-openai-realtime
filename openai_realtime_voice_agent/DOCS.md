@@ -240,9 +240,11 @@ connected to the add-on.
 1. In HACS → ⋮ → **Custom repositories**, add
    `https://github.com/craig-b/ha-openai-realtime` as an **Integration**, then
    install **OpenAI Realtime Voice Agent** and restart Home Assistant.
-2. Under **Settings → Devices & services** it shows up as discovered (the add-on
-   offers it once it's installed); **Add** it and pick the Voice PE. Or add it from
-   **Add integration** yourself.
+2. Under **Settings → Devices & services** it shows up as discovered, under your
+   Voice PE's name: the add-on offers it once it's installed. **Add** it and
+   confirm. (With firmware before 1.5.0, which doesn't tell the add-on which device
+   it is, you pick the Voice PE instead.) Or add it from **Add integration**
+   yourself.
 
 The satellite gets a device of its own, connected via the Voice PE's, so its entity
 is `assist_satellite.<voice pe>_openai_assist_satellite`. It needs no Assist
