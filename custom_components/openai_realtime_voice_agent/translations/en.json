@@ -1,8 +1,7 @@
 {
   "config": {
     "abort": {
-      "single_instance_allowed": "The add-on's Voice PE is set up already: the add-on serves one device.",
-      "already_configured": "The add-on's Voice PE is set up already."
+      "already_configured": "The add-on's Voice PE is set up already: the add-on serves one device."
     },
     "step": {
       "user": {
@@ -24,6 +23,20 @@
       "assist_satellite": {
         "name": "Assist satellite"
       }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "The add-on's address",
+        "description": "Where the Voice PE finds the add-on. Leave empty for Home Assistant's own address on your network, which suits the add-on running on Home Assistant's host; set it if the device needs another, such as a name it resolves. It starts with wss:// and ends with the add-on's port.",
+        "data": {
+          "url": "Address"
+        }
+      }
+    },
+    "error": {
+      "not_wss": "The address must start with wss://: the add-on only takes encrypted connections."
     }
   }
 }

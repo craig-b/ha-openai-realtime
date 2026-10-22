@@ -4,6 +4,11 @@ DOMAIN = "openai_realtime_voice_agent"
 
 # The Voice PE's device in Home Assistant, which the satellite joins.
 CONF_DEVICE_ID = "device_id"
+# What the device needs to connect to the add-on, from its offer: its port, the
+# device secret and its certificate (link.py).
+CONF_LINK = "link"
+# The add-on's address for the device, when the owner sets one (options).
+CONF_URL = "url"
 
 # Asking the add-on to speak, and its answer.
 EVENT_ANNOUNCE = f"{DOMAIN}_announce"

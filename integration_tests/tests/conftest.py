@@ -35,7 +35,9 @@ async def core(hass: HomeAssistant):
 @pytest.fixture
 def voice_pe(hass: HomeAssistant) -> dr.DeviceEntry:
     """The Voice PE's device, as the ESPHome integration makes it: known by its MAC address alone."""
-    esphome = MockConfigEntry(domain="esphome", title="home-assistant-voice-a1b2c3")
+    esphome = MockConfigEntry(
+        domain="esphome", title="home-assistant-voice-a1b2c3", data={"device_name": "home-assistant-voice-a1b2c3"}
+    )
     esphome.add_to_hass(hass)
     return dr.async_get(hass).async_get_or_create(
         config_entry_id=esphome.entry_id,

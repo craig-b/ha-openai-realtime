@@ -4,6 +4,7 @@ The add-on (openai_realtime_voice_agent/) runs the conversation with OpenAI;
 this integration shows its device to Home Assistant as an Assist satellite, so
 Home Assistant's own announce and start_conversation actions reach it, and its
 state follows the conversation. The two talk over Home Assistant's event bus.
+It also links the device to the add-on (link.py).
 """
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
 from .const import CONF_DEVICE_ID, DOMAIN
+from .link import Linker
 
 PLATFORMS = [Platform.ASSIST_SATELLITE]
 
@@ -19,7 +21,19 @@ PLATFORMS = [Platform.ASSIST_SATELLITE]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _link_device(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await Linker(hass, entry).async_start()
+    entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Forget the secret the device was given."""
+    await Linker(hass, entry).async_forget()
+
+
+async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The add-on's address was changed in the options."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 def _link_device(hass: HomeAssistant, entry: ConfigEntry) -> None:
