@@ -74,7 +74,7 @@ blank to expose all, or trim to just what you use, e.g.:
 ## 4. Recommended starting settings
 
 **The defaults are the recommended settings** — for a first run you only need the
-API key, the device secret, the MCP integration (section 3), and ideally your language. The
+API key, the device secret, and the MCP integration (section 3). The
 Configuration tab is grouped: **🔑 Basics → 🗣️ Model & voice → 💬 Conversation →
 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug**, and every
 option has plain-language inline help.
@@ -83,7 +83,6 @@ option has plain-language inline help.
 |---|---|---|
 | `openai_model` | `gpt-realtime-2` | newest speech-to-speech model |
 | `openai_voice` | `marin` | `marin`/`cedar` are the newest voices |
-| `transcription_language` | *(blank)* | blank = Home Assistant's language; an ISO code (e.g. `nl`), or `auto` for a household speaking several |
 | `instructions` | *(English default)* | the system prompt; swap the LANGUAGE line for your language |
 | `follow_up_listen_seconds` | `8` | mic stays open this long so you can answer back |
 | `follow_up_open_delay_ms` | `700` | echo guard before the follow-up mic opens; lower = snappier but risks ghost turns |
@@ -117,12 +116,13 @@ answer back.
 
 Every option has a description on the **Configuration** tab. The ones worth knowing:
 
-- **Model / voice / transcription model** are dropdowns with a **`custom`** entry +
+- **Model / voice** are dropdowns with a **`custom`** entry +
   a `*_custom` text field if you want a value not in the list.
-- **`transcription_language`** is the language hint for the side-channel transcript
-  of what you say: the `🗣️ user: …` lines in the add-on log. It does **not** change what the
-  model understands — the main model hears your audio natively — nor the language
-  it answers in.
+- **`log_what_you_say`** (🔍 Debug, off by default) writes what the assistant heard
+  you say into the log, as `🗣️ user: …` lines, using a separate transcription model.
+  **`transcription_language`** tells it which languages to expect: blank for Home
+  Assistant's language, codes such as `en, nl`, or `auto`. Neither changes what the
+  model understands — it hears your audio natively — nor the language it answers in.
 - **`follow_up_open_delay_ms` / `playback_prebuffer_ms`** default to `700` / `150`
   — an echo guard and jitter cushion. Lowering them makes the device feel
   snappier, but below ~700 ms open delay the reply's own speaker tail can leak
@@ -132,8 +132,8 @@ Every option has a description on the **Configuration** tab. The ones worth know
 
 ## 7. Reading the logs
 
-The add-on log shows each turn: `🗣️ user:` (what it heard you say),
-`🤖 assistant:` (the reply text), `📞 phase ->` (device state), tool calls, and
+The add-on log shows each turn: `🤖 assistant:` (the reply text), `🗣️ user:`
+(what it heard you say, with `log_what_you_say` on), `📞 phase ->` (device state), tool calls, and
 `🔌 opening an OpenAI session` / `🔌 OpenAI session closed` as conversations start
 and end. View it on the add-on **Log** tab.
 

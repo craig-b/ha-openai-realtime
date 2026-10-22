@@ -49,18 +49,23 @@ async def test_the_session_is_configured_for_a_voice_assistant(openai, start_add
     assert session["tools"] == []
 
 
-async def test_transcription_is_in_english_without_home_assistant(openai, session):
-    assert session.session["audio"]["input"]["transcription"] == {"model": "gpt-4o-transcribe", "language": "en"}
+async def test_the_user_is_not_transcribed_by_default(openai, session):
+    assert "transcription" not in session.session["audio"]["input"]
+
+
+async def test_logging_what_you_say_transcribes_in_english_without_home_assistant(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(LOG_WHAT_YOU_SAY="true"))
+    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-live-transcribe", "languages": ["en"]}
 
 
 async def test_transcription_can_detect_the_language(openai, start_addon, open_session):
-    _, conn = await open_session(await start_addon(TRANSCRIPTION_LANGUAGE="auto"))
-    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-4o-transcribe"}
+    _, conn = await open_session(await start_addon(LOG_WHAT_YOU_SAY="true", TRANSCRIPTION_LANGUAGE="auto"))
+    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-live-transcribe"}
 
 
-async def test_transcription_is_on_with_a_language(openai, start_addon, open_session):
-    _, conn = await open_session(await start_addon(TRANSCRIPTION_LANGUAGE="en"))
-    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-4o-transcribe", "language": "en"}
+async def test_transcription_can_expect_several_languages(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(LOG_WHAT_YOU_SAY="true", TRANSCRIPTION_LANGUAGE="en, NL"))
+    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-live-transcribe", "languages": ["en", "nl"]}
 
 
 async def test_web_search_adds_its_tool(openai, start_addon, open_session):

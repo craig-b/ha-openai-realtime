@@ -31,14 +31,6 @@ configuration:
       Assistant-interface) — gebruik voor comfortabel bewerken het ⋮-menu
       bovenaan dit tabblad → "Bewerken als YAML": dan krijg je een volwaardige
       teksteditor.
-  transcription_language:
-    name: "🔑 Basis · Spreektaal (bijv. nl, en, de, auto)"
-    description: >-
-      Tweeletterige code van de taal die je tegen het apparaat spreekt, om wat
-      je zegt nauwkeurig uit te schrijven in het add-on-log (de 🗣️-regels). Leeg = de taal van
-      Home Assistant zelf; "auto" herkent de taal elke keer, voor een
-      huishouden dat meer dan één taal spreekt. Het bepaalt niet in welke taal
-      de assistent antwoordt; dat doen de instructies.
 
   # --- 🗣️ Model & stem ---
   openai_model:
@@ -204,18 +196,6 @@ configuration:
       kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
       zoveel als het model toelaat. Een te hoge waarde voor het model laat
       het gesprek niet starten.
-  transcription_model:
-    name: "⚙️ Geavanceerd · Transcriptmodel"
-    description: >-
-      Dit model schrijft jouw spraak als tekst, voor het log — het beïnvloedt NIET hoe de
-      assistent je verstaat (die hoort je echte stem). gpt-4o-transcribe
-      (standaard) is het nauwkeurigst. Voor een ander model: kies "custom" en
-      zet onderaan "Toon ongebruikte optionele configuratie-opties" aan.
-  transcription_model_custom:
-    name: "⚙️ Geavanceerd · Transcriptmodel (custom)"
-    description: >-
-      Alleen gebruikt als Transcriptmodel op "custom" staat. (Standaard
-      verborgen.)
   turn_detection_type:
     name: "⚙️ Geavanceerd · Beurtdetectie (legacy)"
     description: >-
@@ -241,6 +221,21 @@ configuration:
       (standaard 800). Verhoog als je wordt afgekapt bij een pauze.
 
   # --- 🔍 Debug ---
+  log_what_you_say:
+    name: "🔍 Debug · Log wat je zegt"
+    description: >-
+      Schrijft in het add-on-log wat de assistent je hoorde zeggen (de
+      🗣️-regels), om uit te zoeken wat hij verkeerd verstond. Een apart
+      transcriptiemodel doet dit, tegen een kleine meerprijs. Het verandert
+      niet hoe de assistent je verstaat: die hoort je stem zelf.
+  transcription_language:
+    name: "🔍 Debug · Talen die je spreekt (bijv. nl, of nl, en)"
+    description: >-
+      Voor Log wat je zegt: de tweeletterige codes van de talen die je tegen
+      het apparaat spreekt, gescheiden door komma's, om ze nauwkeurig uit te
+      schrijven. Leeg = de taal van Home Assistant zelf; "auto" herkent de taal
+      elke keer. Het bepaalt niet in welke taal de assistent antwoordt; dat
+      doen de instructies.
   enable_recording:
     name: "🔍 Debug · Audio opnemen"
     description: >-

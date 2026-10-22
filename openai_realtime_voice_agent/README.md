@@ -25,7 +25,7 @@ drop-in for the stock HA voice pipeline.
 - **Web search** (on by default) — the assistant can look things up online
   (weather, news, facts) via a single OpenAI call. Turn it off if you don't want it.
 - **Tunable from the UI** — model, voice, speaking speed, turn detection, a
-  post-reply follow-up window, transcription language, and more. Every option has
+  post-reply follow-up window, and more. Every option has
   inline help on the Configuration tab.
 
 ## Quick start

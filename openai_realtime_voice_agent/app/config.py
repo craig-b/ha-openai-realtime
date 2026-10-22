@@ -98,11 +98,13 @@ class Settings:
     interrupt_response: bool
     # Whether OpenAI creates a response when it detects the end of a turn.
     create_response: bool
-    # The language hint for transcribing the user: an ISO 639-1 code, "auto"
-    # for none, or "" for Home Assistant's language (read for each session). The
-    # model hears the audio itself; the transcript is for the log.
+    # Whether to transcribe the user, for the log only: the model hears the
+    # audio itself.
+    log_what_you_say: bool
+    # The languages to expect when transcribing: ISO 639-1 codes, comma
+    # separated; "auto" for no hint, or "" for Home Assistant's language (read
+    # for each session).
     transcription_language: str
-    transcription_model: str
     noise_reduction: str
     enable_web_search: bool
     web_search_model: str
@@ -151,10 +153,8 @@ class Settings:
             vad_silence_duration_ms=_int("VAD_SILENCE_DURATION_MS", 800),
             interrupt_response=_bool("INTERRUPT_RESPONSE", False),
             create_response=_bool("SEMANTIC_VAD_CREATE_RESPONSE", True),
+            log_what_you_say=_bool("LOG_WHAT_YOU_SAY", False),
             transcription_language=_str("TRANSCRIPTION_LANGUAGE").lower(),
-            transcription_model=_resolve_choice(
-                "TRANSCRIPTION_MODEL", "TRANSCRIPTION_MODEL_CUSTOM", "gpt-4o-transcribe"
-            ),
             noise_reduction=noise_reduction if noise_reduction in ("near_field", "far_field") else "",
             enable_web_search=_bool("ENABLE_WEB_SEARCH", True),
             web_search_model=_resolve_choice("WEB_SEARCH_MODEL", "WEB_SEARCH_MODEL_CUSTOM", "gpt-5.5"),

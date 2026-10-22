@@ -206,10 +206,10 @@ async def test_a_running_tool_keeps_the_session_open(openai, start_addon, home_a
 
 async def test_transcription_defaults_to_home_assistants_language(openai, start_addon, home_assistant, wake):
     home_assistant.language = "nl-NL"
-    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", TRANSCRIPTION_LANGUAGE="")
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", LOG_WHAT_YOU_SAY="true")
     device = await addon.connect()
     conn = await wake(device)
-    assert conn.session["audio"]["input"]["transcription"]["language"] == "nl"
+    assert conn.session["audio"]["input"]["transcription"]["languages"] == ["nl"]
     await device.close()
 
 
@@ -230,17 +230,17 @@ async def test_each_session_has_the_tools_home_assistant_offers_when_it_opens(op
 
 async def test_home_assistant_need_not_be_up_when_the_addon_starts(openai, home_assistant, start_addon, wake):
     await home_assistant.stop()
-    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", TRANSCRIPTION_LANGUAGE="")
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", LOG_WHAT_YOU_SAY="true")
     device = await addon.connect()
     first = await wake(device)
     assert tool_names(first) == []
-    assert first.session["audio"]["input"]["transcription"]["language"] == "en"
+    assert first.session["audio"]["input"]["transcription"]["languages"] == ["en"]
     home_assistant.language = "nl"
     await home_assistant.start()
     await first.close(1011)
     second = await wake(device)
     assert tool_names(second) == ["HassTurnOff", "HassTurnOn"]
-    assert second.session["audio"]["input"]["transcription"]["language"] == "nl"
+    assert second.session["audio"]["input"]["transcription"]["languages"] == ["nl"]
     await device.close()
 
 
@@ -248,14 +248,14 @@ async def test_a_session_keeps_the_last_tools_and_language_read_when_home_assist
     openai, home_assistant, start_addon, wake
 ):
     home_assistant.language = "nl"
-    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", TRANSCRIPTION_LANGUAGE="")
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", LOG_WHAT_YOU_SAY="true")
     device = await addon.connect()
     first = await wake(device)
     await home_assistant.stop()
     await first.close(1011)
     second = await wake(device)
     assert tool_names(second) == ["HassTurnOff", "HassTurnOn"]
-    assert second.session["audio"]["input"]["transcription"]["language"] == "nl"
+    assert second.session["audio"]["input"]["transcription"]["languages"] == ["nl"]
     # And its tools still reach Home Assistant once it is back.
     await home_assistant.start()
     await second.user_turn()

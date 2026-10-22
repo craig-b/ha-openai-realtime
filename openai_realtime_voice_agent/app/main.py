@@ -55,8 +55,8 @@ class Application:
         self._last_language = "en"
 
     async def _session_setup(self) -> SessionSetup:
-        tools, language = await asyncio.gather(self._tools(), self._transcription_language())
-        return SessionSetup(tools=tools, transcription_language=language)
+        tools, languages = await asyncio.gather(self._tools(), self._transcription_languages())
+        return SessionSetup(tools=tools, transcription_languages=languages)
 
     async def _tools(self) -> Tools:
         s = self.settings
@@ -86,11 +86,15 @@ class Application:
         self._last_tools = fetched
         return fetched
 
-    async def _transcription_language(self) -> str:
-        """The language set, or else Home Assistant's own (e.g. "en-GB" → "en")."""
+    async def _transcription_languages(self) -> list[str]:
+        """The languages set, or else Home Assistant's own (e.g. "en-GB" → "en")."""
         s = self.settings
-        if s.transcription_language or not s.ha_token:
-            return s.transcription_language or "en"
+        if not s.log_what_you_say or s.transcription_language == "auto":
+            return []
+        if s.transcription_language:
+            return [code.strip() for code in s.transcription_language.split(",") if code.strip()]
+        if not s.ha_token:
+            return ["en"]
         api_url = s.ha_mcp_url.removesuffix("/mcp")
         try:
             async with httpx.AsyncClient(timeout=self.HOME_ASSISTANT_TIMEOUT_S) as http:
@@ -103,9 +107,9 @@ class Application:
             logger.warning(
                 f"⚠️ Could not read Home Assistant's language, using {self._last_language!r}: {e!r}"
             )
-            return self._last_language
+            return [self._last_language]
         self._last_language = language
-        return language
+        return [language]
 
     async def run(self) -> None:
         s = self.settings
@@ -117,11 +121,10 @@ class Application:
             logger.warning("⚠️ No Home Assistant token: no Home Assistant tools")
         self._client = AsyncOpenAI(api_key=s.openai_api_key)
         self.agent = Agent(s, self._client, self._session_setup)
-        language = s.transcription_language or ("Home Assistant's language" if s.ha_token else "en")
-        logger.info(
-            f"🎚️ {s.model}, voice {s.voice}, turn detection {s.turn_detection_type}, "
-            f"transcription {s.transcription_model} ({language})"
-        )
+        logger.info(f"🎚️ {s.model}, voice {s.voice}, turn detection {s.turn_detection_type}")
+        if s.log_what_you_say:
+            language = s.transcription_language or ("Home Assistant's language" if s.ha_token else "en")
+            logger.info(f"🗣️ Logging what you say, transcribed by {Agent.TRANSCRIPTION_MODEL} ({language})")
         logger.info(
             f"🔁 Follow-up window {s.follow_up_ms // 1000} s, mic-open delay {s.follow_up_open_delay_ms} ms, "
             f"wake-open delay {s.wake_open_delay_ms} ms, playback prebuffer {s.playback_prebuffer_ms} ms"

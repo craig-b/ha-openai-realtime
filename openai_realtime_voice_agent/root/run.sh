@@ -5,7 +5,6 @@ set -e
 OPENAI_API_KEY=$(bashio::config 'openai_api_key')
 DEVICE_SECRET=$(bashio::config 'device_secret')
 INSTRUCTIONS=$(bashio::config 'instructions')
-TRANSCRIPTION_LANGUAGE=$(bashio::config 'transcription_language')
 
 # --- 🗣️ Model & voice ---
 OPENAI_MODEL=$(bashio::config 'openai_model')
@@ -37,9 +36,10 @@ MCP_TOOL_ALLOWLIST=$(bashio::config 'mcp_tool_allowlist')
 WEBSOCKET_PORT=$(bashio::config 'websocket_port')
 SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'session_reuse_timeout_seconds')
 MAX_CONTEXT_TOKENS=$(bashio::config 'max_context_tokens')
-TRANSCRIPTION_MODEL=$(bashio::config 'transcription_model')
 
 # --- 🔍 Debug ---
+LOG_WHAT_YOU_SAY=$(bashio::config 'log_what_you_say')
+TRANSCRIPTION_LANGUAGE=$(bashio::config 'transcription_language')
 ENABLE_RECORDING=$(bashio::config 'enable_recording')
 LOG_LEVEL=$(bashio::config 'log_level')
 
@@ -72,11 +72,11 @@ export MCP_TOOL_ALLOWLIST
 export WEBSOCKET_PORT
 export SESSION_REUSE_TIMEOUT_SECONDS
 export MAX_CONTEXT_TOKENS
-export TRANSCRIPTION_MODEL
+export LOG_WHAT_YOU_SAY
 export ENABLE_RECORDING
 export LOG_LEVEL
 
-# The *_custom escape hatches (🗣️/🌐/⚙️) are optional WITHOUT defaults —
+# The *_custom escape hatches (🗣️/🌐) are optional WITHOUT defaults —
 # bashio::config prints "null" for unset optionals, and config.py's
 # _resolve_choice would treat that literal string as a real custom value.
 # Only export when actually set.
@@ -91,10 +91,6 @@ fi
 if bashio::config.has_value 'web_search_model_custom'; then
     WEB_SEARCH_MODEL_CUSTOM=$(bashio::config 'web_search_model_custom')
     export WEB_SEARCH_MODEL_CUSTOM
-fi
-if bashio::config.has_value 'transcription_model_custom'; then
-    TRANSCRIPTION_MODEL_CUSTOM=$(bashio::config 'transcription_model_custom')
-    export TRANSCRIPTION_MODEL_CUSTOM
 fi
 
 # Legacy server_vad escape hatch (⚙️ Advanced, optional WITHOUT defaults).

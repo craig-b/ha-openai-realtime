@@ -56,8 +56,8 @@ class SessionSetup:
     """What a session is configured with that is read anew for each one."""
 
     tools: Tools
-    # The language hint for transcribing the user: an ISO 639-1 code, or "auto".
-    transcription_language: str
+    # The languages to expect when transcribing the user; none for no hint.
+    transcription_languages: list[str]
 
 
 class SessionState(enum.Enum):
@@ -79,6 +79,8 @@ class Agent:
     # cancelled: the stop word's audio may already have been committed as a turn.
     INTERRUPT_KILL_WINDOW_S = 1.5
     IDLE_UNSTICK_COOLDOWN_S = 2.0
+    # Transcribes the user for the log (log_what_you_say).
+    TRANSCRIPTION_MODEL = "gpt-live-transcribe"
     # Share of max_context_tokens kept when OpenAI truncates the conversation.
     RETENTION_RATIO = 0.5
     # The device holds a follow-up window for up to this long while its reply
@@ -417,9 +419,10 @@ class Agent:
                 "silence_duration_ms": s.vad_silence_duration_ms,
             }
         audio_input: dict = {"turn_detection": turn_detection}
-        audio_input["transcription"] = {"model": s.transcription_model}
-        if setup.transcription_language != "auto":
-            audio_input["transcription"]["language"] = setup.transcription_language
+        if s.log_what_you_say:
+            audio_input["transcription"] = {"model": self.TRANSCRIPTION_MODEL}
+            if setup.transcription_languages:
+                audio_input["transcription"]["languages"] = setup.transcription_languages
         if s.noise_reduction:
             audio_input["noise_reduction"] = {"type": s.noise_reduction}
         config = {

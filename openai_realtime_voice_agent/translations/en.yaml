@@ -30,14 +30,6 @@ configuration:
       is a single line here (a Home Assistant UI limitation) — for comfortable
       editing use the ⋮ menu at the top of this tab → "Edit in YAML", which
       gives you a full text editor.
-  transcription_language:
-    name: "🔑 Basics · Spoken language (e.g. nl, en, de, auto)"
-    description: >-
-      Two-letter code of the language you speak to it, to transcribe what you
-      say accurately into the add-on log (the 🗣️ lines). Leave empty to use Home
-      Assistant's own language; "auto" detects it each time, for a household
-      that speaks more than one. It doesn't change which language the
-      assistant answers in; the instructions decide that.
 
   # --- 🗣️ Model & voice ---
   openai_model:
@@ -197,18 +189,6 @@ configuration:
       more = better memory but higher cost, and long chats can hit OpenAI rate
       limits. 8000 is a good balance; 0 = as much as the model allows. Too
       high a value for the model makes the conversation fail to start.
-  transcription_model:
-    name: "⚙️ Advanced · Transcript model"
-    description: >-
-      This model writes your speech as text, for the log — it does NOT affect how the assistant
-      understands you (it hears your actual voice). gpt-4o-transcribe
-      (default) is the most accurate. For an unlisted model pick "custom" and
-      enable "Show unused optional configuration options" at the bottom.
-  transcription_model_custom:
-    name: "⚙️ Advanced · Transcript model (custom)"
-    description: >-
-      Only used when Transcript model is set to "custom". (Hidden by
-      default.)
   turn_detection_type:
     name: "⚙️ Advanced · Turn detection (legacy)"
     description: >-
@@ -234,6 +214,21 @@ configuration:
       800). Raise it if you get cut off while pausing.
 
   # --- 🔍 Debug ---
+  log_what_you_say:
+    name: "🔍 Debug · Log what you say"
+    description: >-
+      Writes what the assistant heard you say into the add-on log (the 🗣️
+      lines), to find out what it misheard. A separate transcription model
+      does this, at a small extra cost. It doesn't change how the assistant
+      understands you: it hears your voice itself.
+  transcription_language:
+    name: "🔍 Debug · Languages you speak (e.g. en, or en, nl)"
+    description: >-
+      For Log what you say: the two-letter codes of the languages you speak
+      to it, comma separated, to write them down accurately. Leave empty to
+      use Home Assistant's own language; "auto" detects it each time. It
+      doesn't change which language the assistant answers in; the
+      instructions decide that.
   enable_recording:
     name: "🔍 Debug · Record audio"
     description: >-
