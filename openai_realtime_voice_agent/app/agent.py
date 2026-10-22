@@ -474,6 +474,12 @@ class Agent:
         finally:
             self._liveness.tool_finished()
 
+    def work_started(self) -> None:
+        self._liveness.tool_started()
+
+    def work_finished(self) -> None:
+        self._liveness.tool_finished()
+
     def response_done(self, session: Session) -> None:
         if self._tool_calls:
             calls, self._tool_calls = self._tool_calls, []

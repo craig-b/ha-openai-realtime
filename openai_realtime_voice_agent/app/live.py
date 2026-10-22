@@ -22,6 +22,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from typing import Optional
 
 import numpy as np
@@ -46,6 +47,10 @@ class LiveSession:
     SPEECH_HANG_S = 0.6
     # How long to wait for GPT-Live to confirm the session closed.
     CLOSE_TIMEOUT_S = 3.0
+    # A backend response with no news for this long is taken to have ended:
+    # its end can't be relied on to arrive, and while it runs the session
+    # (billed by the minute) can't close.
+    BACKEND_SILENCE_S = 30.0
 
     def __init__(self, settings: Settings, client: AsyncOpenAI, events: SessionEvents):
         self.settings = settings
@@ -59,8 +64,10 @@ class LiveSession:
         # Why GPT-Live refused the session's settings, if it did while it started.
         self._refused: Optional[str] = None
         self._usage_seconds: Optional[float] = None
-        # Backend responses running.
+        # Backend responses running, and when the backend last said anything.
         self._responses = 0
+        self._last_backend_event = 0.0
+        self._backend_watch: Optional[asyncio.Task] = None
         self._user_speaking = False
         self._user_text = ""
         self._speaking = False
@@ -72,8 +79,8 @@ class LiveSession:
 
     @property
     def busy(self) -> bool:
-        """Whether the backend is working, or the voice speaking."""
-        return self._responses > 0 or self._speaking
+        """Whether the voice is speaking (the backend's work counts through work_started)."""
+        return self._speaking
 
     # --- opening and closing ---------------------------------------------------------
 
@@ -128,6 +135,8 @@ class LiveSession:
             return
         self._closing = True
         self._cancel_hang()
+        if self._backend_watch is not None:
+            self._backend_watch.cancel()
         if self._ws is not None and self._started.is_set() and not self._closed.is_set():
             try:
                 await self._ws.send(json.dumps({"type": "session.close"}))
@@ -200,6 +209,7 @@ class LiveSession:
             reason = f"connection closed: {e}"
         self._closed.set()
         self._cancel_hang()
+        self._finish_backend_work()
         if not self._closing:
             await self._events.session_lost(self, reason)
 
@@ -300,18 +310,38 @@ class LiveSession:
         """The backend's work: its responses and tool calls."""
         kind = inner.get("type", "")
         logger.debug(f"⬅️ response.event {kind}")
+        self._last_backend_event = time.monotonic()
         if kind == "response.created":
             self._responses += 1
+            self._events.work_started()
+            if self._backend_watch is None or self._backend_watch.done():
+                self._backend_watch = asyncio.create_task(self._watch_backend())
         elif kind == "response.output_item.done":
             item = inner.get("item") or {}
             if item.get("type") == "function_call":
                 self._events.tool_call(item.get("call_id", ""), item.get("name", ""), item.get("arguments") or "")
         elif kind in ("response.completed", "response.failed", "response.incomplete"):
-            self._responses = max(0, self._responses - 1)
+            if self._responses:
+                self._responses -= 1
+                self._events.work_finished()
             if kind == "response.failed":
                 error = ((inner.get("response") or {}).get("error") or {}).get("message", "")
                 self._events.turn_failed(f"the backend's response failed: {error}")
             self._events.response_done(self)
+
+    async def _watch_backend(self) -> None:
+        """End backend work that has gone silent (BACKEND_SILENCE_S)."""
+        while self._responses:
+            await asyncio.sleep(min(1.0, self.BACKEND_SILENCE_S))
+            silent = time.monotonic() - self._last_backend_event
+            if self._responses and silent >= self.BACKEND_SILENCE_S:
+                logger.warning(f"⚠️ GPT-Live's backend said nothing for {silent:.0f} s: taking its work as ended")
+                self._finish_backend_work()
+
+    def _finish_backend_work(self) -> None:
+        while self._responses:
+            self._responses -= 1
+            self._events.work_finished()
 
     def _on_error(self, error: dict) -> None:
         code = error.get("code") or ""

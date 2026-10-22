@@ -40,6 +40,12 @@ class SessionEvents(Protocol):
     def tool_call(self, call_id: str, name: str, arguments: str) -> None:
         """The model calls a tool; its result goes back with the others at response_done."""
 
+    def work_started(self) -> None:
+        """The model began work the user is waiting on (a backend response): the turn isn't over."""
+
+    def work_finished(self) -> None:
+        """That work ended."""
+
     def response_done(self, session: "Session") -> None:
         """The model's response is complete: send its tool calls' results, if any."""
 

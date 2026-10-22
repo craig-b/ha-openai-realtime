@@ -187,3 +187,29 @@ async def test_the_backend_can_end_the_conversation(openai, start_addon, fast_id
     await device.wait_for_phase("idle", timeout=4.0)
     await conn.wait_for("session.close", timeout=3.0)
     await device.close()
+
+
+async def test_the_ring_stays_on_thinking_while_the_backend_works(openai, live):
+    device, conn = live
+    await conn.heard("what's the weather")
+    await conn.delegates()
+    await conn.backend({"type": "response.created", "response": {"id": "resp_1"}})
+    await conn.says("Checking that now.", pcm_tone(300, 24000))  # it acknowledges at once
+    await device.wait_for_phase("replying")
+    # The acknowledgement ends, but the backend is still searching.
+    await asyncio.sleep(LiveSession.SPEECH_HANG_S + 0.3 + 0.5)
+    assert device.phases[-1] == "thinking"
+    await conn.backend({"type": "response.completed", "response": {"id": "resp_1"}})
+    await conn.says("It's sunny.", pcm_tone(300, 24000))
+    await device.wait_for_phase("replying", count=2)
+    await device.wait_for_phase("idle", timeout=4.0)
+
+
+async def test_backend_work_that_goes_silent_doesnt_keep_the_session_open(openai, live, fast_idle_check, monkeypatch):
+    monkeypatch.setattr(LiveSession, "BACKEND_SILENCE_S", 0.5)
+    device, conn = live
+    await conn.heard("what's the weather")
+    await conn.delegates()
+    await conn.backend({"type": "response.created", "response": {"id": "resp_1"}})  # it never completes
+    await device.send({"type": "flush"})  # the conversation on the device ends
+    await conn.wait_for("session.close", timeout=4.0)
