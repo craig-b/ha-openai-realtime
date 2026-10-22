@@ -7,8 +7,9 @@ for a version must be published before `main` names that version. The **Add-on**
 workflow's *Published images* check fails on any branch whose `config.yaml`
 names images that can't be pulled.
 
-1. **Release pull request.** Bump `version` in `config.yaml` and in
-   `repository.json`, and add the `CHANGELOG.md` entry, upgrade steps first. If
+1. **Release pull request.** Bump `version` in `config.yaml`, in
+   `repository.json` and in the integration's `manifest.json` (it ships with the
+   add-on's version), and add the `CHANGELOG.md` entry, upgrade steps first. If
    the firmware changed, bump its `project.version` in
    `firmware/home-assistant-voice.realtime.yaml`. Its *Published images* check
    fails for now: the images don't exist yet.

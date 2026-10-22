@@ -2,6 +2,28 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.9.0
+
+Update the add-on. The new integration is optional: to make the Voice PE an Assist
+satellite, install it through HACS (Documentation tab, section 7). The firmware is
+unchanged.
+
+**The Voice PE as an Assist satellite** *(new integration, through HACS)*
+
+- **Home Assistant's own Announce and Start conversation actions reach the Voice
+  PE,** with a form in the action editor, and wait until it has been said.
+  Blueprints made for voice satellites work too.
+- **Its state follows the conversation:** idle, listening, processing or
+  responding, and unavailable while the Voice PE isn't connected to the add-on.
+- **No Assist pipeline needed:** the OpenAI model speaks and converses, not Home
+  Assistant's text-to-speech or agent.
+- **It shows up as discovered** once it's installed: the add-on offers it.
+
+**Starting a conversation**
+
+- **It can open with a line of yours, word for word:** the start-conversation event
+  takes a `message`, with the `prompt` as what the conversation is about.
+
 ## 0.8.1
 
 Update the add-on; there is nothing else to do. Firmware 1.4.1 only changes a log
