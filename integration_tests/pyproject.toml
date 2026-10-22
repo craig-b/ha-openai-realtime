@@ -1,0 +1,32 @@
+[project]
+name = "openai-realtime-voice-agent-integration-tests"
+version = "0.1.0"
+description = "Tests of the Home Assistant integration in custom_components/, in a real Home Assistant"
+requires-python = ">=3.14.2"
+dependencies = []
+
+# Only runs the tests: the integration itself is installed into Home Assistant by HACS.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    # Pinned to the Home Assistant release the integration is tested against.
+    "pytest-homeassistant-custom-component==0.13.373",
+    # What Home Assistant would install at runtime for assist_satellite and the
+    # components it depends on (their manifests' requirements, in 2026.10.2).
+    "gazetteer-matcher==1.1.0",
+    "ha-ffmpeg==3.2.2",
+    "hassil==3.12.1",
+    "home-assistant-intents==2026.10.6",
+    "mutagen==1.48.1",
+    "pymicro-vad==1.0.1",
+    "pyspeex-noise==1.0.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The repository root, where custom_components/ is.
+pythonpath = [".."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

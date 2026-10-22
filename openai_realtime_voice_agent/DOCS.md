@@ -227,6 +227,29 @@ counts as `spoken` once its first words have been said. What was said is part of
 ask about it straight after. "Stop" interrupts it as it does any reply. The log
 shows each request as a `📣` line.
 
+### As an Assist satellite (optional integration)
+
+The repository also has a Home Assistant integration, installed through HACS, that
+makes the Voice PE an **Assist satellite**. Home Assistant's own **Assist
+satellite: Announce** and **Start conversation** actions then reach it, with a form
+in the action editor, and wait until it has been said; so do blueprints made for
+voice satellites. Its state (idle, listening, processing, responding) follows the
+conversation, for automations to use, and it's unavailable while the Voice PE isn't
+connected to the add-on.
+
+1. In HACS → ⋮ → **Custom repositories**, add
+   `https://github.com/craig-b/ha-openai-realtime` as an **Integration**, then
+   install **OpenAI Realtime Voice Agent** and restart Home Assistant.
+2. Under **Settings → Devices & services** it shows up as discovered (the add-on
+   offers it once it's installed); **Add** it and pick the Voice PE. Or add it from
+   **Add integration** yourself.
+
+The satellite gets a device of its own, connected via the Voice PE's, so its entity
+is `assist_satellite.<voice pe>_openai_assist_satellite`. It needs no Assist
+pipeline: the OpenAI model speaks and converses, not Home Assistant's text-to-speech
+or agent. It speaks messages only: it can't play media, plays no chime before an
+announcement, and can't ask a question (**Ask question**) yet.
+
 ## 8. Options reference & tuning
 
 Every option has a description on the **Configuration** tab. The ones worth knowing:

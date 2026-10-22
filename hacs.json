@@ -1,0 +1,6 @@
+{
+  "name": "OpenAI Realtime Voice Agent",
+  "content_in_root": false,
+  "homeassistant": "2026.10.0",
+  "render_readme": true
+}

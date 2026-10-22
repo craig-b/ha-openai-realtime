@@ -1,0 +1,23 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "The add-on's Voice PE is set up already: the add-on serves one device."
+    },
+    "step": {
+      "user": {
+        "title": "The add-on's Voice PE",
+        "description": "Pick the Voice PE that runs the add-on's firmware. It becomes an Assist satellite, so Home Assistant's announce and start conversation actions reach the OpenAI assistant on it.",
+        "data": {
+          "device_id": "Voice PE"
+        }
+      }
+    }
+  },
+  "entity": {
+    "assist_satellite": {
+      "assist_satellite": {
+        "name": "Assist satellite"
+      }
+    }
+  }
+}

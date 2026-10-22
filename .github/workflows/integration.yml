@@ -1,0 +1,59 @@
+name: Integration
+
+# The Home Assistant integration in custom_components/: its tests, in a real
+# Home Assistant of the version it's tested against (integration_tests/), and
+# Home Assistant's and HACS's checks of it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'custom_components/**'
+      - 'integration_tests/**'
+      - 'hacs.json'
+      - '.github/workflows/integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.15"
+          enable-cache: false
+
+      # Python 3.14, which Home Assistant 2026.10 needs.
+      - name: Run the tests
+        working-directory: integration_tests
+        run: uv run --frozen --python 3.14 pytest
+
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: home-assistant/actions/hassfest@cd6f3635a740c84d8a14f6121a90068b8ece6bf6  # main, 2026-10-17
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa  # main, 2026-06-08
+        with:
+          category: integration

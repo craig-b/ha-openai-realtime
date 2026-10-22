@@ -34,10 +34,15 @@ session — there is no Home Assistant `voice_assistant` pipeline on the audio p
 
 - **[`openai_realtime_voice_agent/`](openai_realtime_voice_agent/)** — the Home
   Assistant add-on (Python).
-  This is the only thing you install.
   - [`DOCS.md`](openai_realtime_voice_agent/DOCS.md) — full setup: OpenAI key, the
     Home Assistant MCP connection, recommended settings, web search, all options.
   - [`CHANGELOG.md`](openai_realtime_voice_agent/CHANGELOG.md) — what changed per version.
+
+- **[`custom_components/openai_realtime_voice_agent/`](custom_components/openai_realtime_voice_agent/)**
+  — an optional Home Assistant integration, installed through HACS, that makes the
+  add-on's Voice PE an Assist satellite: Home Assistant's own announce and start
+  conversation actions reach it, and its state follows the conversation. Its tests
+  run in a real Home Assistant: [`integration_tests/`](integration_tests/).
 
 - **[`firmware/`](firmware/)** — the Voice PE firmware (ESPHome, with a custom
   `va_client` component, specific to the Voice PE hardware). ESPHome builds it
@@ -54,6 +59,10 @@ session — there is no Home Assistant `voice_assistant` pipeline on the audio p
    that CI built and tested for its release (amd64 or aarch64).
 3. Configure the add-on and flash the companion firmware — see
    [`openai_realtime_voice_agent/DOCS.md`](openai_realtime_voice_agent/DOCS.md).
+4. Optionally, to make the Voice PE an Assist satellite: in HACS, add this repository
+   as a custom repository of type **Integration**, install **OpenAI Realtime Voice
+   Agent**, and restart Home Assistant. It then shows up as discovered under
+   **Settings → Devices & services**; pick the Voice PE. See section 7 of DOCS.md.
 
 How a release is made, and its images published: [`RELEASING.md`](RELEASING.md).
 

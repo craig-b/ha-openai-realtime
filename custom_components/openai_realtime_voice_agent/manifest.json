@@ -1,0 +1,14 @@
+{
+  "domain": "openai_realtime_voice_agent",
+  "name": "OpenAI Realtime Voice Agent",
+  "codeowners": ["@craig-b"],
+  "config_flow": true,
+  "dependencies": ["assist_pipeline", "assist_satellite"],
+  "documentation": "https://github.com/craig-b/ha-openai-realtime",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/craig-b/ha-openai-realtime/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.9.0"
+}

@@ -1,0 +1,18 @@
+"""Constants: the events the add-on and this integration speak in (docs/protocol.md)."""
+
+DOMAIN = "openai_realtime_voice_agent"
+
+# The Voice PE's device in Home Assistant, which the satellite joins.
+CONF_DEVICE_ID = "device_id"
+
+# Asking the add-on to speak, and its answer.
+EVENT_ANNOUNCE = f"{DOMAIN}_announce"
+EVENT_START_CONVERSATION = f"{DOMAIN}_start_conversation"
+EVENT_DONE = f"{DOMAIN}_done"
+# The conversation's state on the device, and asking for it.
+EVENT_STATE = f"{DOMAIN}_state"
+EVENT_QUERY = f"{DOMAIN}_query"
+
+# How long a request may take before the add-on answers: it waits up to two
+# minutes for the device to be free, then the reply has to be said.
+REQUEST_TIMEOUT_S = 300.0
