@@ -50,7 +50,7 @@ async def test_a_wake_starts_a_gpt_live_session_with_its_settings(openai, live):
 
 async def test_settings_reach_the_session(openai, start_addon):
     addon = await start_addon(
-        ENGINE="live", LIVE_VOICE="cedar", LIVE_BACKEND_MODEL="gpt-6-sol", LIVE_REASONING_EFFORT="medium",
+        ENGINE="live", LIVE_VOICE="cedar", LIVE_BACKEND_MODEL="gpt-6.1-sol", LIVE_REASONING_EFFORT="medium",
         LIVE_SERVICE_TIER="priority", LIVE_INSTRUCTIONS="Be the house.", LIVE_BACKEND_INSTRUCTIONS="Use tools.",
     )
     device = await addon.connect()
@@ -59,7 +59,7 @@ async def test_settings_reach_the_session(openai, start_addon):
     assert session["audio"]["output"]["voice"] == "cedar"
     assert session["instructions"] == "Be the house."
     backend = session["delegation"]["responses"]
-    assert backend["model"] == "gpt-6-sol"
+    assert backend["model"] == "gpt-6.1-sol"
     assert backend["instructions"] == "Use tools."
     assert backend["reasoning"] == {"effort": "medium"}
     assert backend["service_tier"] == "priority"

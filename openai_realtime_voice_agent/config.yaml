@@ -201,10 +201,11 @@ schema:
     model: str
     voice: "list(marin|quartz|ripple|vesper|willow|stone|gleam|meridian|bossa|tempo|beacon|delta|cinder|nuri|juni|flitz|brise|sillage|nira|harema|shida|noeul|custom)"
     voice_custom: str?
-    backend_model: "list(gpt-6-luna|gpt-6-sol|custom)"
+    backend_model: "list(gpt-6-luna|gpt-6.1-sol|gpt-6-astra|custom)"
     backend_model_custom: str?
     backend_instructions: str
-    reasoning_effort: "list(minimal|low|medium|high|xhigh)"
+    # The gpt-6 models' efforts: "none" where the realtime models have "minimal".
+    reasoning_effort: "list(none|low|medium|high|xhigh)"
     service_tier: "list(auto|default|priority)"
     session_reuse_timeout_seconds: int(0,3600)
     mute_mic_while_speaking: bool

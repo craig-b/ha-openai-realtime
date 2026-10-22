@@ -224,7 +224,7 @@ class Settings:
                 "LIVE_BACKEND_INSTRUCTIONS", "Control the smart home with your tools. Keep replies short."
             ),
             live_reasoning_effort=_choice(
-                "LIVE_REASONING_EFFORT", ("minimal", "low", "medium", "high", "xhigh"), "low"
+                "LIVE_REASONING_EFFORT", ("none", "low", "medium", "high", "xhigh"), "low"
             ),
             live_service_tier=_choice("LIVE_SERVICE_TIER", ("auto", "default", "priority"), "auto"),
             enable_recording=_bool("ENABLE_RECORDING", False),

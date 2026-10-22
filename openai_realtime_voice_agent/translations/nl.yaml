@@ -203,9 +203,11 @@ configuration:
         name: "Backend-model"
         description: >-
           Het model waaraan de stem het werk overlaat: het gebruikt de Home
-          Assistant-tools en zoekt op internet. gpt-6-luna (standaard) is snel;
-          gpt-6-sol denkt beter na, voor lastigere vragen, en kost meer. Voor een
-          ander model: kies "custom" en vul hieronder Backend-model (custom) in.
+          Assistant-tools en zoekt op internet. gpt-6-luna (standaard) is het
+          snelst en goedkoopst, en ruim genoeg voor wat een spraakassistent
+          gevraagd wordt; gpt-6.1-sol en gpt-6-astra denken langer na, trager en
+          duurder. Voor een ander model: kies "custom" en vul hieronder
+          Backend-model (custom) in.
       backend_model_custom:
         name: "Backend-model (custom)"
         description: >-
@@ -223,7 +225,7 @@ configuration:
         description: >-
           Hoe lang de backend nadenkt voordat hij iets doet. "low" (standaard)
           is snel en kiest nog steeds het juiste apparaat; hoger denkt langer na,
-          voor lastigere vragen; "minimal" is het snelst.
+          voor lastigere vragen; "none" is het snelst.
       service_tier:
         name: "Snelheid en prijs van de backend"
         description: >-

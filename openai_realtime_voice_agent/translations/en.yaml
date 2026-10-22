@@ -196,8 +196,9 @@ configuration:
         name: "Backend model"
         description: >-
           The model the voice hands work to: it calls the Home Assistant tools
-          and searches the web. gpt-6-luna (default) is quick; gpt-6-sol thinks
-          harder, for more complex requests, and costs more. For another model
+          and searches the web. gpt-6-luna (default) is the quickest and
+          cheapest, and plenty for what a voice assistant is asked; gpt-6.1-sol
+          and gpt-6-astra think harder, slower and dearer. For another model
           pick "custom" and fill in Backend model (custom) below.
       backend_model_custom:
         name: "Backend model (custom)"
@@ -215,7 +216,7 @@ configuration:
         description: >-
           How hard the backend thinks before it acts. "low" (default) is quick
           and still picks the right device; higher thinks longer, for harder
-          requests; "minimal" is the quickest.
+          requests; "none" is the quickest.
       service_tier:
         name: "Backend speed and price"
         description: >-
