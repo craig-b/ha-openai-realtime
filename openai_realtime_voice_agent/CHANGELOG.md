@@ -2,6 +2,15 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.9.2
+
+Update the add-on. The integration and the firmware are unchanged.
+
+- **The satellite's state goes back to idle after a stop.** Stopping the assistant
+  while it was working on an answer, or a follow-up window closing unanswered, left
+  the Assist satellite showing the last state, such as "listening", until the next
+  conversation.
+
 ## 0.9.1
 
 Update the add-on, and the integration in HACS (then restart Home Assistant). The
