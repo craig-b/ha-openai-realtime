@@ -193,7 +193,35 @@ actions:
 
 Both take templates, like any event data. A request waits until the device is free
 (no conversation going on, nothing playing), for up to two minutes; after that it is
-dropped, and the log says so. What was said is part of the conversation, so you can
+dropped, and the log says so.
+
+**Waiting for it.** When a request is over, the add-on fires
+`openai_realtime_voice_agent_done`, with the `request_id` the request carried and a
+`result`: `spoken` (it has been said), `stopped` (someone said "stop"), `dropped` (the
+device was busy for two minutes) or `failed`. Give each request its own id, and wait
+for the answer that carries it:
+
+```yaml
+actions:
+  - variables:
+      request: "{{ context.id }}"
+  - event: openai_realtime_voice_agent_announce
+    event_data:
+      message: "Good night. Turning the lights off."
+      request_id: "{{ request }}"
+  - wait_for_trigger:
+      - trigger: event
+        event_type: openai_realtime_voice_agent_done
+        event_data:
+          request_id: "{{ request }}"
+    timeout: "00:03:00"
+  - action: light.turn_off
+    target:
+      area_id: living_room
+```
+
+`{{ wait.trigger.event.data.result }}` then says how it went; a started conversation
+counts as `spoken` once its first words have been said. What was said is part of the conversation, so you can
 ask about it straight after. "Stop" interrupts it as it does any reply. The log
 shows each request as a `📣` line.
 

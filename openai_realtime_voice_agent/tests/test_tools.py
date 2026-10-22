@@ -29,6 +29,8 @@ class FakeHomeAssistant:
         self.added_tools: list[str] = []
         # (websocket, subscription id, event type), for each subscribe_events.
         self.subscriptions: list[tuple[WebSocket, int, str]] = []
+        # (event type, data), for each event fired through the REST API.
+        self.fired: list[tuple[str, dict]] = []
         self.server = None
         self.task = None
         self.port = None
@@ -47,6 +49,12 @@ class FakeHomeAssistant:
             "time_zone": "Europe/London",
             "unit_system": {"temperature": "°C", "length": "km"},
         })
+
+    async def _fire_event(self, request):
+        assert request.headers["Authorization"] == "Bearer ha-token"
+        event_type = request.path_params["event_type"]
+        self.fired.append((event_type, await request.json()))
+        return JSONResponse({"message": f"Event {event_type} fired."})
 
     async def _websocket(self, ws: WebSocket) -> None:
         await ws.accept()
@@ -108,6 +116,7 @@ class FakeHomeAssistant:
         for name in self.added_tools:
             self._add_tool(mcp, name)
         mcp.custom_route("/api/config", methods=["GET"])(self._config)
+        mcp.custom_route("/api/events/{event_type}", methods=["POST"])(self._fire_event)
         return mcp
 
     async def start(self) -> None:

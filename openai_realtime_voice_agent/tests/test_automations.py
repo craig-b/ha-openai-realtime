@@ -5,7 +5,7 @@ import asyncio
 import pytest_asyncio
 
 from app.agent import Agent
-from app.automations import ANNOUNCE, START_CONVERSATION
+from app.automations import ANNOUNCE, DONE, START_CONVERSATION
 from tests.fakes import pcm_tone, wait_until
 from tests.test_tools import FakeHomeAssistant, home_assistant  # noqa: F401 (fixture)
 
@@ -27,6 +27,14 @@ def speak_messages(device) -> list[dict]:
     return [m for m in device.messages if m.get("type") == "speak"]
 
 
+async def done(home_assistant, request_id) -> dict:  # noqa: F811
+    """The DONE event the add-on fired for `request_id`."""
+    mine = lambda: [d for kind, d in home_assistant.fired if kind == DONE and d.get("request_id") == request_id]  # noqa: E731
+    await wait_until(mine, 5.0, f"{DONE} for {request_id!r} (fired: {home_assistant.fired})")
+    [data] = mine()
+    return data
+
+
 def system_texts(conn) -> list[str]:
     return [
         part["text"]
@@ -38,7 +46,7 @@ def system_texts(conn) -> list[str]:
 
 async def test_an_announcement_is_said_and_the_device_does_not_listen_after(openai, home_assistant, ha_device):  # noqa: F811
     device = await ha_device(SESSION_REUSE_TIMEOUT_SECONDS="0")
-    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done."})
+    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done.", "request_id": "washer"})
     conn = await openai.connection(0)
     await conn.wait_for("response.create")
     assert speak_messages(device) == [{"type": "speak", "listen_ms": 0}]
@@ -50,6 +58,7 @@ async def test_an_announcement_is_said_and_the_device_does_not_listen_after(open
     await device.wait_for_audio(400 * 48)
     await device.wait_for_phase("idle")
     assert device.phases == ["replying", "idle"]
+    assert await done(home_assistant, "washer") == {"request_id": "washer", "request": "announce", "result": "spoken"}
     # Nobody is listening: the conversation is over, and the session closes.
     await asyncio.wait_for(conn.closed.wait(), 5.0)
     await device.close()
@@ -109,10 +118,10 @@ async def test_a_stop_before_does_not_cancel_the_announcement(openai, home_assis
     await device.close()
 
 
-async def test_a_request_without_its_text_is_ignored(openai, home_assistant, ha_device):  # noqa: F811
+async def test_a_request_without_its_text_fails(openai, home_assistant, ha_device):  # noqa: F811
     device = await ha_device()
-    await home_assistant.fire(ANNOUNCE, {"text": "The washing is done."})
-    await asyncio.sleep(0.5)
+    await home_assistant.fire(ANNOUNCE, {"text": "The washing is done.", "request_id": 7})
+    assert (await done(home_assistant, 7))["result"] == "failed"
     assert speak_messages(device) == []
     assert openai.connections == []
     await device.close()
@@ -121,9 +130,48 @@ async def test_a_request_without_its_text_is_ignored(openai, home_assistant, ha_
 async def test_a_request_is_dropped_while_no_device_is_connected(openai, home_assistant, start_addon, monkeypatch):  # noqa: F811
     monkeypatch.setattr(Agent, "SPEAK_WAIT_S", 0.5)
     await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token")
-    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done."})
-    await asyncio.sleep(1.0)
+    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done.", "request_id": "washer"})
+    assert (await done(home_assistant, "washer"))["result"] == "dropped"
     assert openai.connections == []
+
+
+async def test_a_stop_during_the_announcement_is_reported(openai, home_assistant, ha_device):  # noqa: F811
+    device = await ha_device()
+    await home_assistant.fire(START_CONVERSATION, {"prompt": "Ask about the heating.", "request_id": "heating"})
+    conn = await openai.connection(0)
+    await conn.wait_for("response.create")
+    response = await conn.start_response()
+    await response.audio(pcm_tone(2000, 24000))
+    await device.wait_for_phase("replying")
+    await device.send({"type": "interrupt"})
+    assert await done(home_assistant, "heating") == {
+        "request_id": "heating", "request": "start_conversation", "result": "stopped"}
+    await device.close()
+
+
+async def test_a_model_that_says_nothing_fails_the_request(openai, home_assistant, ha_device, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(Agent, "SPEAK_START_TIMEOUT_S", 0.5)
+    device = await ha_device()
+    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done.", "request_id": "washer"})
+    assert (await done(home_assistant, "washer"))["result"] == "failed"
+    await device.close()
+
+
+async def test_each_request_gets_its_own_answer(openai, home_assistant, ha_device):  # noqa: F811
+    device = await ha_device()
+    await home_assistant.fire(ANNOUNCE, {"message": "The washing is done.", "request_id": "washer"})
+    await home_assistant.fire(ANNOUNCE, {"message": "The post has come.", "request_id": "post"})
+    conn = await openai.connection(0)
+    await conn.wait_for("response.create")
+    await conn.reply(pcm_tone(300, 24000))
+    assert (await done(home_assistant, "washer"))["result"] == "spoken"
+    assert not [d for kind, d in home_assistant.fired if d.get("request_id") == "post"]
+    # The second waits for the first to be over, then has its own turn, in the same session.
+    await conn.wait_for("response.create", count=2, timeout=5.0)
+    assert system_texts(conn)[1].endswith("The post has come.")
+    await conn.reply(pcm_tone(300, 24000))
+    assert (await done(home_assistant, "post"))["result"] == "spoken"
+    await device.close()
 
 
 async def test_gpt_live_is_told_to_speak(openai, home_assistant, ha_device):  # noqa: F811

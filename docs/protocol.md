@@ -274,6 +274,13 @@ subscribes to over Home Assistant's WebSocket API (`app/automations.py`):
   like any other: `replying`, its audio, `idle`. It is part of the conversation,
   so "what did you say?" can follow.
 - If the model hasn't begun speaking within 15 s, the request is given up.
+- When it's over, the add-on fires `openai_realtime_voice_agent_done` through
+  Home Assistant's REST API, with `request_id` (whatever the request carried, or
+  null), `request` (`announce` or `start_conversation`) and `result`: `spoken`
+  once the reply has played and the device has gone idle after it, `stopped` if an
+  `interrupt` cut it off, `dropped` if the device wasn't free in time, `failed`
+  otherwise (no text, the session didn't open, the model didn't speak, the device
+  disconnected).
 
 ## Mic gate
 
