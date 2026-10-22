@@ -2,6 +2,55 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.8.0
+
+> **Two steps, in this order:**
+>
+> 1. **Update this add-on.** On its first start it moves your saved prompts and
+>    restarts itself once: a prompt you never edited gives way to the add-on's
+>    built-in rules; one you had edited becomes your **House rules**, and the log
+>    asks you to trim it to what is yours.
+> 2. **Update the firmware** (ESPHome Device Builder → Update), for
+>    announcements. Everything else works on the old firmware.
+
+House rules, a less chatty assistant, and announcements from automations.
+
+**House rules**
+
+- **Your part of the prompt is now one setting, House rules** (🔑 Basics): the
+  assistant's personality, its language, and anything particular to your home.
+  Both engines get it.
+- **The rest is built in:** using the tools without announcing it, looking devices
+  up by name before asking, ending the conversation, speaking for a speaker. It
+  ships with the add-on, so fixes to it reach you with updates; before, a saved
+  prompt kept its old text for good. Your house rules win on personality, tone,
+  language and naming. With `log_level: DEBUG` the log shows the whole prompt.
+
+**A less chatty assistant**
+
+- **One short sentence by default,** answering only what was asked: no "Let me
+  check…" before a tool, no "If you'd like, I can…" after.
+- **It looks a device up by name** when a room has none, instead of asking with
+  made-up names.
+- **It names the place** when an answer depends on one, such as the weather, and
+  says goodbye in a word or two.
+
+**Announcements and conversations from automations**
+
+- **An automation can have the assistant speak,** in its own voice, by firing an
+  event: `openai_realtime_voice_agent_announce` with a `message` says it word for
+  word; `openai_realtime_voice_agent_start_conversation` with a `prompt` has it
+  speak first and then listen for the answer. Nothing to set up. See the
+  Documentation tab, section 7. *(firmware)*
+- **An automation can wait for it:** when it's over, the add-on fires
+  `openai_realtime_voice_agent_done` with the request's `request_id` and whether it
+  was spoken, stopped, dropped or failed.
+
+**Installing**
+
+- **Home Assistant downloads the add-on** instead of building it on your machine:
+  the image CI built and tested for the release.
+
 ## 0.7.0
 
 > ⚠️ **This update needs a few manual steps, in this order.** The Voice PE now
