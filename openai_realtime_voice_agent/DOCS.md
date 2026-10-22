@@ -109,12 +109,15 @@ settings — leave them empty unless you have a specific reason.
 
 The **Engine** option (🔑 Basics) picks which kind of OpenAI voice model runs the
 conversation. Each has its own settings panel; only the chosen engine's are used.
+OpenAI's current prices for every model are on its
+[pricing page](https://openai.com/api/pricing/); OpenAI offers no way to look them
+up automatically, so the add-on doesn't show them.
 
 | | Realtime (default) | GPT-Live |
 |---|---|---|
 | How it works | one model (`gpt-realtime-2.1`) listens, thinks and speaks, in turns | a voice (`gpt-live-1`) that listens and speaks at once, and hands anything that needs doing to a backend model (`gpt-6-luna`), which calls the tools |
 | Prompts | one: `realtime → instructions` | two: the voice's (`live → instructions`) and the backend's (`live → backend_instructions`) |
-| Billing | per token of audio and text | $0.05 per minute a conversation is open, plus the backend's tokens |
+| Billing | per token of audio and text | per minute a conversation is open, plus the backend's tokens |
 | Between conversations | the session stays open for `realtime → session_reuse_timeout_seconds` (300), costing nothing | closes as soon as the conversation ends (`live → session_reuse_timeout_seconds`, 0), since open minutes are billed |
 | Web search | the add-on's own search call, on `realtime → web_search_model` | the backend model's own web search |
 | Log of what you said | with `log_what_you_say` | always |

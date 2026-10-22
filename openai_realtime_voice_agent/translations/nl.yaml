@@ -27,7 +27,8 @@ configuration:
       model luistert, denkt en spreekt, om de beurt. "live": GPT-Live, een stem
       die tegelijk luistert en spreekt en alles wat gedaan moet worden aan een
       slimmer backend-model overlaat; het rekent elke minuut dat een gesprek
-      open is ($0,05) plus de tokens van de backend. Elke engine heeft
+      open is, plus de tokens van de backend. Actuele prijzen:
+      openai.com/api/pricing. Elke engine heeft
       hieronder een eigen instellingenpaneel; alleen dat van de gekozen engine
       wordt gebruikt.
 

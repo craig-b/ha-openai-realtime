@@ -26,9 +26,10 @@ configuration:
       Which kind of OpenAI voice model to use. "realtime" (default): one model
       listens, thinks and speaks, in turns. "live": GPT-Live, a voice that
       listens and speaks at once and hands anything that needs doing to a
-      smarter backend model; it bills each minute a conversation is open
-      ($0.05) plus the backend's tokens. Each engine has its own settings
-      panel below; only the chosen one's are used.
+      smarter backend model; it bills each minute a conversation is open,
+      plus the backend's tokens. Current prices: openai.com/api/pricing. Each
+      engine has its own settings panel below; only the chosen one's are
+      used.
 
   # --- ⚡ Realtime ---
   realtime:
