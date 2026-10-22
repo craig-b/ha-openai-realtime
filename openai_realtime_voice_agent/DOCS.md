@@ -20,8 +20,7 @@ Voice PE device  ──encrypted WebSocket──▶  this add-on  ──▶  Ope
 2. Top-right **⋮ → Repositories**, add:
    `https://github.com/craig-b/ha-openai-realtime`
 3. Find **OpenAI Realtime 2 Voice Agent** in the store and click **Install**.
-   (There is no prebuilt image — Home Assistant builds it locally the first time,
-   which takes a few minutes.)
+   Home Assistant downloads its prebuilt image, built and tested for each release.
 4. Open the add-on's **Configuration** tab to set it up (next sections).
 
 ## 2. Get an OpenAI API key and choose a device secret

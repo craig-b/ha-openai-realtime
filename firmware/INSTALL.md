@@ -39,7 +39,7 @@ up online** (weather, news, facts) — web search is on by default.
 2. Top-right **⋮ → Repositories** → paste and add:
    `https://github.com/craig-b/ha-openai-realtime`
 3. Find **OpenAI Realtime 2 Voice Agent** in the store and click **Install**.
-   Home Assistant builds it locally — this takes a few minutes the first time.
+   Home Assistant downloads its prebuilt image.
 
 ### 1.2 Add your OpenAI API key
 

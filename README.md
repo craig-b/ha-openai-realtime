@@ -50,13 +50,12 @@ session — there is no Home Assistant `voice_assistant` pipeline on the audio p
 
 1. In Home Assistant, open **Settings → Add-ons → Add-on store → ⋮ → Repositories**
    and add `https://github.com/craig-b/ha-openai-realtime`.
-2. Install **OpenAI Realtime 2 Voice Agent**. It ships with no prebuilt `image:`,
-   so Home Assistant builds it locally on first install (a few minutes on a Pi).
+2. Install **OpenAI Realtime 2 Voice Agent**. Home Assistant downloads the image
+   that CI built and tested for its release (amd64 or aarch64).
 3. Configure the add-on and flash the companion firmware — see
    [`openai_realtime_voice_agent/DOCS.md`](openai_realtime_voice_agent/DOCS.md).
 
-(An optional GitHub Actions workflow can publish container images to ghcr.io; it
-isn't needed for a normal local-build install.)
+How a release is made, and its images published: [`RELEASING.md`](RELEASING.md).
 
 ## How it works
 

@@ -7,6 +7,9 @@ arch:
   - aarch64
   - amd64
 init: false
+# Home Assistant pulls the image CI published for this version (a v<version>
+# tag publishes it; RELEASING.md), instead of building the add-on itself.
+image: "ghcr.io/craig-b/{arch}-openai-realtime-voice-agent"
 startup: application
 boot: auto
 host_network: true
