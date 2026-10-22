@@ -120,8 +120,7 @@ Every option has a description on the **Configuration** tab. The ones worth know
 - **Model / voice / transcription model** are dropdowns with a **`custom`** entry +
   a `*_custom` text field if you want a value not in the list.
 - **`transcription_language`** is the language hint for the side-channel transcript
-  of what you say: the `🗣️ user: …` lines in the add-on log, and your side of a
-  conversation carried over to a new session. It does **not** change what the
+  of what you say: the `🗣️ user: …` lines in the add-on log. It does **not** change what the
   model understands — the main model hears your audio natively — nor the language
   it answers in.
 - **`follow_up_open_delay_ms` / `playback_prebuffer_ms`** default to `700` / `150`
@@ -145,8 +144,8 @@ and end. View it on the add-on **Log** tab.
   switches, scenes, climate, and questions — works.
 - **Past 50 minutes, a conversation moves to a new session.** OpenAI limits a
   realtime session to 60 minutes, so at the next wake after 50 the add-on opens
-  a new one and carries the conversation over as a transcript. The same
-  happens if the connection to OpenAI drops.
+  a new one, which starts afresh: the assistant no longer remembers what was
+  said before. The same happens if the connection to OpenAI drops.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 

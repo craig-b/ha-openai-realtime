@@ -100,8 +100,7 @@ class Settings:
     create_response: bool
     # The language hint for transcribing the user: an ISO 639-1 code, "auto"
     # for none, or "" for Home Assistant's language (read for each session). The
-    # model hears the audio itself; the transcript is for the log and for
-    # carrying a conversation into a new session.
+    # model hears the audio itself; the transcript is for the log.
     transcription_language: str
     transcription_model: str
     noise_reduction: str

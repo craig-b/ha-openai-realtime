@@ -34,8 +34,7 @@ configuration:
     name: "🔑 Basics · Spoken language (e.g. nl, en, de, auto)"
     description: >-
       Two-letter code of the language you speak to it, to transcribe what you
-      say accurately: into the add-on log (the 🗣️ lines) and into a
-      conversation carried over to a new session. Leave empty to use Home
+      say accurately into the add-on log (the 🗣️ lines). Leave empty to use Home
       Assistant's own language; "auto" detects it each time, for a household
       that speaks more than one. It doesn't change which language the
       assistant answers in; the instructions decide that.
@@ -201,8 +200,7 @@ configuration:
   transcription_model:
     name: "⚙️ Advanced · Transcript model"
     description: >-
-      This model writes your speech as text, for the log and for carrying a
-      conversation over to a new session — it does NOT affect how the assistant
+      This model writes your speech as text, for the log — it does NOT affect how the assistant
       understands you (it hears your actual voice). gpt-4o-transcribe
       (default) is the most accurate. For an unlisted model pick "custom" and
       enable "Show unused optional configuration options" at the bottom.

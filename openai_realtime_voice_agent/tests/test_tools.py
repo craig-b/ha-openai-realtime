@@ -204,26 +204,6 @@ async def test_a_running_tool_keeps_the_session_open(openai, start_addon, home_a
     await device.close()
 
 
-async def test_tool_calls_are_carried_into_a_new_session(openai, home_assistant, ha_addon, wake):
-    device = await ha_addon.connect()
-    conn = await wake(device)
-    await conn.user_turn()
-    await conn.function_call("HassTurnOn", {"name": "kitchen light"})
-    output = await conn.wait_for("conversation.item.create")
-    # OpenAI adds the tool's result to the conversation.
-    await conn.send({"type": "conversation.item.added", "item": {**output["item"], "object": "realtime.item"}})
-    await conn.reply(pcm_tone(320, 24000), transcript="The kitchen light is on.")
-    await device.wait_for_phase("idle")
-    await conn.close(1011)
-    second = await wake(device)
-    carried = await second.wait_for("conversation.item.create", count=2)
-    text = carried["item"]["content"][0]["text"]
-    assert 'Assistant called HassTurnOn({"name": "kitchen light"})' in text
-    assert "Result:" in text and "Turned on kitchen light" in text
-    assert "Assistant: The kitchen light is on.\n</earlier_conversation>" in text
-    await device.close()
-
-
 async def test_transcription_defaults_to_home_assistants_language(openai, start_addon, home_assistant, wake):
     home_assistant.language = "nl-NL"
     addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", TRANSCRIPTION_LANGUAGE="")

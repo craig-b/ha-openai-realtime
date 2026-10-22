@@ -21,10 +21,10 @@ RETENTION_RATIO of that limit in one go: dropping a little on every turn would
 change the start of the conversation each time, and with it lose the prompt
 cache for everything after.
 
-The conversation outlives its session in two cases: at a wake once the session
-nears OpenAI's 60-minute cap, the add-on rolls over to a new session; and after
-a lost connection, a wake within the idle timeout opens one. Either way the new
-session starts with a transcript of the conversation so far.
+The conversation is the session's: OpenAI holds it, and it ends with the
+session. At a wake once a session nears OpenAI's 60-minute cap, the add-on
+rolls over to a new one, so a turn isn't cut off by the cap; the new session
+starts afresh, as one after a lost connection does.
 """
 import asyncio
 import base64
@@ -32,6 +32,7 @@ import enum
 import json
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional
 
@@ -39,7 +40,6 @@ from openai import AsyncOpenAI
 
 from app.audio import OPENAI_RATE, InputResampler, ReplyAudio, SessionRecording
 from app.config import Settings
-from app.conversation import Conversation, new_item_id
 from app.device import DeviceServer
 from app.phases import PhaseTracker, TurnLiveness
 from app.realtime import RealtimeSession
@@ -81,8 +81,6 @@ class Agent:
     IDLE_UNSTICK_COOLDOWN_S = 2.0
     # Share of max_context_tokens kept when OpenAI truncates the conversation.
     RETENTION_RATIO = 0.5
-    # A rough size of a token in English text, to bound a carried transcript.
-    CHARS_PER_TOKEN = 4
     # The device holds a follow-up window for up to this long while its reply
     # audio drains, then opens it; this much more covers the network.
     PLAYBACK_DRAIN_FALLBACK_S = 3.0
@@ -129,7 +127,9 @@ class Agent:
         )
         self._reply = ReplyAudio(self._play_chunk, self._reply_started, self._reply_stopped)
         self._resampler = InputResampler(settings.device_input_rate)
-        self._conversation = Conversation()
+        # The names of the tool calls in the session, by item id: a call's
+        # arguments arrive without its name.
+        self._call_names: dict[str, str] = {}
 
         self._session: Optional[RealtimeSession] = None
         self._recording: Optional[SessionRecording] = None
@@ -147,8 +147,6 @@ class Agent:
         self._engaged_until = 0.0
         # A stop since the wake: the next `idle` opens no follow-up window.
         self._stopped = False
-        # Until when a conversation whose session closed early may continue in the next.
-        self._carry_until = 0.0
         self._open_task: Optional[asyncio.Task] = None
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
@@ -336,7 +334,7 @@ class Agent:
         return not self._busy() and time.monotonic() - self._opened_at >= self.ROLLOVER_AGE_S
 
     async def _roll_over(self) -> None:
-        await self._close("rolling over before the 60-minute cap", keep_conversation=True)
+        await self._close("rolling over before the 60-minute cap")
         if self._state is SessionState.CLOSED:
             self._begin_open("rollover")
 
@@ -348,8 +346,6 @@ class Agent:
         started = time.monotonic()
         logger.info(f"🔌 opening an OpenAI session ({why})")
         self._session_ready.clear()
-        # Decided now: the new session's events can arrive before it is open.
-        carried = self._take_carried_conversation()
         session = RealtimeSession(self._client, self.settings.model, self._on_event, self._on_closed)
         self._session = session
         setup_task = asyncio.create_task(self._session_setup(), name="session_setup")
@@ -383,10 +379,6 @@ class Agent:
                 self._recording = SessionRecording(self.settings.recording_dir)
             except OSError as e:
                 logger.warning(f"⚠️ Could not start recording: {e!r}")
-        if carried:
-            for item in carried:
-                await session.send({"type": "conversation.item.create", "item": item})
-            logger.info("🧵 carried the conversation so far into the new session")
         buffered_ms = self._buffered_bytes * 1000 // _INPUT_BYTES_PER_S
         for audio in self._buffered_audio:
             await self._send_mic_audio(audio)
@@ -444,16 +436,6 @@ class Agent:
         config["truncation"] = truncation
         return config
 
-    def _take_carried_conversation(self) -> list[dict]:
-        """The items that start a new session with a transcript of the conversation so far."""
-        if not self._conversation or time.monotonic() > self._carry_until:
-            self._conversation.clear()
-            return []  # nothing to carry, or it timed out while no session was open
-        # No bigger than what OpenAI keeps after truncating.
-        limit = self.settings.max_context_tokens
-        max_chars = int(limit * self.RETENTION_RATIO * self.CHARS_PER_TOKEN) if limit else None
-        return self._conversation.carry_items(max_chars)
-
     async def _fail_open(self, reason: str) -> None:
         if self._state is not SessionState.OPENING:
             return  # already failed by the other path
@@ -481,8 +463,8 @@ class Agent:
                 await self._close(f"idle for {quiet:.0f} s")
                 return
 
-    async def _close(self, reason: str, keep_conversation: bool = False) -> None:
-        """Close the session. The conversation ends with it unless kept for the next one."""
+    async def _close(self, reason: str) -> None:
+        """Close the session, and with it the conversation."""
         self._state = SessionState.CLOSING
         self._drop_buffered_audio()
         current = asyncio.current_task()
@@ -497,10 +479,7 @@ class Agent:
         self._response_id = None
         self._cancelled = set()
         self._tool_calls = []
-        if keep_conversation:
-            self._carry_until = self._last_activity + self.settings.session_idle_timeout_s
-        else:
-            self._conversation.clear()
+        self._call_names = {}
         self._state = SessionState.CLOSED
         age = time.monotonic() - self._opened_at if self._opened_at else 0.0
         logger.info(f"🔌 OpenAI session closed after {age:.0f} s ({reason})")
@@ -525,7 +504,7 @@ class Agent:
             # wake found it still open): open the next one now.
             if self._awaiting_speech:
                 self._wake_while_closing = True
-            await self._close(f"lost: {reason[:90]}", keep_conversation=True)
+            await self._close(f"lost: {reason[:90]}")
             # Mid-turn, the turn is lost with the session: say so. Between
             # turns there's nothing to tell the device.
             if self.phases.current not in (None, "idle"):
@@ -557,7 +536,8 @@ class Agent:
 
     async def _on_conversation_item_added(self, event: dict) -> None:
         item = event.get("item") or {}
-        self._conversation.item_added(item)
+        if item.get("type") == "function_call":
+            self._call_names[item.get("id", "")] = item.get("name", "")
         if item.get("role") == "assistant":
             await self._kill_racing_response()
 
@@ -577,7 +557,6 @@ class Agent:
 
     async def _on_conversation_item_input_audio_transcription_completed(self, event: dict) -> None:
         text = (event.get("transcript") or "").strip()
-        self._conversation.set_text(event.get("item_id", ""), text)
         if text:
             logger.info(f"🗣️ user: {text}")
 
@@ -593,26 +572,17 @@ class Agent:
             self._reply.end_of_reply()
 
     async def _on_response_output_audio_transcript_delta(self, event: dict) -> None:
-        delta = event.get("delta", "")
-        self._conversation.append_text(event.get("item_id", ""), delta)
-        self._reply_text += delta
+        self._reply_text += event.get("delta", "")
 
     async def _on_response_function_call_arguments_done(self, event: dict) -> None:
         arguments = event.get("arguments") or ""
-        self._conversation.set_text(event.get("item_id", ""), arguments)
         call_id = event.get("call_id", "")
-        name = self._call_name(event)
+        name = self._call_names.get(event.get("item_id", ""), event.get("name", ""))
         # One at a time, in the model's order: two calls on the same device
         # must not finish the wrong way round.
         previous = self._tool_calls[-1][1] if self._tool_calls else None
         task = self._spawn(self._run_tool(name, arguments, after=previous), f"tool_{name}")
         self._tool_calls.append((call_id, task))
-
-    def _call_name(self, event: dict) -> str:
-        for item in self._conversation.items:
-            if item.item_id == event.get("item_id"):
-                return item.name
-        return event.get("name", "")
 
     async def _run_tool(self, name: str, arguments: str, after: Optional[asyncio.Task]) -> str:
         self._liveness.tool_started()
@@ -653,7 +623,7 @@ class Agent:
             await session.send({
                 "type": "conversation.item.create",
                 "item": {
-                    "id": new_item_id(),
+                    "id": f"item_{uuid.uuid4().hex[:24]}",
                     "type": "function_call_output",
                     "call_id": call_id,
                     "output": result,
