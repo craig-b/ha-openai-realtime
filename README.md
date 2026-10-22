@@ -13,13 +13,15 @@
 > 📖 New here? The full **[INSTALL guide](firmware/INSTALL.md)** walks through both halves, step by step.
 
 A Home Assistant **add-on** that turns a [Voice PE](https://www.home-assistant.io/voice-pe/)
-device into a low-latency voice assistant built on **OpenAI's Realtime API**
-(`gpt-realtime-2.1`). The device streams microphone audio to this add-on over a
-plain WebSocket; the add-on runs the Realtime speech-to-speech session and
+device into a low-latency voice assistant built on OpenAI's voice models: the
+**Realtime API** (`gpt-realtime-2.1`, the default), or **GPT-Live** (`gpt-live-1`),
+a voice that listens and speaks at once and hands the work to a backend model.
+The device streams microphone audio to this add-on over an encrypted WebSocket,
+authenticated with a shared secret; the add-on runs the OpenAI session and
 controls Home Assistant through the official
 **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)**
-integration. STT, TTS and the LLM all run in the Realtime session — there is no
-Home Assistant `voice_assistant` pipeline on the audio path.
+integration. Speech recognition, speech and the model all run in the OpenAI
+session — there is no Home Assistant `voice_assistant` pipeline on the audio path.
 
 > Fork of **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)**
 > and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**,
@@ -59,8 +61,9 @@ isn't needed for a normal local-build install.)
 ## How it works
 
 ```
-Voice PE (ESP32-S3)  ──WS, 16 kHz PCM up──▶   this add-on    ──▶  OpenAI Realtime API
-  va_client firmware  ◀──── 24 kHz PCM down──  (Python)           (gpt-realtime-2.1)
+Voice PE (ESP32-S3)  ──WSS, 16 kHz PCM up──▶   this add-on    ──▶  OpenAI Realtime API
+  va_client firmware  ◀──── 24 kHz PCM down───  (Python)           (gpt-realtime-2.1)
+                                                                    or GPT-Live
                                                    │ tools
                                                    ▼
                                          Home Assistant MCP Server
@@ -73,8 +76,8 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 - **No voice timers or alarms yet** — every other Assist action (lights, switches,
   scenes, climate) and online questions work.
-- **Past 50 minutes, a conversation moves to a new OpenAI session** at the next
-  wake (OpenAI caps sessions at 60), which starts afresh.
+- **With the Realtime engine, past 50 minutes a conversation moves to a new OpenAI
+  session** at the next wake (OpenAI caps sessions at 60), which starts afresh.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 

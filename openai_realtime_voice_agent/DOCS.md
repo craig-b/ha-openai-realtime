@@ -1,15 +1,15 @@
 # OpenAI Realtime 2 Voice Agent — Documentation
 
-This add-on runs an **OpenAI `gpt-realtime-2.1`** voice session and bridges it to Home
-Assistant control and web search. It is the backend half of a two-part project; the
+This add-on runs an OpenAI voice session — **`gpt-realtime-2.1`** by default, or
+**GPT-Live** (section 5) — and bridges it to Home Assistant control and web search. It is the backend half of a two-part project; the
 front half is custom **firmware for the Home Assistant Voice PE** device (see
 [Firmware](#firmware-home-assistant-voice-pe-only) below).
 
 ```
-Voice PE device  ──WebSocket──▶  this add-on  ──▶  OpenAI Realtime API
-(mic up / speaker down)               │  tools
-                                       ▼
-                              HA MCP Server (/api/mcp)  → controls your home
+Voice PE device  ──encrypted WebSocket──▶  this add-on  ──▶  OpenAI (Realtime or GPT-Live)
+(mic up / speaker down)                         │  tools
+                                                ▼
+                                 HA MCP Server (/api/mcp)  → controls your home
 ```
 
 ---
@@ -126,11 +126,17 @@ can steer that.
 
 ## 6. Web search
 
-When **`enable_web_search`** is on (**the default**), the assistant gets a `web_search` tool. When
-it needs current or general info (weather, news, facts), it calls that tool; the
-add-on then makes a **second, server-side OpenAI call** (the Responses API
-`web_search` built-in tool, on **`realtime → web_search_model`**) and reads a short spoken
-answer back.
+When **`enable_web_search`** is on (**the default**), the assistant can look up current
+or general info (weather, news, facts):
+
+- **Realtime:** it gets a `web_search` tool. When it calls it, the add-on makes a
+  **second, server-side OpenAI call** (the Responses API `web_search` built-in tool,
+  on **`realtime → web_search_model`**) and reads a short spoken answer back.
+- **GPT-Live:** its backend model gets OpenAI's own web search tool and searches
+  itself; `realtime → web_search_model` doesn't apply.
+
+Turn it off for an assistant that only knows your home, or if Home Assistant offers it
+a search tool of its own. For the Realtime engine:
 
 - Uses your **existing OpenAI key** — no extra account.
 - Default model `gpt-5.5` (best quality). Cheaper options trade price/quality
@@ -174,8 +180,8 @@ and end. View it on the add-on **Log** tab.
 - **No voice timers or alarms yet.** Setting a timer by voice isn't supported (the
   official Home Assistant timer intent isn't wired up). Everything else — lights,
   switches, scenes, climate, and questions — works.
-- **Past 50 minutes, a conversation moves to a new session.** OpenAI limits a
-  realtime session to 60 minutes, so at the next wake after 50 the add-on opens
+- **With the Realtime engine, past 50 minutes a conversation moves to a new
+  session.** OpenAI limits a realtime session to 60 minutes, so at the next wake after 50 the add-on opens
   a new one, which starts afresh: the assistant no longer remembers what was
   said before. The same happens if the connection to OpenAI drops.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
@@ -203,4 +209,4 @@ from-scratch guide (flashing + adopting the device in ESPHome Builder).
 - Backend forked from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)** (Felix Fricke).
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)**, a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)** (Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).
-- Built on the **OpenAI Realtime API** and the official **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)** integration.
+- Built on the **OpenAI Realtime API**, **GPT-Live**, and the official **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)** integration.

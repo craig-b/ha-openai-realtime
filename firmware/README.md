@@ -11,12 +11,12 @@
 
 > **Customized fork** of `maxmaxme/home-assistant-voice-pe` (itself a fork of
 > `esphome/home-assistant-voice-pe`). The Voice PE runs as a **thin client**: it
-> streams microphone audio over a plain WebSocket to a backend add-on, which runs
-> an **OpenAI Realtime API** session (`gpt-realtime-2.1`) for speech-to-speech and
-> controls Home Assistant through the official
+> streams microphone audio over an encrypted WebSocket, authenticated with a shared
+> secret, to a backend add-on, which runs an OpenAI voice session (`gpt-realtime-2.1`,
+> or GPT-Live) and controls Home Assistant through the official
 > **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)**
 > integration. There is no Home Assistant `voice_assistant` pipeline on the audio
-> path — STT, TTS and the LLM all live in the Realtime session inside the add-on.
+> path — speech recognition, speech and the model all live in the OpenAI session.
 >
 > The firmware config is [`home-assistant-voice.realtime.yaml`](home-assistant-voice.realtime.yaml).
 > You don't paste it directly — you adopt it via a tiny per-device stub
@@ -37,8 +37,8 @@
 - **"stop" word + button interrupt**: say *"stop"* while the assistant is
   talking, or press the center button, to cancel the reply. This is the reliable
   way to interrupt.
-- **Conversational, with online answers**: because the brain is `gpt-realtime-2.1`
-  in the backend, you get a natural back-and-forth — and with web search enabled it
+- **Conversational, with online answers**: because the brain is an OpenAI voice
+  model in the backend, you get a natural back-and-forth — and with web search enabled it
   can look things up online (weather, news, facts), not just control your devices.
 
 ## Setup (ESPHome Builder)
@@ -69,8 +69,8 @@ re-flash. No more copy-pasting.
 
 - **No voice timers or alarms yet** — every other Assist action (lights, switches,
   scenes, climate) and online questions work.
-- **A brief reconnect about once an hour** (OpenAI's 60-minute session cap; the
-  add-on refreshes proactively during a quiet moment, so it rarely interrupts).
+- **With the Realtime engine, past 50 minutes a conversation starts afresh** at the
+  next wake (OpenAI caps sessions at 60 minutes).
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 - **Using "stop":** interrupts the assistant *while it's speaking* (during a reply

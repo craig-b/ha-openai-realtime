@@ -58,8 +58,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 - **Sent:** once per connection, immediately on connect.
 - **Add-on:** if an OpenAI session is open, clears its input audio buffer
-  (`input_audio_buffer.clear`), so a reconnect mid-utterance can't leave half a
-  sentence behind. Opens no session.
+  (`input_audio_buffer.clear`; GPT-Live has none), so a reconnect mid-utterance
+  can't leave half a sentence behind. Opens no session.
 
 ### `wake`
 `{"type":"wake"}`
@@ -72,7 +72,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   actually speaks, an end-of-turn from OpenAI's turn detection is treated as a
   stale segment from before the wake: its `thinking` is suppressed and the
   response it creates is cancelled. Also clears any pending post-stop response
-  cancel.
+  cancel. With GPT-Live, it lets GPT-Live's voice through again after an
+  `interrupt`.
 
 ### `flush`
 `{"type":"flush"}`
@@ -100,7 +101,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   `response.cancel` if a response is active;
   then cancels the next assistant response to appear, whenever it appears, plus
   any appearing within 1.5 s. Real user speech disarms both; a `wake` disarms
-  the first.
+  the first. With GPT-Live, which has no responses to cancel, it drops GPT-Live's
+  voice until the next `wake` and asks GPT-Live to stop speaking.
 
 ## Add-on → device messages
 
@@ -124,7 +126,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 `{"type":"phase","value":"listening"}`, with value `listening`, `thinking`,
 `replying` or `idle`.
 
-**When the add-on sends each** (`phases.py`):
+**When the add-on sends each** (`phases.py`; with GPT-Live, see
+[With GPT-Live](#with-gpt-live)):
 
 | Value | Sent when |
 |---|---|
@@ -183,9 +186,10 @@ The device also applies `idle` locally on every disconnect.
 ### `error`
 `{"type":"error","message":"could not connect to OpenAI"}`
 
-- **Sent:** when an OpenAI session can't be opened (the connection fails, or
-  the session isn't configured within 10 s), and when the open session's
-  connection dies mid-turn. `message` is for logs.
+- **Sent:** when an OpenAI session can't be opened (the connection fails,
+  OpenAI refuses its settings, or the session isn't configured within 10 s),
+  and when the open session's connection dies mid-turn. `message` is for logs;
+  for refused settings it names the add-on setting to change.
 - **Device:** plays the error chime and goes `idle`.
 
 ### `request_follow_up` (handled by the device, never sent)
@@ -194,14 +198,16 @@ chime, then opens the mic for 10 s.
 
 ## OpenAI session
 
-The add-on keeps one OpenAI Realtime session per conversation.
+The add-on keeps one OpenAI session per conversation: a Realtime session, or a
+GPT-Live one (`engine`). What follows is the Realtime engine's; GPT-Live differs
+as described [below](#with-gpt-live).
 
 - **Opening:** on `wake`, or on mic audio arriving with no session open. Mic
   audio that arrives while the session opens is held, up to 10 s, and sent
   once OpenAI has configured the session. Opening typically takes under a
   second, about as long as the device's `wake_open_delay_ms`.
 - **Continuing:** a `wake` while the session is open continues the same
-  conversation. Once it passes `max_context_tokens` (default 8000), OpenAI
+  conversation. Once it passes `realtime → max_context_tokens` (default 8000), OpenAI
   drops its oldest items until half that remains, in one go, so the cached
   start of the conversation changes rarely.
 - **Closing:** `realtime → session_reuse_timeout_seconds` (default 300) after the
@@ -221,7 +227,7 @@ The add-on keeps one OpenAI Realtime session per conversation.
 ### With GPT-Live
 
 With `engine: live` the session is a GPT-Live session, and the device protocol is
-unchanged. GPT-Live has no turns, so the phases follow what it reports:
+unchanged. GPT-Live has no turns, and doesn't roll over. The phases follow what it reports:
 `listening` when it hears the user's first words, `thinking` when it hands work to
 its backend, `replying` while its voice is audible (silent audio isn't sent to the
 device), and `idle` once the voice has been silent for 0.6 s, after the usual
@@ -236,7 +242,7 @@ The device forwards mic audio only while its gate is open:
 
 | Opens | Closes |
 |---|---|
-| Session start (`start_session()`): the wake word, after `wake_open_delay_ms`; or the centre button, after its sound finishes plus a fixed 600 ms | `replying` (barge-in off) |
+| Session start (`start_session()`): the wake word, after `wake_open_delay_ms`; or the centre button, after its sound finishes plus a fixed 600 ms | `replying` (unless `mic_while_replying`) |
 | `listening` | `interrupt` |
 | A follow-up window opening | A follow-up window expiring (sends `flush`) |
 | | `idle` arriving with the mic open and no turn just ended |
@@ -256,9 +262,10 @@ it when the gate opens: it contains the wake chime.
 | Device | Reconnect backoff | 1, 2, 5, 10 s | See [Connection](#connection) |
 | Add-on | Idle debounce | 1500 ms | See `phase` |
 | Add-on | Thinking watchdog | 15 s (paused while a tool runs) | Forced `idle` |
-| Add-on | Post-interrupt cancel window | 1.5 s | See `interrupt` |
+| Add-on | Post-interrupt cancel window | 1.5 s (Realtime) | See `interrupt` |
 | Add-on | Session open timeout | 10 s | Gives up opening; sends `error` |
-| Add-on | Conversation idle timeout | `realtime → session_reuse_timeout_seconds` (300 s) | Closes the OpenAI session |
+| Add-on | Conversation idle timeout | `realtime → session_reuse_timeout_seconds` (300 s), `live → session_reuse_timeout_seconds` (0 s) | Closes the OpenAI session |
+| Add-on | GPT-Live end of speech | 0.6 s of silence | The reply ends (`idle` follows after the debounce) |
 
 ## Typical sequences
 

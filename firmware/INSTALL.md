@@ -2,17 +2,17 @@
 
 A complete, from-zero walkthrough for a newcomer. You'll set up two halves:
 
-1. the **backend add-on** (the voice "brain" that runs the OpenAI Realtime session), and
+1. the **backend add-on** (the voice "brain" that runs the OpenAI session), and
 2. the **device firmware** (turns the Voice PE into a thin client that listens and speaks).
 
 Plan ~30–45 minutes the first time. After that, updates are one click.
 
 ```
 Home Assistant Voice PE          Home Assistant (your box)             Cloud
-┌──────────────────────────┐   plain WS   ┌────────────────────────┐  WS  ┌─────────────┐
+┌──────────────────────────┐ encrypted WS ┌────────────────────────┐  WS  ┌─────────────┐
 │ custom firmware           │ ───────────▶│ OpenAI Realtime 2      │ ───▶ │ OpenAI       │
 │  (va_client thin client)  │ 16k mic up  │  Voice Agent add-on    │ 24k  │ gpt-realtime │
-│  wake word + XMOS DSP      │ ◀───────────│  (Python)              │ ◀─── │  -2          │
+│  wake word + XMOS DSP      │ ◀───────────│  (Python)              │ ◀─── │ or GPT-Live  │
 └──────────────────────────┘ 24k spkr dn  │          │ tools         │     └─────────────┘
                                            ▼          ▼
                                   HA MCP Server (/api/mcp) → controls your home
@@ -79,6 +79,7 @@ the **⚡ Realtime settings** panel:
 
 | Option | Value |
 |---|---|
+| `engine` | `realtime` (or `live` for GPT-Live; see the add-on's DOCS.md, section 5) |
 | `realtime → model` | `gpt-realtime-2.1` |
 | `realtime → voice` | `marin` (or `cedar`) |
 | `realtime → speed` | `1.0` |
@@ -197,8 +198,10 @@ That's it — the device boots, connects to the add-on, and you're ready to talk
 4. To interrupt a reply: say **"stop"** or press the **center button**.
 
 **If something's off, check the logs:**
-- Add-on **Log** tab: `🗣️ user:` / `🤖 assistant:` lines, tool calls, and
-  `🔌 reconnecting` / `✅ reconnected`.
+- Add-on **Log** tab: `🤖 assistant:` lines (and `🗣️ user:` lines, with
+  `log_what_you_say` on, or always with GPT-Live), tool calls, `📞 phase ->` changes,
+  and `🔌 opening an OpenAI session` / `🔌 OpenAI session closed`. If the device
+  can't connect, the device log says whether `va_secret` was refused.
 - Device logs: ESPHome Builder → your device → **Logs**.
 
 ---
@@ -212,7 +215,12 @@ That's it — the device boots, connects to the add-on, and you're ready to talk
   Click **Update** — it rebuilds and restarts.
 
 Your device-specific settings (name, Wi-Fi, IP) live in your stub + `secrets.yaml` and
-are **never** overwritten by an update.
+are **never** overwritten by an update. That also means an update that needs a new
+secret can't add it for you: when the changelog says so, add it to `secrets.yaml` and
+your stub yourself, as in Part 2. Updating from a version without the device secret
+needs exactly that: `device_secret` in the add-on; `va_secret` and `va_certificate` in
+`secrets.yaml` and in the stub's `substitutions:`; and `wss://` in place of `ws://` in
+any `va_url` you set.
 
 ---
 
