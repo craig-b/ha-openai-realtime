@@ -166,33 +166,35 @@ class FakeRealtimeConnection:
 
     async def function_call(self, name: str, arguments: dict) -> str:
         """A response that only calls a tool; returns the call id."""
+        return (await self.function_calls([(name, arguments)]))[0]
+
+    async def function_calls(self, calls: list[tuple[str, dict]]) -> list[str]:
+        """A response that only calls tools, in this order; returns the call ids."""
         response = FakeResponse(self)
-        call_id = _id("call")
-        item = {
-            "id": response.item_id,
-            "object": "realtime.item",
-            "type": "function_call",
-            "status": "in_progress",
-            "call_id": call_id,
-            "name": name,
-            "arguments": "",
-        }
         await self.send({"type": "response.created", "response": response.body("in_progress")})
-        await self.send({"type": "conversation.item.added", "item": item})
-        await self.send({
-            "type": "response.function_call_arguments.done",
-            "response_id": response.id,
-            "item_id": response.item_id,
-            "output_index": 0,
-            "call_id": call_id,
-            "arguments": json.dumps(arguments),
-        })
-        await self.send({
-            "type": "response.done",
-            "response": response.body("completed", output=[{**item, "status": "completed",
-                                                             "arguments": json.dumps(arguments)}]),
-        })
-        return call_id
+        output = []
+        for index, (name, arguments) in enumerate(calls):
+            item = {
+                "id": _id("item"),
+                "object": "realtime.item",
+                "type": "function_call",
+                "status": "in_progress",
+                "call_id": _id("call"),
+                "name": name,
+                "arguments": "",
+            }
+            await self.send({"type": "conversation.item.added", "item": item})
+            await self.send({
+                "type": "response.function_call_arguments.done",
+                "response_id": response.id,
+                "item_id": item["id"],
+                "output_index": index,
+                "call_id": item["call_id"],
+                "arguments": json.dumps(arguments),
+            })
+            output.append({**item, "status": "completed", "arguments": json.dumps(arguments)})
+        await self.send({"type": "response.done", "response": response.body("completed", output=output)})
+        return [item["call_id"] for item in output]
 
     async def error(self, code: str, message: str = "", error_type: str = "invalid_request_error") -> None:
         await self.send({

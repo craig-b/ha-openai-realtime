@@ -602,7 +602,10 @@ class Agent:
         self._conversation.set_text(event.get("item_id", ""), arguments)
         call_id = event.get("call_id", "")
         name = self._call_name(event)
-        task = self._spawn(self._run_tool(name, arguments), f"tool_{name}")
+        # One at a time, in the model's order: two calls on the same device
+        # must not finish the wrong way round.
+        previous = self._tool_calls[-1][1] if self._tool_calls else None
+        task = self._spawn(self._run_tool(name, arguments, after=previous), f"tool_{name}")
         self._tool_calls.append((call_id, task))
 
     def _call_name(self, event: dict) -> str:
@@ -611,9 +614,11 @@ class Agent:
                 return item.name
         return event.get("name", "")
 
-    async def _run_tool(self, name: str, arguments: str) -> str:
+    async def _run_tool(self, name: str, arguments: str, after: Optional[asyncio.Task]) -> str:
         self._liveness.tool_started()
         try:
+            if after is not None:
+                await asyncio.wait({after})
             try:
                 args = json.loads(arguments) if arguments else {}
             except ValueError:

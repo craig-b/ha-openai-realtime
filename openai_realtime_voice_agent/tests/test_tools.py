@@ -18,6 +18,8 @@ class FakeHomeAssistant:
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
+        # Tool names, as each call finishes.
+        self.finished: list[str] = []
         self.delay = 0.0
         self.config_delay = 0.0
         self.language = "en"
@@ -29,6 +31,7 @@ class FakeHomeAssistant:
     async def _turn_on(self, name: str) -> str:
         self.calls.append(("HassTurnOn", {"name": name}))
         await asyncio.sleep(self.delay)
+        self.finished.append("HassTurnOn")
         return f"Turned on {name}"
 
     async def _config(self, request):
@@ -37,6 +40,7 @@ class FakeHomeAssistant:
 
     async def _turn_off(self, name: str) -> str:
         self.calls.append(("HassTurnOff", {"name": name}))
+        self.finished.append("HassTurnOff")
         return f"Turned off {name}"
 
     @property
@@ -126,6 +130,22 @@ async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant,
     assert output["item"]["output"] == "Turned on kitchen light"
     # And the model is asked to answer with the result.
     await conn.wait_for("response.create")
+    await device.close()
+
+
+async def test_tool_calls_run_one_at_a_time_in_the_models_order(openai, home_assistant, ha_addon, wake):
+    home_assistant.delay = 0.5  # HassTurnOn is slow; HassTurnOff, called second, is not
+    device = await ha_addon.connect()
+    conn = await wake(device)
+    await conn.user_turn()
+    first, second = await conn.function_calls(
+        [("HassTurnOn", {"name": "kitchen light"}), ("HassTurnOff", {"name": "kitchen light"})]
+    )
+    await conn.wait_for("response.create")
+    assert [call for call, _ in home_assistant.calls] == ["HassTurnOn", "HassTurnOff"]
+    assert home_assistant.finished == ["HassTurnOn", "HassTurnOff"]
+    outputs = [e["item"]["call_id"] for e in conn.of_type("conversation.item.create")]
+    assert outputs == [first, second]
     await device.close()
 
 
