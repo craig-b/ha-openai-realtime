@@ -114,7 +114,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 `{"type":"phase","value":"listening"}`, with value `listening`, `thinking`,
 `replying` or `idle`.
 
-**When the add-on sends each** (`phase_emitter.py`, from Pipecat frames):
+**When the add-on sends each** (`phases.py`):
 
 | Value | Sent when |
 |---|---|
@@ -192,8 +192,9 @@ The add-on keeps one OpenAI Realtime session per conversation.
   input transcription is on (`transcription_language`).
 - **Losing it:** if OpenAI's connection dies, the session ends. Mid-turn the
   device gets `error`; between turns it is told nothing. Nothing reconnects
-  until the next `wake`; if that comes within `session_reuse_timeout_seconds`,
-  the new session starts with the transcript as for a rollover.
+  until the next `wake`, or at once if a `wake` is still waiting for the user
+  to speak; if that comes within `session_reuse_timeout_seconds`, the new
+  session starts with the transcript as for a rollover.
 
 ## Mic gate
 

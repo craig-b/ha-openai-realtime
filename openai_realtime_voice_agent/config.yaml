@@ -21,10 +21,10 @@ homeassistant_api: true
 #   → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug
 # User-facing help lives in translations/, not here — keep comments dev-facing.
 #
-# REMOVED options (v0.4.29) — hardcoded to the only sane value; main.py keeps
+# REMOVED options (v0.4.29) — hardcoded to the only sane value; config.py keeps
 # env fallbacks so absent vars are fine:
-#   semantic_vad_create_response → true  (false breaks every multi-turn chat:
-#     pipecat 0.0.97 only auto-creates the FIRST response, the 2nd turn hangs)
+#   semantic_vad_create_response → true  (false: nothing answers a turn; the
+#     add-on only creates responses after tool calls)
 #   enable_disconnect_tool → false  (model could hang up mid-conversation)
 #   interrupt_response → false  (handsfree barge-in shelved: the speaker→mic
 #     echo leak made the VAD cut replies / squeal; firmware is barge_in:false)
@@ -104,7 +104,7 @@ options:
   max_context_messages: 12
   transcription_model: "gpt-4o-transcribe"
   # (turn_detection_type + vad_* deliberately have NO defaults here — see the
-  # header comment; semantic_vad is the hardwired default in main.py.)
+  # header comment; semantic_vad is the hardwired default in config.py.)
 
   # --- 🔍 Debug ---
   enable_recording: false

@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 import pytest_asyncio
 
-from app.realtime_service import SafeRealtimeLLMService
+from app.agent import Agent
 from tests.fakes import pcm_tone, wait_until
 
 
@@ -24,7 +24,7 @@ async def open_session(wake):
 
 @pytest.fixture
 def fast_idle_check(monkeypatch):
-    monkeypatch.setattr(SafeRealtimeLLMService, "IDLE_CHECK_S", 0.05)
+    monkeypatch.setattr(Agent, "IDLE_CHECK_S", 0.05)
 
 
 # --- configuration -------------------------------------------------------------
@@ -126,7 +126,7 @@ async def test_a_session_that_cannot_connect_reports_an_error(openai, device):
 
 
 async def test_a_session_that_is_never_configured_reports_an_error(openai, device, monkeypatch):
-    monkeypatch.setattr(SafeRealtimeLLMService, "OPEN_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(Agent, "OPEN_TIMEOUT_S", 0.5)
     openai.configure_sessions = False
     await device.send({"type": "wake"})
     conn = await openai.connection()
@@ -151,7 +151,7 @@ async def test_the_session_closes_after_the_idle_timeout(openai, start_addon, op
 async def test_the_idle_timeout_defaults_to_five_minutes(openai, start_addon, open_session):
     addon = await start_addon(SESSION_REUSE_TIMEOUT_SECONDS=None)
     await open_session(addon)
-    assert addon.app.openai_service._idle_timeout_s == 300
+    assert addon.app.settings.session_idle_timeout_s == 300
 
 
 async def test_mic_audio_keeps_the_session_open(openai, start_addon, open_session, fast_idle_check):
@@ -215,6 +215,17 @@ async def test_a_session_lost_between_turns_tells_the_device_nothing(openai, dev
     assert device.phases[-1] == "idle"
 
 
+async def test_a_session_lost_after_a_wake_reopens_at_once(openai, device, session):
+    await session.user_turn()
+    await session.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("idle")
+    await device.send({"type": "wake"})
+    await asyncio.sleep(0.1)
+    # The connection dies before the user has said anything.
+    await session.close(1011)
+    await openai.connection(1)
+
+
 async def test_session_expiry_ends_the_session(openai, device, session):
     await session.error("session_expired", "Your session hit the maximum duration of 60 minutes.")
     await asyncio.wait_for(session.closed.wait(), 2.0)
@@ -263,7 +274,7 @@ async def _carried_text(conn) -> str:
 
 
 async def test_an_old_session_rolls_over_at_a_wake(openai, start_addon, open_session, wake, monkeypatch):
-    monkeypatch.setattr(SafeRealtimeLLMService, "ROLLOVER_AGE_S", 0.5)
+    monkeypatch.setattr(Agent, "ROLLOVER_AGE_S", 0.5)
     device, conn = await open_session(await start_addon(TRANSCRIPTION_LANGUAGE="en"))
     await _exchange(device, conn, "What's the weather?", "It is sunny.")
     await asyncio.sleep(0.5)

@@ -1,11 +1,7 @@
 # Home Assistant add-on image.
 #
-# Uses the Debian (glibc) base image instead of Alpine (musl). Heavy Python
-# dependencies pulled in transitively by pipecat (llvmlite, numba, ...) ship
-# prebuilt manylinux wheels for glibc, so they install without compiling
-# against a specific LLVM. The previous Alpine build compiled llvmlite from
-# source and broke once it resolved to llvmlite 0.47 (which requires LLVM 20)
-# while the image only provided LLVM 15.
+# Uses the Debian (glibc) base image instead of Alpine (musl): the compiled
+# dependencies (numpy, soxr) ship prebuilt manylinux wheels for glibc.
 #
 # The base is the multi-arch Debian index pinned by digest; Docker picks the
 # entry for the --platform the Supervisor builds for. There is no build.yaml:
@@ -26,7 +22,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Runtime deps + minimal build insurance. Most Python deps install from wheels;
 # build-essential/python3-dev only cover the rare source-only package.
-# ffmpeg + libsndfile1 cover audio decoding/encoding paths in pipecat.
 #
 # Packages come from the snapshot.debian.org archive the base image was built
 # from (it records the URL as a comment above each URIs: line), so the pinned
@@ -40,8 +35,6 @@ RUN grep -q '^# http://snapshot.debian.org/' /etc/apt/sources.list.d/debian.sour
         python3 \
         python3-dev \
         build-essential \
-        ffmpeg \
-        libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install exactly the dependency versions (and hashes) in uv.lock; --frozen

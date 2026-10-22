@@ -1,23 +1,16 @@
 [project]
 name = "openai-realtime-voice-agent"
 version = "0.1.0"
-description = "Home Assistant addon for OpenAI Realtime API voice control with WebSocket support using Pipecat"
+description = "Home Assistant add-on: a voice agent for the Voice PE on the OpenAI Realtime API"
 authors = [{name = "Your Name", email = "your.email@example.com"}]
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    # Pinned to 0.0.97, checked against 1.12 (2026-10). The add-on patches
-    # OpenAIRealtimeLLMService's turn, error and truncation handling; 1.x
-    # changes the APIs those patches hook into (Proposed*SpeakingFrame, the
-    # Settings model) but still has every behaviour they correct, except two
-    # error codes it no longer treats as fatal. Its WebsocketServerTransport
-    # also rejects a new client while the old connection is open, which locks
-    # a reconnecting device out until a half-open connection's keepalive
-    # fails.
-    "pipecat-ai[mcp,openai,websocket]==0.0.97",
+    "mcp>=1.30.0",
+    "numpy>=2.2.6",
+    "openai>=2.54.0",
     "python-dotenv>=1.0.0",
-    "fastapi>=0.100.0",
-    "uvicorn[standard]>=0.23.0",
-    "websockets>=13.0",
+    "soxr>=0.5.0",
+    "websockets>=15.0.1",
 ]
 
 # An application, not a distributable package: the image runs the app from
@@ -29,6 +22,7 @@ package = false
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
+    "uvicorn>=0.23.0",
 ]
 
 [tool.pytest.ini_options]

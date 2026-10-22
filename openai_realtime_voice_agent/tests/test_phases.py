@@ -5,13 +5,13 @@ import time
 
 import pytest
 
-from app.phase_emitter import PhaseEmitter
+from app.phases import PhaseTracker
 from tests.fakes import pcm_tone
 
 
 @pytest.fixture
 def short_thinking_timeout(monkeypatch):
-    monkeypatch.setattr(PhaseEmitter, "THINKING_TIMEOUT_S", 1.0)
+    monkeypatch.setattr(PhaseTracker, "THINKING_TIMEOUT_S", 1.0)
 
 
 async def test_a_turn_runs_listening_thinking_replying_idle(openai, device, session):
@@ -45,7 +45,6 @@ async def test_idle_waits_out_the_debounce(openai, start_addon, wake):
     await device.wait_for_audio(len(audio))
     audio_done = time.monotonic()
     await device.wait_for_phase("idle", timeout=4.0)
-    # Pipecat declares the bot stopped 0.35 s after the last audio; then the debounce.
     assert time.monotonic() - audio_done >= 1.0
     await device.close()
 

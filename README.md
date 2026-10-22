@@ -31,7 +31,7 @@ Home Assistant `voice_assistant` pipeline on the audio path.
 ## Repository layout
 
 - **[`openai_realtime_voice_agent/`](openai_realtime_voice_agent/)** — the Home
-  Assistant add-on (Python / [Pipecat](https://github.com/pipecat-ai/pipecat)).
+  Assistant add-on (Python).
   This is the only thing you install.
   - [`DOCS.md`](openai_realtime_voice_agent/DOCS.md) — full setup: OpenAI key, the
     Home Assistant MCP connection, recommended settings, web search, all options.
@@ -60,7 +60,7 @@ isn't needed for a normal local-build install.)
 
 ```
 Voice PE (ESP32-S3)  ──WS, 16 kHz PCM up──▶   this add-on    ──▶  OpenAI Realtime API
-  va_client firmware  ◀──── 24 kHz PCM down──  (Pipecat)          (gpt-realtime-2)
+  va_client firmware  ◀──── 24 kHz PCM down──  (Python)           (gpt-realtime-2)
                                                    │ tools
                                                    ▼
                                          Home Assistant MCP Server
@@ -83,7 +83,6 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 - Forked from **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**.
 - Backend originally from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**.
-- Built on **[Pipecat](https://github.com/pipecat-ai/pipecat)**.
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)** (a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)**, Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).
 

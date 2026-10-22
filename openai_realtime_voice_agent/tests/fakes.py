@@ -278,8 +278,9 @@ class FakeRealtimeServer:
         self.configure_sessions = True
 
     @property
-    def url(self) -> str:
-        return f"ws://127.0.0.1:{self.port}/v1/realtime"
+    def base_url(self) -> str:
+        """The API base URL; the client connects to its /realtime."""
+        return f"http://127.0.0.1:{self.port}/v1"
 
     async def start(self) -> None:
         self._server = await serve(self._handle, "127.0.0.1", 0, process_request=self._process_request)

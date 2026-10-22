@@ -75,7 +75,7 @@ export ENABLE_RECORDING
 export LOG_LEVEL
 
 # The *_custom escape hatches (🗣️/🌐/⚙️) are optional WITHOUT defaults —
-# bashio::config prints "null" for unset optionals, and main.py's
+# bashio::config prints "null" for unset optionals, and config.py's
 # _resolve_choice would treat that literal string as a real custom value.
 # Only export when actually set.
 if bashio::config.has_value 'openai_model_custom'; then
@@ -96,9 +96,9 @@ if bashio::config.has_value 'transcription_model_custom'; then
 fi
 
 # Legacy server_vad escape hatch (⚙️ Advanced, optional WITHOUT defaults).
-# bashio::config prints the string "null" for unset optional keys, which would
-# crash main.py's float()/int() parsing — so only export when actually set.
-# Unset = main.py's hardwired defaults (semantic_vad; 0.5/300/800 if server_vad
+# bashio::config prints the string "null" for unset optional keys, which
+# config.py would read as an invalid value — so only export when actually set.
+# Unset = config.py's hardwired defaults (semantic_vad; 0.5/300/800 if server_vad
 # is ever selected).
 if bashio::config.has_value 'turn_detection_type'; then
     TURN_DETECTION_TYPE=$(bashio::config 'turn_detection_type')
@@ -117,11 +117,11 @@ if bashio::config.has_value 'vad_silence_duration_ms'; then
     export VAD_SILENCE_DURATION_MS
 fi
 
-# Removed options (v0.4.29) — no longer exported; main.py env defaults take
+# Removed options (v0.4.29) — no longer exported; config.py env defaults take
 # over: SEMANTIC_VAD_CREATE_RESPONSE=true, ENABLE_DISCONNECT_TOOL=false,
 # INTERRUPT_RESPONSE=false, DEVICE_INPUT_SAMPLE_RATE=16000.
 
-# Export HA_MCP_URL if set (empty string means use default in main.py)
+# Export HA_MCP_URL if set (empty string means use default in config.py)
 if [ -n "$HA_MCP_URL" ]; then
     export HA_MCP_URL
 fi

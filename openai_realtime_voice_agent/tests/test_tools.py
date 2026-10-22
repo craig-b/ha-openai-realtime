@@ -7,8 +7,8 @@ import pytest_asyncio
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-from app.phase_emitter import PhaseEmitter
-from app.realtime_service import SafeRealtimeLLMService
+from app.agent import Agent
+from app.phases import PhaseTracker
 from tests.fakes import pcm_tone, wait_until
 
 
@@ -109,7 +109,7 @@ async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_
 
 
 async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assistant, ha_addon, monkeypatch, wake):
-    monkeypatch.setattr(PhaseEmitter, "THINKING_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(PhaseTracker, "THINKING_TIMEOUT_S", 0.5)
     home_assistant.delay = 2.0
     device = await ha_addon.connect()
     conn = await wake(device)
@@ -136,7 +136,7 @@ async def test_an_unreachable_home_assistant_is_reported_to_the_model(openai, ho
 
 
 async def test_a_running_tool_keeps_the_session_open(openai, start_addon, home_assistant, wake, monkeypatch):
-    monkeypatch.setattr(SafeRealtimeLLMService, "IDLE_CHECK_S", 0.05)
+    monkeypatch.setattr(Agent, "IDLE_CHECK_S", 0.05)
     addon = await start_addon(
         HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", SESSION_REUSE_TIMEOUT_SECONDS="0"
     )

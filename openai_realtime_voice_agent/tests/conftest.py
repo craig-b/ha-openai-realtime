@@ -6,8 +6,6 @@ import socket
 import pytest
 import pytest_asyncio
 
-from pipecat.services.openai.realtime import llm as realtime_llm
-
 from tests.fakes import FakeDevice, FakeRealtimeServer, wait_until
 
 
@@ -19,17 +17,10 @@ def _free_port() -> int:
 
 @pytest_asyncio.fixture
 async def openai(monkeypatch):
-    """A fake OpenAI Realtime server that the add-on's realtime client connects to."""
+    """A fake OpenAI Realtime server that the add-on's OpenAI client connects to."""
     server = FakeRealtimeServer()
     await server.start()
-    real_connect = realtime_llm.websocket_connect
-
-    def connect(uri, **kwargs):
-        # Keep the path and query (the model) so tests can see what was asked for.
-        query = uri.split("?", 1)[1] if "?" in uri else ""
-        return real_connect(f"{server.url}?{query}", **kwargs)
-
-    monkeypatch.setattr(realtime_llm, "websocket_connect", connect)
+    monkeypatch.setenv("OPENAI_BASE_URL", server.base_url)
     yield server
     await server.stop()
 
@@ -85,12 +76,18 @@ def addon_env(monkeypatch):
     return env
 
 
+@pytest.fixture
+def running() -> list:
+    """The add-ons started in this test."""
+    return []
+
+
 @pytest_asyncio.fixture
-async def start_addon(openai, addon_env, monkeypatch):
+async def start_addon(openai, addon_env, monkeypatch, running):
     """Start the add-on with `addon_env` plus any overrides; stop it after the test."""
     from app.main import Application
 
-    started: list[Addon] = []
+    started = running
 
     async def start(**overrides) -> Addon:
         env = {**addon_env, **overrides}
@@ -109,9 +106,9 @@ async def start_addon(openai, addon_env, monkeypatch):
     yield start
 
     for addon in started:
-        # Cancelling the pipeline is what a signal does; run() then returns.
-        await addon.app.runner.cancel()
-        await asyncio.wait_for(addon.task, timeout=5.0)
+        addon.task.cancel()
+        await asyncio.wait({addon.task}, timeout=5.0)
+        assert addon.task.done(), "the add-on did not stop"
 
 
 @pytest_asyncio.fixture
@@ -128,13 +125,21 @@ async def device(addon):
 
 
 @pytest_asyncio.fixture
-async def wake(openai):
+async def wake(openai, running):
     """Wake a device, as the wake word does; return the OpenAI session that opens."""
 
     async def wake(dev: FakeDevice):
         index = len(openai.connections)
         await dev.send({"type": "wake"})
-        return await openai.connection(index)
+        conn = await openai.connection(index)
+        # OpenAI has the session's settings; wait for the add-on to have its
+        # answer too, so what the test sends next reaches an open session.
+        await wait_until(
+            lambda: any(a.app.agent is not None and a.app.agent._state.name == "OPEN" for a in running),
+            3.0,
+            "the add-on's session open",
+        )
+        return conn
 
     return wake
 

@@ -12,7 +12,7 @@ Home Assistant Voice PE          Home Assistant (your box)             Cloud
 ┌──────────────────────────┐   plain WS   ┌────────────────────────┐  WS  ┌─────────────┐
 │ custom firmware           │ ───────────▶│ OpenAI Realtime 2      │ ───▶ │ OpenAI       │
 │  (va_client thin client)  │ 16k mic up  │  Voice Agent add-on    │ 24k  │ gpt-realtime │
-│  wake word + XMOS DSP      │ ◀───────────│  (Python / pipecat)    │ ◀─── │  -2          │
+│  wake word + XMOS DSP      │ ◀───────────│  (Python)              │ ◀─── │  -2          │
 └──────────────────────────┘ 24k spkr dn  │          │ tools         │     └─────────────┘
                                            ▼          ▼
                                   HA MCP Server (/api/mcp) → controls your home
@@ -254,4 +254,4 @@ are **never** overwritten by an update.
 - Backend forked from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)** (Felix Fricke).
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)**, a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)** (Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).
-- Built on **[pipecat](https://github.com/pipecat-ai/pipecat)**, the **OpenAI Realtime API**, and the official **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)** integration.
+- Built on the **OpenAI Realtime API** and the official **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)** integration.
