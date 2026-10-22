@@ -192,3 +192,26 @@ async def test_a_wrong_token_is_retried_without_stopping_the_add_on(openai, home
     await asyncio.sleep(0.5)
     assert not home_assistant.subscribed(ANNOUNCE)
     await device.close()
+
+
+# --- start_conversation's opening line and context ---------------------------------------
+
+async def test_a_started_conversation_can_open_word_for_word(openai, home_assistant, ha_device):  # noqa: F811
+    device = await ha_device()
+    await home_assistant.fire(START_CONVERSATION, {
+        "message": "Shall I turn the heating up?", "prompt": "The living room is at 17 degrees."})
+    conn = await openai.connection(0)
+    await conn.wait_for("response.create")
+    [text] = system_texts(conn)
+    assert "word for word, and nothing else: Shall I turn the heating up?" in text
+    assert "What it's about, for when they answer: The living room is at 17 degrees." in text
+    await device.close()
+
+
+async def test_a_started_conversation_needs_an_opening_line_or_a_prompt(openai, home_assistant, ha_device):  # noqa: F811
+    device = await ha_device()
+    await home_assistant.fire(START_CONVERSATION, {"request_id": "empty"})
+    assert (await done(home_assistant, "empty"))["result"] == "failed"
+    assert openai.connections == []
+    await device.close()
+

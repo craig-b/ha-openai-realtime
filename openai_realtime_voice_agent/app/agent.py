@@ -316,12 +316,15 @@ class Agent:
         """An automation's announcement: said word for word, and the device doesn't listen after it."""
         return await self._speak_unasked(prompts.announcement(message), 0, f"announcement {message[:60]!r}")
 
-    async def start_conversation(self, prompt: str) -> str:
-        """A conversation an automation starts: the model speaks first, then the device listens."""
+    async def start_conversation(self, message: Optional[str], prompt: Optional[str]) -> str:
+        """A conversation an automation starts: the model speaks first, then the device listens.
+
+        It says `message` word for word if there is one, or else something of
+        its own about `prompt`.
+        """
         listen_ms = self.settings.follow_up_ms or self.STARTED_CONVERSATION_LISTEN_MS
-        return await self._speak_unasked(
-            prompts.conversation_start(prompt), listen_ms, f"conversation about {prompt[:60]!r}"
-        )
+        what = f"conversation starting {message[:60]!r}" if message else f"conversation about {prompt[:60]!r}"
+        return await self._speak_unasked(prompts.conversation_start(message, prompt), listen_ms, what)
 
     async def _speak_unasked(self, instruction: str, listen_ms: int, what: str) -> str:
         """Have the model speak once the device is free, then listen for `listen_ms`.

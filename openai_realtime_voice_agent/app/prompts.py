@@ -103,13 +103,21 @@ def announcement(message: str) -> str:
     )
 
 
-def conversation_start(prompt: str) -> str:
-    """What the model is told to start a conversation an automation asks for."""
-    return (
-        "An automation in the home asks you to start a conversation with the people in it, about this: "
-        f"{prompt}\nSpeak first, now, in one short sentence that ends with your question, as if you had just "
-        "walked into the room: no offers or explanations after it. Then wait for their answer."
-    )
+def conversation_start(message: str | None, prompt: str | None) -> str:
+    """What the model is told to start a conversation an automation asks for.
+
+    `message` is said word for word; without it, the model says something of
+    its own about `prompt`. `prompt` is the conversation's context either way.
+    """
+    start = "An automation in the home asks you to start a conversation with the people in it"
+    if message is None:
+        return (
+            f"{start}, about this: {prompt}\nSpeak first, now, in one short sentence that ends with your "
+            "question, as if you had just walked into the room: no offers or explanations after it. Then wait "
+            "for their answer."
+        )
+    about = f"\nWhat it's about, for when they answer: {prompt}" if prompt is not None else ""
+    return f"{start}. Say this now, word for word, and nothing else: {message}{about}\nThen wait for their answer."
 
 
 def _compose(name: str, rules: list[str], house_rules: str, home: Home) -> str:

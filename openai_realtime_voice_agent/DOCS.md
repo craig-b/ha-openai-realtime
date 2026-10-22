@@ -190,6 +190,9 @@ actions:
         open; it can't be closed remotely.
 ```
 
+To have it say a line of yours first, word for word, add a `message`; the `prompt`
+then tells it what the conversation is about, for when you answer. Either one will do.
+
 Both take templates, like any event data. A request waits until the device is free
 (no conversation going on, nothing playing), for up to two minutes; after that it is
 dropped, and the log says so.
