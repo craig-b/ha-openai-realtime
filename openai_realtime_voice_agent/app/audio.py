@@ -2,7 +2,10 @@
 import asyncio
 import collections
 import logging
+import os
 import time
+import wave
+from datetime import datetime
 from typing import Callable
 
 import numpy as np
@@ -107,3 +110,33 @@ class ReplyAudio:
                 await asyncio.sleep(max(0.0, due - time.monotonic()))
             self.playing = False
             self._on_stopped()
+
+
+class SessionRecording:
+    """One OpenAI session's audio, as two WAV files: the mic audio sent to
+    OpenAI, and the reply audio sent to the device."""
+
+    def __init__(self, directory: str):
+        os.makedirs(directory, exist_ok=True)
+        stem = os.path.join(directory, datetime.now().strftime("%Y%m%d-%H%M%S"))
+        self._mic = self._open(f"{stem}-mic.wav")
+        self._reply = self._open(f"{stem}-reply.wav")
+        logger.info(f"🎙️ recording this session to {stem}-{{mic,reply}}.wav")
+
+    @staticmethod
+    def _open(path: str) -> wave.Wave_write:
+        wav = wave.open(path, "wb")
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(OPENAI_RATE)
+        return wav
+
+    def mic(self, pcm: bytes) -> None:
+        self._mic.writeframes(pcm)
+
+    def reply(self, pcm: bytes) -> None:
+        self._reply.writeframes(pcm)
+
+    def close(self) -> None:
+        self._mic.close()
+        self._reply.close()

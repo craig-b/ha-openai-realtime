@@ -112,6 +112,7 @@ class Settings:
     # The conversation's size, in tokens, at which OpenAI truncates it (0 = the model's limit).
     max_context_tokens: int
     enable_recording: bool
+    recording_dir: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -155,4 +156,6 @@ class Settings:
             session_idle_timeout_s=_int("SESSION_REUSE_TIMEOUT_SECONDS", 300, 0),
             max_context_tokens=_int("MAX_CONTEXT_TOKENS", 8000, 0),
             enable_recording=_bool("ENABLE_RECORDING", False),
+            # The add-on's own folder in Home Assistant's addon_configs share.
+            recording_dir=_str("RECORDING_DIR", "/config/recordings"),
         )

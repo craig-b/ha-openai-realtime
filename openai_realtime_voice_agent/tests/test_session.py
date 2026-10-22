@@ -478,3 +478,34 @@ async def test_a_carried_conversation_is_no_bigger_than_truncation_keeps(openai,
     second = await wake(device)
     text = await _carried_text(second)
     assert text == "User: (not transcribed)\nAssistant: Answer 2.\n</earlier_conversation>\n(The user's words were not transcribed.)"
+
+
+# --- recording -----------------------------------------------------------------------------
+
+async def test_recording_writes_each_sessions_audio(openai, start_addon, open_session, tmp_path):
+    import wave
+
+    device, conn = await open_session(await start_addon(ENABLE_RECORDING="true", RECORDING_DIR=str(tmp_path)))
+    for _ in range(25):  # 500 ms at 16 kHz
+        await device.send_audio(pcm_tone(20, 16000))
+        await asyncio.sleep(0.02)
+    await conn.user_turn()
+    await conn.reply(pcm_tone(400, 24000))
+    await device.wait_for_audio(400 * 48)
+    await conn.close(1011)  # the session ends; its files are complete
+    await asyncio.sleep(0.3)
+    mic, reply = sorted(tmp_path.glob("*-mic.wav")), sorted(tmp_path.glob("*-reply.wav"))
+    assert len(mic) == len(reply) == 1
+    with wave.open(str(reply[0])) as wav:
+        assert (wav.getframerate(), wav.getnframes()) == (24000, 400 * 24)
+    with wave.open(str(mic[0])) as wav:
+        assert wav.getframerate() == 24000
+        assert 0.45 * 24000 <= wav.getnframes() <= 0.5 * 24000
+
+
+async def test_no_recording_unless_enabled(openai, start_addon, open_session, tmp_path):
+    device, conn = await open_session(await start_addon(RECORDING_DIR=str(tmp_path)))
+    await device.send_audio(pcm_tone(100, 16000))
+    await conn.close(1011)
+    await asyncio.sleep(0.3)
+    assert list(tmp_path.iterdir()) == []

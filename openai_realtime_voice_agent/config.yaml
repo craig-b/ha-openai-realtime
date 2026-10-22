@@ -13,6 +13,11 @@ host_network: true
 # Gives the add-on SUPERVISOR_TOKEN so it can reach Home Assistant (used as a
 # fallback auth token for the MCP server when longlived_token is left blank).
 homeassistant_api: true
+# /config inside the add-on is its own folder in Home Assistant's
+# addon_configs share; enable_recording writes its recordings there.
+map:
+  - type: addon_config
+    read_only: false
 
 # ----------------------------------------------------------------------------
 # Options are ORDERED for the Configuration tab (HA renders them in this order)

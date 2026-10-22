@@ -33,7 +33,7 @@ from typing import Optional
 
 from openai import AsyncOpenAI
 
-from app.audio import OPENAI_RATE, InputResampler, ReplyAudio
+from app.audio import OPENAI_RATE, InputResampler, ReplyAudio, SessionRecording
 from app.config import Settings
 from app.conversation import Conversation, new_item_id
 from app.device import DeviceServer
@@ -112,6 +112,7 @@ class Agent:
         self._conversation = Conversation()
 
         self._session: Optional[RealtimeSession] = None
+        self._recording: Optional[SessionRecording] = None
         self._state = SessionState.CLOSED
         self._session_ready = asyncio.Event()
         self._opened_at = 0.0
@@ -158,6 +159,7 @@ class Agent:
                 task.cancel()
         if self._session is not None:
             await self._session.close()
+        self._stop_recording()
         self.phases.stop()
         await self._reply.stop()
 
@@ -207,7 +209,7 @@ class Agent:
         if not audio:
             return
         if self._state is SessionState.OPEN:
-            await self._session.send({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+            await self._send_mic_audio(audio)
             return
         # Opening, closing or closed: hold it for the session that opens next.
         self._buffered_audio.append(audio)
@@ -281,6 +283,8 @@ class Agent:
     def _play_chunk(self, chunk: bytes) -> None:
         self._note_activity()
         self.device.send_audio(chunk)
+        if self._recording is not None:
+            self._recording.reply(chunk)
 
     def _reply_started(self) -> None:
         self.phases.bot_started()
@@ -343,13 +347,18 @@ class Agent:
 
         self._state = SessionState.OPEN
         self._opened_at = time.monotonic()
+        if self.settings.enable_recording:
+            try:
+                self._recording = SessionRecording(self.settings.recording_dir)
+            except OSError as e:
+                logger.warning(f"⚠️ Could not start recording: {e!r}")
         if carried:
             for item in carried:
                 await session.send({"type": "conversation.item.create", "item": item})
             logger.info("🧵 carried the conversation so far into the new session")
         buffered_ms = self._buffered_bytes * 1000 // _INPUT_BYTES_PER_S
         for audio in self._buffered_audio:
-            await session.send({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+            await self._send_mic_audio(audio)
         self._drop_buffered_audio()
         self._note_activity()
         self._idle_task = asyncio.create_task(self._close_when_idle(), name="close_when_idle")
@@ -357,6 +366,16 @@ class Agent:
             f"✅ OpenAI session open in {(self._opened_at - started) * 1000:.0f} ms "
             f"({buffered_ms} ms of audio held meanwhile)"
         )
+
+    async def _send_mic_audio(self, audio: bytes) -> None:
+        await self._session.send({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+        if self._recording is not None:
+            self._recording.mic(audio)
+
+    def _stop_recording(self) -> None:
+        if self._recording is not None:
+            self._recording.close()
+            self._recording = None
 
     def _session_config(self) -> dict:
         s = self.settings
@@ -443,6 +462,7 @@ class Agent:
         session, self._session = self._session, None
         if session is not None:
             await session.close()
+        self._stop_recording()
         self._response_id = None
         self._cancelled = set()
         self._tool_calls = []

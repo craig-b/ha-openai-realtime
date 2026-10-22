@@ -236,8 +236,10 @@ configuration:
   enable_recording:
     name: "🔍 Debug · Audio opnemen"
     description: >-
-      Slaat microfoon- en speakeraudio op in bestanden binnen de add-on,
-      alleen voor probleemanalyse. Normaal uit laten.
+      Slaat de microfoon- en speakeraudio van elk gesprek op als WAV-bestanden
+      in de map van de add-on in de addon_configs-share (Samba of File
+      editor), onder recordings. Alleen voor probleemanalyse: de bestanden
+      worden niet voor je verwijderd. Normaal uit laten.
   log_level:
     name: "🔍 Debug · Log-detail"
     description: >-
