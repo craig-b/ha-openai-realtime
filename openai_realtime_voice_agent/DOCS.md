@@ -56,10 +56,11 @@ The assistant controls your home through Home Assistant's **official MCP Server*
    Protocol Server"** and add it.
 2. **Expose the entities** you want voice control over to **Assist**
    (Settings → Voice assistants → *Exposed entities*). The MCP server only offers
-   what's exposed.
+   what's exposed. The add-on reads the tools again for each conversation, so a
+   change takes effect at the next one, with no restart.
 3. In the add-on, leave **`ha_mcp_url`** **blank** — it then uses the built-in
    endpoint (`http://supervisor/core/api/mcp`) with the add-on's own token. Leave
-   **`longlived_token`** blank too, unless startup logs a 401/403 on
+   **`longlived_token`** blank too, unless the log shows a 401/403 on
    `/core/api/mcp` (then paste a HA long-lived token there).
 
 You get a small fixed set of Assist tools (`HassTurnOn`, `HassTurnOff`,

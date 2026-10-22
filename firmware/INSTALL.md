@@ -68,8 +68,8 @@ that's what lets the voice turn your lights, switches, scenes and climate on and
    this is your safety boundary.
 3. In the add-on Configuration, leave **`ha_mcp_url`** and **`longlived_token`**
    **blank**. The add-on then uses Home Assistant's built-in MCP endpoint with its own
-   token. (Only fill `longlived_token` if the startup log shows a 401/403 on
-   `/core/api/mcp`.)
+   token. (Only fill `longlived_token` if the log shows a 401/403 on
+   `/core/api/mcp` when you talk to the assistant.)
 
 ### 1.4 Recommended starting settings
 
@@ -99,8 +99,9 @@ known-good starting point — you can fine-tune later:
 ### 1.5 Start it
 
 Click **Start**, then open the **Log** tab. A healthy start shows
-`✅ Fetched N MCP tools` and `Creating session with N tools` (with `Hass*` names).
-The add-on now listens on port **8080**.
+`✅ Listening for the device on wss://0.0.0.0:8080/`. The add-on reads Home
+Assistant's tools each time a conversation starts, so the first time you talk to
+it (Part 3) the log shows `🔧 Home Assistant offers N tools` with `Hass*` names.
 
 The log also prints the add-on's **certificate**, a block from
 `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`. The connection to

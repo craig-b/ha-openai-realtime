@@ -171,7 +171,8 @@ configuration:
     description: >-
       Leeg laten (aanbevolen): de add-on gebruikt zijn eigen ingebouwde
       toestemming. Maak alleen een long-lived token aan (je HA-profiel →
-      Beveiliging) als het log bij het opstarten een 401/403-fout toont.
+      Beveiliging) als het log een 401/403-fout toont wanneer je tegen de
+      assistent praat.
   mcp_tool_allowlist:
     name: "🏠 Home Assistant · Tool-allowlist"
     description: >-

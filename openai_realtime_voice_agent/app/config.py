@@ -99,7 +99,7 @@ class Settings:
     # Whether OpenAI creates a response when it detects the end of a turn.
     create_response: bool
     # The language hint for transcribing the user: an ISO 639-1 code, "auto"
-    # for none, or "" for Home Assistant's language (resolved at startup). The
+    # for none, or "" for Home Assistant's language (read for each session). The
     # model hears the audio itself; the transcript is for the log and for
     # carrying a conversation into a new session.
     transcription_language: str

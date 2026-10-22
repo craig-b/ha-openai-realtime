@@ -50,27 +50,27 @@ class HomeAssistantTools:
                     await session.initialize()
                     yield session
 
-    async def add_to(self, tools: Tools, allowlist: list[str]) -> None:
-        """Add the server's tools (those in `allowlist`, if one is given)."""
+    async def fetch(self, allowlist: list[str]) -> list[tuple[dict, Handler]]:
+        """The server's tools (those in `allowlist`, if one is given), with their handlers."""
         async with self._session() as session:
             listed = (await session.list_tools()).tools
         exposed = [t for t in listed if not allowlist or t.name in allowlist]
-        for tool in exposed:
-            schema = tool.inputSchema or {}
-            tools.add(
+        return [
+            (
                 {
                     "type": "function",
                     "name": tool.name,
                     "description": tool.description or "",
                     "parameters": {
                         "type": "object",
-                        "properties": schema.get("properties", {}),
-                        "required": schema.get("required", []),
+                        "properties": (tool.inputSchema or {}).get("properties", {}),
+                        "required": (tool.inputSchema or {}).get("required", []),
                     },
                 },
                 self._handler(tool.name),
             )
-        logger.info(f"✅ Fetched {len(listed)} MCP tools, exposing {len(exposed)}")
+            for tool in exposed
+        ]
 
     def _handler(self, name: str) -> Handler:
         async def call(arguments: dict) -> str:

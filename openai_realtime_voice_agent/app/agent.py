@@ -2,9 +2,12 @@
 
 One OpenAI session per conversation. A session opens when the device wakes (or
 mic audio arrives with none open), holding the mic audio until OpenAI has
-configured it. Once the conversation on the device has ended, and nothing
-has happened since for the idle timeout, the session closes. A connection that
-dies ends the session; the next wake opens a new one.
+configured it. What the session is configured with that comes from Home
+Assistant, its tools and language, is read while it connects to OpenAI, so
+each session has Home Assistant as it is then. Once the conversation on the
+device has ended, and nothing has happened since for the idle timeout, the
+session closes. A connection that dies ends the session; the next wake opens a
+new one.
 
 The conversation on the device runs from a wake (or mic audio) until it sends
 `flush` (a follow-up window closed without speech), `interrupt`, or
@@ -29,7 +32,8 @@ import enum
 import json
 import logging
 import time
-from typing import Optional
+from dataclasses import dataclass
+from typing import Awaitable, Callable, Optional
 
 from openai import AsyncOpenAI
 
@@ -45,6 +49,15 @@ from app.tools import Tools
 logger = logging.getLogger(__name__)
 
 _INPUT_BYTES_PER_S = OPENAI_RATE * 2
+
+
+@dataclass
+class SessionSetup:
+    """What a session is configured with that is read anew for each one."""
+
+    tools: Tools
+    # The language hint for transcribing the user: an ISO 639-1 code, or "auto".
+    transcription_language: str
 
 
 class SessionState(enum.Enum):
@@ -84,10 +97,14 @@ class Agent:
         "input_audio_buffer_commit_empty",
     }
 
-    def __init__(self, settings: Settings, client: AsyncOpenAI, tools: Tools):
+    def __init__(
+        self, settings: Settings, client: AsyncOpenAI, session_setup: Callable[[], Awaitable[SessionSetup]]
+    ):
         self.settings = settings
         self._client = client
-        self._tools = tools
+        self._session_setup = session_setup
+        # The open session's tools.
+        self._tools = Tools()
         self.device = DeviceServer(
             settings.websocket_host,
             settings.websocket_port,
@@ -335,12 +352,23 @@ class Agent:
         carried = self._take_carried_conversation()
         session = RealtimeSession(self._client, self.settings.model, self._on_event, self._on_closed)
         self._session = session
+        setup_task = asyncio.create_task(self._session_setup(), name="session_setup")
         try:
-            await asyncio.wait_for(session.connect(), self.OPEN_TIMEOUT_S)
-        except Exception as e:
-            await self._fail_open(f"could not connect to OpenAI: {e!r}")
-            return
-        await session.send({"type": "session.update", "session": self._session_config()})
+            try:
+                await asyncio.wait_for(session.connect(), self.OPEN_TIMEOUT_S)
+            except Exception as e:
+                await self._fail_open(f"could not connect to OpenAI: {e!r}")
+                return
+            try:
+                setup = await setup_task
+            except Exception as e:
+                await session.close()
+                await self._fail_open(f"could not set up the session: {e!r}")
+                return
+        finally:
+            setup_task.cancel()
+        self._tools = setup.tools
+        await session.send({"type": "session.update", "session": self._session_config(setup)})
         try:
             await asyncio.wait_for(self._session_ready.wait(), self.OPEN_TIMEOUT_S)
         except asyncio.TimeoutError:
@@ -380,7 +408,7 @@ class Agent:
             self._recording.close()
             self._recording = None
 
-    def _session_config(self) -> dict:
+    def _session_config(self, setup: SessionSetup) -> dict:
         s = self.settings
         if s.turn_detection_type == "semantic_vad":
             turn_detection = {
@@ -398,15 +426,15 @@ class Agent:
             }
         audio_input: dict = {"turn_detection": turn_detection}
         audio_input["transcription"] = {"model": s.transcription_model}
-        if s.transcription_language != "auto":
-            audio_input["transcription"]["language"] = s.transcription_language
+        if setup.transcription_language != "auto":
+            audio_input["transcription"]["language"] = setup.transcription_language
         if s.noise_reduction:
             audio_input["noise_reduction"] = {"type": s.noise_reduction}
         config = {
             "type": "realtime",
             "instructions": s.instructions,
             "audio": {"input": audio_input, "output": {"voice": s.voice, "speed": s.speed}},
-            "tools": self._tools.definitions,
+            "tools": setup.tools.definitions,
         }
         if s.max_output_tokens is not None:
             config["max_output_tokens"] = s.max_output_tokens
