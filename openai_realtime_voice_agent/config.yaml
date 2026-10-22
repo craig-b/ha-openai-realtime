@@ -52,8 +52,8 @@ options:
   engine: "realtime"
   # The owner's part of the prompt; the add-on's own rules are in app/prompts.py.
   house_rules: >-
-    You are cheerful and friendly. Speak and understand only English, with a
-    natural, neutral accent. Never switch language, not even for stray foreign
+    You are calm and brief, like a good concierge: warm, never chatty. Speak and
+    understand only English, with a natural, neutral accent. Never switch language, not even for stray foreign
     words or an accent; do not infer the language from accent or a single word.
 
   # --- ⚡ Realtime settings: a section of its own (a collapsible panel) ---
