@@ -74,8 +74,7 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 - **No voice timers or alarms yet** — every other Assist action (lights, switches,
   scenes, climate) and online questions work.
 - **Past 50 minutes, a conversation moves to a new OpenAI session** at the next
-  wake (OpenAI caps sessions at 60), carried over as a transcript. The
-  transcript includes your side only when `transcription_language` is set.
+  wake (OpenAI caps sessions at 60), carried over as a transcript.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 

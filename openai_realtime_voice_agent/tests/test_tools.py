@@ -6,6 +6,7 @@ import socket
 import pytest_asyncio
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.responses import JSONResponse
 
 from app.agent import Agent
 from app.phases import PhaseTracker
@@ -13,14 +14,16 @@ from tests.fakes import pcm_tone, wait_until
 
 
 class FakeHomeAssistant:
-    """Home Assistant's MCP server, with two tools that record their calls."""
+    """Home Assistant's API: its MCP server, with two tools that record their calls, and its config."""
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
         self.delay = 0.0
-        self.mcp = FastMCP("Home Assistant", log_level="WARNING")
+        self.language = "en"
+        self.mcp = FastMCP("Home Assistant", log_level="WARNING", streamable_http_path="/api/mcp")
         self.mcp.tool(name="HassTurnOn", description="Turns on a device")(self._turn_on)
         self.mcp.tool(name="HassTurnOff", description="Turns off a device")(self._turn_off)
+        self.mcp.custom_route("/api/config", methods=["GET"])(self._config)
         self.server = None
         self.task = None
         self.port = None
@@ -30,13 +33,16 @@ class FakeHomeAssistant:
         await asyncio.sleep(self.delay)
         return f"Turned on {name}"
 
+    async def _config(self, request):
+        return JSONResponse({"language": self.language})
+
     async def _turn_off(self, name: str) -> str:
         self.calls.append(("HassTurnOff", {"name": name}))
         return f"Turned off {name}"
 
     @property
     def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}/mcp"
+        return f"http://127.0.0.1:{self.port}/api/mcp"
 
     async def start(self) -> None:
         with socket.socket() as s:
@@ -167,4 +173,13 @@ async def test_tool_calls_are_carried_into_a_new_session(openai, home_assistant,
     assert 'Assistant called HassTurnOn({"name": "kitchen light"})' in text
     assert "Result:" in text and "Turned on kitchen light" in text
     assert "Assistant: The kitchen light is on.\n</earlier_conversation>" in text
+    await device.close()
+
+
+async def test_transcription_defaults_to_home_assistants_language(openai, start_addon, home_assistant, wake):
+    home_assistant.language = "nl-NL"
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", TRANSCRIPTION_LANGUAGE="")
+    device = await addon.connect()
+    conn = await wake(device)
+    assert conn.session["audio"]["input"]["transcription"]["language"] == "nl"
     await device.close()

@@ -5,6 +5,7 @@ import os
 import sys
 
 import dotenv
+import httpx
 from openai import AsyncOpenAI
 
 from app.agent import Agent
@@ -53,15 +54,33 @@ class Application:
         logger.info(f"🔧 {len(tools.names)} tools: {tools.names}")
         return tools
 
+    async def _home_assistant_language(self) -> str:
+        """Home Assistant's own language (e.g. "en-GB" → "en"), or English if it can't be read."""
+        s = self.settings
+        api_url = s.ha_mcp_url.removesuffix("/mcp")
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                response = await http.get(
+                    f"{api_url}/config", headers={"Authorization": f"Bearer {s.ha_token}"}
+                )
+                response.raise_for_status()
+                language = str(response.json()["language"])
+        except Exception as e:
+            logger.warning(f"⚠️ Could not read Home Assistant's language, using English: {e!r}")
+            return "en"
+        return language.split("-")[0].lower()
+
     async def run(self) -> None:
         s = self.settings
         if not s.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         client = AsyncOpenAI(api_key=s.openai_api_key)
+        if not s.transcription_language:
+            s.transcription_language = await self._home_assistant_language() if s.ha_token else "en"
         self.agent = Agent(s, client, await self._tools(client))
         logger.info(
             f"🎚️ {s.model}, voice {s.voice}, turn detection {s.turn_detection_type}, "
-            f"transcription {f'{s.transcription_model} ({s.transcription_language})' if s.transcription_language else 'off'}"
+            f"transcription {s.transcription_model} ({s.transcription_language})"
         )
         logger.info(
             f"🔁 Follow-up window {s.follow_up_ms // 1000} s, mic-open delay {s.follow_up_open_delay_ms} ms, "

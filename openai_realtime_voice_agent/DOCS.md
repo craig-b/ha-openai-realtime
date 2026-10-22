@@ -70,7 +70,7 @@ option has plain-language inline help.
 |---|---|---|
 | `openai_model` | `gpt-realtime-2` | newest speech-to-speech model |
 | `openai_voice` | `marin` | `marin`/`cedar` are the newest voices |
-| `transcription_language` | *(blank)* | set your ISO code (e.g. `nl`): locks the language + logs the user transcript |
+| `transcription_language` | *(blank)* | blank = Home Assistant's language; an ISO code (e.g. `nl`), or `auto` for a household speaking several |
 | `instructions` | *(English default)* | the system prompt; swap the LANGUAGE line for your language |
 | `follow_up_listen_seconds` | `8` | mic stays open this long so you can answer back |
 | `follow_up_open_delay_ms` | `700` | echo guard before the follow-up mic opens; lower = snappier but risks ghost turns |
@@ -106,9 +106,11 @@ Every option has a description on the **Configuration** tab. The ones worth know
 
 - **Model / voice / transcription model** are dropdowns with a **`custom`** entry +
   a `*_custom` text field if you want a value not in the list.
-- **`transcription_language`** turns the side-channel transcript on. With it set you
-  get `🗣️ user: …` lines in the add-on log (handy for debugging); it does **not**
-  change what the model understands — the main model hears your audio natively.
+- **`transcription_language`** is the language hint for the side-channel transcript
+  of what you say: the `🗣️ user: …` lines in the add-on log, and your side of a
+  conversation carried over to a new session. It does **not** change what the
+  model understands — the main model hears your audio natively — nor the language
+  it answers in.
 - **`follow_up_open_delay_ms` / `playback_prebuffer_ms`** default to `700` / `150`
   — an echo guard and jitter cushion. Lowering them makes the device feel
   snappier, but below ~700 ms open delay the reply's own speaker tail can leak
@@ -118,7 +120,7 @@ Every option has a description on the **Configuration** tab. The ones worth know
 
 ## 7. Reading the logs
 
-The add-on log shows each turn: `🗣️ user:` (when transcription language is set),
+The add-on log shows each turn: `🗣️ user:` (what it heard you say),
 `🤖 assistant:` (the reply text), `📞 phase ->` (device state), tool calls, and
 `🔌 opening an OpenAI session` / `🔌 OpenAI session closed` as conversations start
 and end. View it on the add-on **Log** tab.
@@ -130,8 +132,7 @@ and end. View it on the add-on **Log** tab.
   switches, scenes, climate, and questions — works.
 - **Past 50 minutes, a conversation moves to a new session.** OpenAI limits a
   realtime session to 60 minutes, so at the next wake after 50 the add-on opens
-  a new one and carries the conversation over as a transcript. The transcript
-  includes your side only when `transcription_language` is set. The same
+  a new one and carries the conversation over as a transcript. The same
   happens if the connection to OpenAI drops.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.

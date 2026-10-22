@@ -191,8 +191,7 @@ The add-on keeps one OpenAI Realtime session per conversation.
 - **Rolling over:** at a `wake`, a session more than 50 minutes old (OpenAI
   caps sessions at 60) is replaced by a new one, which starts with a transcript
   of the conversation so far, no longer than half of `max_context_tokens`
-  (its oldest turns are left out). The transcript has the user's words only
-  when input transcription is on (`transcription_language`).
+  (its oldest turns are left out).
 - **Losing it:** if OpenAI's connection dies, the session ends. Mid-turn the
   device gets `error`; between turns it is told nothing. Nothing reconnects
   until the next `wake`, or at once if a `wake` is still waiting for the user

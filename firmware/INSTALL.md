@@ -80,7 +80,7 @@ known-good starting point — you can fine-tune later:
 | `max_output_tokens` | `0` (unlimited) |
 | `noise_reduction` | `off` |
 | `vad_eagerness` | `low` |
-| `transcription_language` | blank (set your ISO code, e.g. `nl`, to log what it heard) |
+| `transcription_language` | blank (Home Assistant's language; or an ISO code, e.g. `nl`, or `auto`) |
 | `transcription_model` | `gpt-4o-transcribe` |
 | `follow_up_listen_seconds` | `8` |
 | `follow_up_open_delay_ms` | `700` |
@@ -206,8 +206,7 @@ are **never** overwritten by an update.
   prevents this — raise it further (~1000) if it still happens.
 - **Crackle at the start of a reply:** raise `playback_prebuffer_ms` above the
   default 150 (e.g. ~250).
-- **See what it understood:** set `transcription_language` to your ISO code (e.g. `nl`)
-  → the add-on log gains `🗣️ user: …` lines.
+- **See what it understood:** the add-on log's `🗣️ user: …` lines.
 - **Web search:** it answers weather / news / facts online out of the box
   (`enable_web_search` is on by default, model `gpt-5.5`; a few cents per search —
   set it `false` or pick a mini model to cut cost). See the add-on's DOCS.md.

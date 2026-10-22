@@ -338,8 +338,9 @@ class Agent:
                 "silence_duration_ms": s.vad_silence_duration_ms,
             }
         audio_input: dict = {"turn_detection": turn_detection}
-        if s.transcription_language:
-            audio_input["transcription"] = {"model": s.transcription_model, "language": s.transcription_language}
+        audio_input["transcription"] = {"model": s.transcription_model}
+        if s.transcription_language != "auto":
+            audio_input["transcription"]["language"] = s.transcription_language
         if s.noise_reduction:
             audio_input["noise_reduction"] = {"type": s.noise_reduction}
         config = {

@@ -49,8 +49,13 @@ async def test_the_session_is_configured_for_a_voice_assistant(openai, start_add
     assert session["tools"] == []
 
 
-async def test_transcription_is_off_without_a_language(openai, session):
-    assert "transcription" not in session.session["audio"]["input"]
+async def test_transcription_is_in_english_without_home_assistant(openai, session):
+    assert session.session["audio"]["input"]["transcription"] == {"model": "gpt-4o-transcribe", "language": "en"}
+
+
+async def test_transcription_can_detect_the_language(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(TRANSCRIPTION_LANGUAGE="auto"))
+    assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-4o-transcribe"}
 
 
 async def test_transcription_is_on_with_a_language(openai, start_addon, open_session):
@@ -326,8 +331,8 @@ async def test_a_conversation_lost_for_longer_than_the_idle_timeout_is_not_carri
     assert second.created_items() == []
 
 
-async def test_without_transcription_the_carried_conversation_says_so(openai, device, session, wake):
-    await session.user_turn()  # no transcript: transcription is off
+async def test_a_turn_without_a_transcript_is_carried_as_not_transcribed(openai, device, session, wake):
+    await session.user_turn()  # its transcript never arrives
     await session.reply(pcm_tone(320, 24000), transcript="It is sunny.")
     await device.wait_for_phase("idle")
     await session.close(1011)

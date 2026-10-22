@@ -23,12 +23,14 @@ configuration:
       bovenaan dit tabblad → "Bewerken als YAML": dan krijg je een volwaardige
       teksteditor.
   transcription_language:
-    name: "🔑 Basis · Spreektaal (bijv. nl, en, de)"
+    name: "🔑 Basis · Spreektaal (bijv. nl, en, de, auto)"
     description: >-
-      Tweeletterige code van de taal die je tegen het apparaat spreekt. Dit
-      voorkomt dat de assistent naar een andere taal afdwaalt, ÉN schrijft wat
-      jij zei in het add-on-log (de 🗣️-regels — handig om te zien wat hij
-      verstond). Leeg = automatisch detecteren (geen transcript in het log).
+      Tweeletterige code van de taal die je tegen het apparaat spreekt, om wat
+      je zegt nauwkeurig uit te schrijven: in het add-on-log (de 🗣️-regels) en
+      in een gesprek dat naar een nieuwe sessie overgaat. Leeg = de taal van
+      Home Assistant zelf; "auto" herkent de taal elke keer, voor een
+      huishouden dat meer dan één taal spreekt. Het bepaalt niet in welke taal
+      de assistent antwoordt; dat doen de instructies.
 
   # --- 🗣️ Model & stem ---
   openai_model:
@@ -196,8 +198,8 @@ configuration:
   transcription_model:
     name: "⚙️ Geavanceerd · Transcriptmodel"
     description: >-
-      Alleen gebruikt als bij Basis een spreektaal is ingesteld. Dit model
-      schrijft jouw spraak als tekst in het log — het beïnvloedt NIET hoe de
+      Dit model schrijft jouw spraak als tekst, voor het log en om een gesprek
+      naar een nieuwe sessie mee te nemen — het beïnvloedt NIET hoe de
       assistent je verstaat (die hoort je echte stem). gpt-4o-transcribe
       (standaard) is het nauwkeurigst. Voor een ander model: kies "custom" en
       zet onderaan "Toon ongebruikte optionele configuratie-opties" aan.
