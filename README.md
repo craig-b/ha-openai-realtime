@@ -61,9 +61,11 @@ Thank you to Felix and Xander: this is built on their work.
 - **[`firmware/`](firmware/)** — the Voice PE firmware (ESPHome, with a custom
   `va_client` component, specific to the Voice PE hardware). ESPHome builds it
   straight from this repo; see [`firmware/README.md`](firmware/README.md).
-  It is a `git subtree` of `esphome/home-assistant-voice-pe`, so upstream
-  firmware fixes merge in with
-  `git fetch esphome && git subtree merge --prefix=firmware esphome/dev`.
+  It is a `git subtree` of `esphome/home-assistant-voice-pe`, at its release
+  26.9.0, with ESPHome's `voice_kit` component and sounds kept here too, so a
+  firmware build comes from this repository alone. A later upstream release
+  merges in with the `esphome` remote (`https://github.com/esphome/home-assistant-voice-pe`):
+  `git fetch esphome --tags && git merge -s subtree -Xsubtree=firmware <release tag>`.
 
 ## Install
 

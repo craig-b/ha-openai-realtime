@@ -39,22 +39,22 @@ substitutions:
   # Change this to true in case you ahve a hidden SSID at home.
   hidden_ssid: "false"
   # Substitutions for audio files
-  jack_connected_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/jack_connected.flac
-  jack_disconnected_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/jack_disconnected.flac
-  mute_switch_on_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_on.flac
-  mute_switch_off_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_off.flac
-  timer_finished_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
-  wake_word_triggered_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/wake_word_triggered.flac
-  center_button_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_press.flac
-  center_button_double_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_double_press.flac
-  center_button_triple_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_triple_press.flac
-  center_button_long_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_long_press.flac
-  factory_reset_initiated_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_initiated.mp3
-  factory_reset_cancelled_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
-  factory_reset_confirmed_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
-  easter_egg_tick_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/easter_egg_tick.mp3
-  easter_egg_tada_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/easter_egg_tada.mp3
-  error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+  jack_connected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/jack_connected.flac
+  jack_disconnected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/jack_disconnected.flac
+  mute_switch_on_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/mute_switch_on.flac
+  mute_switch_off_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/mute_switch_off.flac
+  timer_finished_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/timer_finished.flac
+  wake_word_triggered_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/wake_word_triggered.flac
+  center_button_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_press.flac
+  center_button_double_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_double_press.flac
+  center_button_triple_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_triple_press.flac
+  center_button_long_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_long_press.flac
+  factory_reset_initiated_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_initiated.mp3
+  factory_reset_cancelled_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_cancelled.mp3
+  factory_reset_confirmed_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_confirmed.mp3
+  easter_egg_tick_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/easter_egg_tick.mp3
+  easter_egg_tada_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/easter_egg_tada.mp3
+  error_cloud_expired_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/error_cloud_expired.mp3
   # WebSocket endpoint of the "OpenAI Realtime Voice Agent" Home Assistant
   # add-on (this fork's backend). The add-on runs with host_network and
   # listens on port 8080. homeassistant.local resolves via mDNS on the LAN;
@@ -1887,16 +1887,11 @@ voice_kit:
 
 # Sendspin related components are pinned to specific commits for reproducible builds
 external_components:
-  - source:
-      type: git
-      url: https://github.com/esphome/home-assistant-voice-pe
-      ref: dev
-    components:
-      - voice_kit
-    refresh: 0s
-  # va_client (the OpenAI-realtime thin client) lives in THIS repo, under
-  # firmware/. It is pulled from GitHub (public, no token) so the config builds
-  # without a local checkout; refresh: 0s = always fetch the latest C++ on main.
+  # voice_kit (ESPHome's, from its 26.9.0 release, merged into firmware/) and
+  # va_client (the OpenAI-realtime thin client) both live in THIS repo, under
+  # firmware/, as do the sounds above, so a build's source is this repository
+  # at one commit. They're pulled from GitHub (public, no token) so the config
+  # builds without a local checkout; refresh: 0s = always fetch main.
   # To iterate on the C++ locally instead, swap this for:
   #   - source: {type: local, path: esphome/components}
   - source:
@@ -1904,7 +1899,7 @@ external_components:
       url: https://github.com/craig-b/ha-openai-realtime
       ref: main
       path: firmware/esphome/components
-    components: [va_client]
+    components: [voice_kit, va_client]
     refresh: 0s
 
 # va-direct: forward device logs to a UDP sink container on the Pi so they

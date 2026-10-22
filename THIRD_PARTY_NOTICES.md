@@ -15,8 +15,10 @@ their own licences.
 - the GNU GPL v3 for the C/C++ runtime code (files ending in .c, .cpp, .h, .hpp,
   .tcc and .ino).
 
-ESPHome also fetches the firmware's `voice_kit` component and its sounds from that
-repository when it builds the firmware.
+The firmware's `voice_kit` component (C++, GPLv3) and its sounds come from that
+repository's 26.9.0 release, and are kept in `firmware/` with the rest, so the
+source of any firmware built from this repository is this repository at the same
+commit.
 
 **GPLv3:** firmware built from this repository contains GPLv3 code, so whoever
 distributes compiled firmware images must comply with the GPLv3, including giving
