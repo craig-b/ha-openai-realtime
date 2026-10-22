@@ -152,3 +152,30 @@ async def test_interrupt_stops_the_reply_audio_being_sent(openai, device, sessio
     sent = len(device.audio)
     await asyncio.sleep(0.5)
     assert len(device.audio) == sent
+
+
+async def test_a_stopped_replys_remaining_audio_is_not_sent(openai, device, session):
+    conn = session
+    await conn.user_turn()
+    response = await conn.start_response()
+    await response.audio(pcm_tone(200, 24000))
+    await device.wait_for_audio(200 * 48)
+    await device.send({"type": "interrupt"})
+    await conn.wait_for("response.cancel")
+    # Audio OpenAI had already generated arrives after the cancel.
+    await response.audio(pcm_tone(1000, 24000))
+    await response.finish("cancelled")
+    await asyncio.sleep(0.5)
+    assert len(device.audio) == 200 * 48
+
+
+async def test_a_cancelled_racing_responses_audio_is_not_sent(openai, device, session):
+    conn = session
+    await device.send({"type": "interrupt"})
+    await asyncio.sleep(0.1)
+    response = await conn.start_response()
+    await conn.wait_for("response.cancel")
+    await response.audio(pcm_tone(500, 24000))
+    await response.finish("cancelled")
+    await asyncio.sleep(0.5)
+    assert len(device.audio) == 0

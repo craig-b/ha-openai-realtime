@@ -86,7 +86,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   gate, cancels follow-up timers, drops all incoming audio until the next
   `listening`, ignores `thinking` until the next wake, and suppresses the
   follow-up window the next `idle` would open.
-- **Add-on:** drops the reply audio it has queued for the device; clears the
+- **Add-on:** drops the reply audio it has queued for the device, and any
+  more that arrives for the stopped response; clears the
   session's input audio buffer (or the audio held while one opens); sends
   `response.cancel` if a response is active;
   then cancels the next assistant response to appear, whenever it appears, plus

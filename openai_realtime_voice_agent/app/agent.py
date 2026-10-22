@@ -110,7 +110,9 @@ class Agent:
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
 
-        self._response_active = False
+        # The response being generated, and those cancelled whose audio may still arrive.
+        self._response_id: Optional[str] = None
+        self._cancelled: set[str] = set()
         self._reply_text = ""
         # Tool calls of the response being generated, as (call_id, task).
         self._tool_calls: list[tuple[str, asyncio.Task]] = []
@@ -207,9 +209,9 @@ class Agent:
         self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
         self._kill_next = True
         await self._clear_input_audio()
-        if self._response_active:
+        if self._response_id is not None:
             logger.info("🛑 response.cancel (a response was active)")
-            await self._session.send({"type": "response.cancel"})
+            await self._cancel_response()
 
     async def _clear_input_audio(self) -> None:
         """Drop the user's uncommitted audio: OpenAI's input buffer, or ours."""
@@ -262,7 +264,7 @@ class Agent:
             self._spawn(self._roll_over(), "roll_over")
 
     def _busy(self) -> bool:
-        return self._response_active or self._liveness.in_flight > 0 or self._reply.playing
+        return self._response_id is not None or self._liveness.in_flight > 0 or self._reply.playing
 
     def _should_roll_over(self) -> bool:
         return not self._busy() and time.monotonic() - self._opened_at >= self.ROLLOVER_AGE_S
@@ -390,7 +392,8 @@ class Agent:
         session, self._session = self._session, None
         if session is not None:
             await session.close()
-        self._response_active = False
+        self._response_id = None
+        self._cancelled = set()
         self._tool_calls = []
         if keep_conversation:
             self._carry_until = self._last_activity + self.settings.session_idle_timeout_s
@@ -462,6 +465,12 @@ class Agent:
             return
         self._kill_next = False
         logger.info("🛑 a response raced in right after a device interrupt → response.cancel")
+        await self._cancel_response()
+
+    async def _cancel_response(self) -> None:
+        """Cancel the response being generated; whatever audio of it still arrives is dropped."""
+        if self._response_id is not None:
+            self._cancelled.add(self._response_id)
         await self._session.send({"type": "response.cancel"})
 
     async def _on_conversation_item_input_audio_transcription_completed(self, event: dict) -> None:
@@ -471,13 +480,15 @@ class Agent:
             logger.info(f"🗣️ user: {text}")
 
     async def _on_response_created(self, event: dict) -> None:
-        self._response_active = True
+        self._response_id = (event.get("response") or {}).get("id", "")
 
     async def _on_response_output_audio_delta(self, event: dict) -> None:
-        self._reply.feed(base64.b64decode(event.get("delta", "")))
+        if event.get("response_id") not in self._cancelled:
+            self._reply.feed(base64.b64decode(event.get("delta", "")))
 
     async def _on_response_output_audio_done(self, event: dict) -> None:
-        self._reply.end_of_reply()
+        if event.get("response_id") not in self._cancelled:
+            self._reply.end_of_reply()
 
     async def _on_response_output_audio_transcript_delta(self, event: dict) -> None:
         delta = event.get("delta", "")
@@ -514,7 +525,8 @@ class Agent:
 
     async def _on_response_done(self, event: dict) -> None:
         response = event.get("response") or {}
-        self._response_active = False
+        self._response_id = None
+        self._cancelled.discard(response.get("id"))
         self._reply.end_of_reply()
         if self._reply_text.strip():
             logger.info(f"🤖 assistant: {self._reply_text.strip()}")
@@ -562,7 +574,7 @@ class Agent:
     async def _trim_conversation(self) -> None:
         """Delete the oldest whole turns until at most `max_context_messages` items remain."""
         max_items = self.settings.max_context_messages
-        if not max_items or self._state is not SessionState.OPEN or self._response_active:
+        if not max_items or self._state is not SessionState.OPEN or self._response_id is not None:
             return
         dropped = self._conversation.oldest_turns_over(max_items)
         for item in dropped:
