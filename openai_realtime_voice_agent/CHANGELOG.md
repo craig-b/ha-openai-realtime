@@ -2,6 +2,20 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.8.1
+
+Update the add-on; there is nothing else to do. Firmware 1.4.1 only changes a log
+line, so there's no need to update the device.
+
+- **A question asked right after waking the assistant is answered.** When the mic
+  had closed while OpenAI still heard speech, OpenAI reported only the end of the
+  next question, and the add-on threw that question away as a leftover: no
+  answer, and the device gave up after a few seconds. Every wake now clears
+  OpenAI's input, which also resets its turn detection, and the guard that
+  guessed is gone.
+- **A conversation an automation starts opens with one sentence** ending with
+  its question, without an offer tacked on.
+
 ## 0.8.0
 
 > **Two steps, in this order:**
