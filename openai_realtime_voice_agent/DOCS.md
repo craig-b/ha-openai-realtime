@@ -100,7 +100,7 @@ automatically the first time the add-on starts, after which it restarts once.
 | `enable_end_conversation` | `true` | after a clear goodbye the device stops listening, without a follow-up window |
 | `home_town` | *(blank)* | the town the home is in, so "what's the weather?" is local; Home Assistant supplies the country, time zone and units |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
-| `realtime → web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
+| `realtime → web_search_model` | `gpt-6-luna` | the quickest and cheapest; sol and astra think harder |
 
 The legacy `server_vad` turn-detection fields are at the bottom of the ⚡ Realtime
 settings — leave them empty unless you have a specific reason.
@@ -140,8 +140,9 @@ Turn it off for an assistant that only knows your home, or if Home Assistant off
 a search tool of its own. For the Realtime engine:
 
 - Uses your **existing OpenAI key** — no extra account.
-- Default model `gpt-5.5` (best quality). Cheaper options trade price/quality
-  (`gpt-5.4`, `gpt-5-mini`, the nano models, …) — a few cents per search.
+- Default model `gpt-6-luna`, with little reasoning and little search context: a
+  voice assistant's lookups want a quick, short answer, grounded in what it finds.
+  `gpt-6.1-sol` and `gpt-6-astra` think harder, at more time and cost.
 - Adds ~1–3 s while it searches (the device shows "thinking").
 - If the model name is rejected, the assistant just says it couldn't search — it
   won't crash the session, so you can change `realtime → web_search_model` and retry.

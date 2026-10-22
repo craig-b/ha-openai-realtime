@@ -119,9 +119,14 @@ WEB_SEARCH_DEFINITION = {
 def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) -> Handler:
     """The Realtime API has no web search: run one through the Responses API.
 
-    `location` is the home's approximate location, for local answers.
+    `location` is the home's approximate location, for local answers. A
+    spoken answer wants a quick lookup: little reasoning, little search
+    context (the gpt-6 models reason at medium unless told).
     """
-    tool = {"type": "web_search", **({"user_location": location} if location else {})}
+    tool = {"type": "web_search", "search_context_size": "low"}
+    if location:
+        tool["user_location"] = location
+    options = {"reasoning": {"effort": "low"}} if model.startswith("gpt-6") else {}
 
     async def search(arguments: dict) -> str:
         query = str(arguments.get("query", "")).strip()
@@ -132,6 +137,7 @@ def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) ->
             response = await client.responses.create(
                 model=model,
                 tools=[tool],
+                **options,
                 input=(
                     "Answer in at most 2 short sentences suitable for being read "
                     "aloud, in the same language as the question. Do not include "

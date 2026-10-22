@@ -38,6 +38,9 @@ RETIRED_MODELS = {
     "gpt-realtime": "gpt-realtime-2.1",
     "gpt-realtime-mini": "gpt-realtime-2.1-mini",
 }
+# The search models offered before the gpt-6 models: any of them moves to the
+# default, the quickest, as a voice assistant's lookups want speed.
+OLD_SEARCH_MODELS = {"gpt-5-nano", "gpt-5.4-nano", "gpt-5-mini", "gpt-5.4-mini", "gpt-5", "gpt-5.4", "gpt-5.5"}
 
 
 def migrated(options: dict) -> dict | None:
@@ -50,6 +53,8 @@ def migrated(options: dict) -> dict | None:
             section, key = MOVED[name]
             if name == "openai_model":
                 value = RETIRED_MODELS.get(value, value)
+            elif name == "web_search_model" and value in OLD_SEARCH_MODELS:
+                value = "gpt-6-luna"
             result[section] = {**result.get(section, {}), key: value}
     return result
 

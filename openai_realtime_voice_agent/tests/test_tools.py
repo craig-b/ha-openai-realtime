@@ -345,3 +345,44 @@ def test_nothing_known_of_the_home_adds_nothing():
 
     assert with_home("Be brief.", Home()) == "Be brief."
     assert Home().web_search_location() is None
+
+
+# --- web search -------------------------------------------------------------------------
+
+class _Responses:
+    def __init__(self):
+        self.calls = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+
+        class Answer:
+            output_text = "Sunny, 14 degrees."
+
+        return Answer()
+
+
+class _Client:
+    def __init__(self):
+        self.responses = _Responses()
+
+
+async def test_web_search_asks_for_a_quick_local_lookup():
+    from app.tools import web_search
+
+    client = _Client()
+    location = {"type": "approximate", "city": "London", "country": "GB"}
+    answer = await web_search(client, "gpt-6-luna", location)({"query": "weather today"})
+    assert answer == "Sunny, 14 degrees."
+    call = client.responses.calls[0]
+    assert call["model"] == "gpt-6-luna"
+    assert call["tools"] == [{"type": "web_search", "search_context_size": "low", "user_location": location}]
+    assert call["reasoning"] == {"effort": "low"}
+
+
+async def test_web_search_sends_no_reasoning_effort_to_a_custom_model():
+    from app.tools import web_search
+
+    client = _Client()
+    await web_search(client, "some-other-model")({"query": "weather today"})
+    assert "reasoning" not in client.responses.calls[0]

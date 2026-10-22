@@ -94,7 +94,7 @@ the **⚡ Realtime settings** panel:
 | `realtime → max_context_tokens` | `8000` |
 | `mcp_tool_allowlist` | **blank** (use all of the official server's tools — it's already a small set) |
 | `enable_web_search` | `true` (online lookups on by default; set `false` to disable) |
-| `realtime → web_search_model` | `gpt-5.5` (best quality; mini/nano are cheaper) |
+| `realtime → web_search_model` | `gpt-6-luna` (the quickest and cheapest) |
 | `realtime → instructions` | the English default (to change language, see Part 5) |
 
 ### 1.5 Start it
@@ -234,8 +234,8 @@ any `va_url` you set.
 - **See what it understood:** turn on `log_what_you_say` (🔍 Debug) for `🗣️ user: …` lines in
   the add-on log.
 - **Web search:** it answers weather / news / facts online out of the box
-  (`enable_web_search` is on by default, model `gpt-5.5`; a few cents per search —
-  set it `false` or pick a mini model to cut cost). See the add-on's DOCS.md.
+  (`enable_web_search` is on by default, model `gpt-6-luna`; set it `false` if you
+  don't want it). See the add-on's DOCS.md.
 - **The system prompt (`realtime → instructions`)** sets the assistant's language, style and
   behavior. The shipped default (English) is voice-tuned — short spoken replies, silent
   tool calls, varied confirmations, and strict language pinning:

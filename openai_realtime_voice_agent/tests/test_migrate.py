@@ -92,6 +92,11 @@ def test_a_retired_model_moves_to_its_replacement():
     assert migrated({**DEFAULTS, "openai_model": "gpt-realtime"})["realtime"]["model"] == "gpt-realtime-2.1"
 
 
+def test_an_old_search_model_moves_to_the_default():
+    assert migrated({**DEFAULTS, "web_search_model": "gpt-5.5"})["realtime"]["web_search_model"] == "gpt-6-luna"
+    assert migrated({**DEFAULTS, "web_search_model": "custom"})["realtime"]["web_search_model"] == "custom"
+
+
 def test_options_under_new_names_are_left_alone():
     assert migrated(DEFAULTS) is None
 

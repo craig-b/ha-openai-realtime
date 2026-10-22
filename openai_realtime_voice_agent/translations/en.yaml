@@ -107,10 +107,11 @@ configuration:
       web_search_model:
         name: "Search model"
         description: >-
-          The model that does the lookup and summarises the answer. gpt-5.5
-          (default) gives the best answers; mini/nano models are cheaper but miss
-          more. For an unlisted model pick "custom" and fill in Search model
-          (custom) below.
+          The model that does the lookup and summarises the answer. gpt-6-luna
+          (default) is the quickest and cheapest, and plenty for the short,
+          grounded answers a voice assistant gives; gpt-6.1-sol and gpt-6-astra
+          think harder, slower and dearer. For an unlisted model pick "custom"
+          and fill in Search model (custom) below.
       web_search_model_custom:
         name: "Search model (custom)"
         description: >-

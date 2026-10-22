@@ -112,9 +112,11 @@ configuration:
         name: "Zoekmodel"
         description: >-
           Het model dat de zoekopdracht uitvoert en het antwoord samenvat.
-          gpt-5.5 (standaard) geeft de beste antwoorden; mini/nano-modellen zijn
-          goedkoper maar missen meer. Voor een ander model: kies "custom" en vul
-          hieronder Zoekmodel (custom) in.
+          gpt-6-luna (standaard) is het snelst en goedkoopst, en ruim genoeg voor
+          de korte antwoorden van een spraakassistent die op zoekresultaten
+          berusten; gpt-6.1-sol en gpt-6-astra denken langer na, trager en
+          duurder. Voor een ander model: kies "custom" en vul hieronder
+          Zoekmodel (custom) in.
       web_search_model_custom:
         name: "Zoekmodel (custom)"
         description: >-

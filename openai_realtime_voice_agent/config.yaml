@@ -81,7 +81,7 @@ options:
     max_output_tokens: 0
     vad_eagerness: "low"
     noise_reduction: "off"
-    web_search_model: "gpt-5.5"
+    web_search_model: "gpt-6-luna"
     max_context_tokens: 8000
     # Its own voice leaks back into the Voice PE's open mic and cuts it off
     # (verified live 2026-10-22), so Realtime keeps the mic shut while it speaks.
@@ -185,7 +185,7 @@ schema:
     max_output_tokens: int(0,4096)
     vad_eagerness: "list(low|medium|high|auto)"
     noise_reduction: "list(off|near_field|far_field)"
-    web_search_model: "list(gpt-5-nano|gpt-5.4-nano|gpt-5-mini|gpt-5.4-mini|gpt-5|gpt-5.4|gpt-5.5|custom)"
+    web_search_model: "list(gpt-6-luna|gpt-6.1-sol|gpt-6-astra|custom)"
     web_search_model_custom: str?
     max_context_tokens: int(0,128000)
     mute_mic_while_speaking: bool

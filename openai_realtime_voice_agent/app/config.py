@@ -190,7 +190,7 @@ class Settings:
             transcription_language=_str("TRANSCRIPTION_LANGUAGE").lower(),
             noise_reduction=noise_reduction if noise_reduction in ("near_field", "far_field") else "",
             enable_web_search=_bool("ENABLE_WEB_SEARCH", True),
-            web_search_model=_resolve_choice("WEB_SEARCH_MODEL", "WEB_SEARCH_MODEL_CUSTOM", "gpt-5.5"),
+            web_search_model=_resolve_choice("WEB_SEARCH_MODEL", "WEB_SEARCH_MODEL_CUSTOM", "gpt-6-luna"),
             enable_end_conversation=_bool("ENABLE_END_CONVERSATION", True),
             ha_mcp_url=_str("HA_MCP_URL") or "http://supervisor/core/api/mcp",
             ha_token=_str("LONGLIVED_TOKEN") or _str("SUPERVISOR_TOKEN"),
