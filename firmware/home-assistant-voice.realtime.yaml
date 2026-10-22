@@ -1,25 +1,26 @@
 # ============================================================================
 # Home Assistant Voice PE - OpenAI Realtime firmware.
-# Our customized thin-client: all voice logic lives in the va_client component
-# (pulled from GitHub), streaming audio to the OpenAI Realtime backend add-on.
+# A thin client: the voice logic lives in the va_client component, streaming
+# audio to the OpenAI Realtime add-on.
 #
-# This config is meant to be pulled as a remote ESPHome `packages:` include from
-# a small per-device stub, so updates are one click in the dashboard (no more
-# copy-pasting the whole file). The stub provides the device identity + secrets
-# as SUBSTITUTIONS (a remote package can't use !secret):
-#   name, friendly_name, wifi_ssid, wifi_password, ota_password, api_key, va_secret,
-#   va_certificate
-#   (+ static_ip/gateway/subnet/dns1/dns2 and a manual_ip override for a fixed IP)
-# See esphome-builder.dhcp.yaml in this repo for the stub template.
+# One image serves every Voice PE, as the stock firmware does, so nothing here
+# is personal: Wi-Fi is set over Bluetooth (Improv, confirmed with the centre
+# button), Home Assistant sets the API key when it adopts the device, and the
+# add-on's integration links the device to the add-on (va_client's set_link).
+# CI builds it for each release and publishes it, with the manifest the update
+# entity below reads.
+#
+# To build it yourself instead, use it as a remote package from a small stub
+# (esphome-builder.dhcp.yaml), which may add its own Wi-Fi, API key or link
+# with !secret.
 # ============================================================================
 substitutions:
-  # Device identity comes from the per-device stub (esphome-builder.dhcp.yaml); these
-  # are safe defaults the stub overrides. Wi-Fi + secrets (wifi_ssid, wifi_password,
-  # ota_password, api_key, va_secret, va_certificate) MUST be provided by the stub as
-  # substitutions, because
-  # a remote `packages:` include can't use !secret.
   name: home-assistant-voice
   friendly_name: Home Assistant Voice
+  # The git ref of this repository that voice_kit, va_client and the sounds
+  # come from: CI builds a release from its own tag, so a build's source is
+  # that one commit.
+  firmware_ref: main
 
   # Phases of the Voice Assistant
   # The voice assistant is ready to be triggered by a wake word
@@ -39,36 +40,29 @@ substitutions:
   # Change this to true in case you ahve a hidden SSID at home.
   hidden_ssid: "false"
   # Substitutions for audio files
-  jack_connected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/jack_connected.flac
-  jack_disconnected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/jack_disconnected.flac
-  mute_switch_on_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/mute_switch_on.flac
-  mute_switch_off_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/mute_switch_off.flac
-  timer_finished_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/timer_finished.flac
-  wake_word_triggered_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/wake_word_triggered.flac
-  center_button_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_press.flac
-  center_button_double_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_double_press.flac
-  center_button_triple_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_triple_press.flac
-  center_button_long_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/center_button_long_press.flac
-  factory_reset_initiated_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_initiated.mp3
-  factory_reset_cancelled_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_cancelled.mp3
-  factory_reset_confirmed_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/factory_reset_confirmed.mp3
-  easter_egg_tick_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/easter_egg_tick.mp3
-  easter_egg_tada_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/easter_egg_tada.mp3
-  error_cloud_expired_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/main/firmware/sounds/error_cloud_expired.mp3
-  # WebSocket endpoint of the "OpenAI Realtime Voice Agent" Home Assistant
-  # add-on (this fork's backend). The add-on runs with host_network and
-  # listens on port 8080. homeassistant.local resolves via mDNS on the LAN;
-  # change this if your HA host has a different name/IP, e.g.
-  # "wss://192.168.1.10:8080/". Always wss://: the add-on only accepts
-  # encrypted connections.
-  va_url: "wss://homeassistant.local:8080/"
+  jack_connected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/jack_connected.flac
+  jack_disconnected_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/jack_disconnected.flac
+  mute_switch_on_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/mute_switch_on.flac
+  mute_switch_off_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/mute_switch_off.flac
+  timer_finished_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/timer_finished.flac
+  wake_word_triggered_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/wake_word_triggered.flac
+  center_button_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/center_button_press.flac
+  center_button_double_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/center_button_double_press.flac
+  center_button_triple_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/center_button_triple_press.flac
+  center_button_long_press_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/center_button_long_press.flac
+  factory_reset_initiated_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/factory_reset_initiated.mp3
+  factory_reset_cancelled_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/factory_reset_cancelled.mp3
+  factory_reset_confirmed_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/factory_reset_confirmed.mp3
+  easter_egg_tick_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/easter_egg_tick.mp3
+  easter_egg_tada_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/easter_egg_tada.mp3
+  error_cloud_expired_sound_file: https://github.com/craig-b/ha-openai-realtime/raw/${firmware_ref}/firmware/sounds/error_cloud_expired.mp3
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  name_add_mac_suffix: false
-  # Project identity drives the ESPHome dashboard "Update available" badge: bump
-  # `version` on a release (merge to main) and adopted devices are offered it.
+  name_add_mac_suffix: true
+  # The project and its version: bumped on each firmware release; the update
+  # entity compares it with the published manifest's.
   project:
     name: "craig-b.voice-pe-openai-realtime"
     version: "1.5.0"
@@ -138,12 +132,8 @@ wifi:
   # none = radio always on → steadier frame arrival, fewer jitter-driven dropouts
   # during replies. Costs ~20-40mA extra (this device is mains-powered, so fine).
   power_save_mode: none
-  # Credentials from secrets.yaml (no improv needed for normal use); the device
-  # gets its IP from DHCP. The improv/AP blocks below stay as a fallback for re-setup.
-  ssid: ${wifi_ssid}
-  password: ${wifi_password}
-  ap:
-    ssid: "Voice PE Setup"
+  # No network here: it's set over Bluetooth (esp32_improv, below), or over
+  # USB from the install page (improv_serial).
   on_connect:
     - delay: 5s  # give improv results time to transmit
     - ble.disable:
@@ -170,10 +160,26 @@ logger:
 
 
 ota:
-  - platform: esphome
-    id: ota_esphome
-    # OTA upload password (from the stub's ota_password substitution -> secrets.yaml).
-    password: ${ota_password}
+  # Releases only, installed by the update entity below: fetched over HTTPS
+  # from the published manifest, and checked against its md5. No uploads over
+  # the network (ESPHome's own OTA): with the API key set at runtime they could
+  # only be protected by a password, which a shared image can't carry, and
+  # without one anything on the network could flash the device. A self-built
+  # firmware adds them back, with its own password (esphome-builder.*.yaml).
+  - platform: http_request
+    id: ota_http_request
+
+http_request:
+
+update:
+  - platform: http_request
+    name: None
+    id: update_http_request
+    source: https://craig-b.github.io/ha-openai-realtime/firmware/manifest.json
+
+# So ESPHome Builder can take the device over, to build it yourself.
+dashboard_import:
+  package_import_url: github://craig-b/ha-openai-realtime/firmware/home-assistant-voice.realtime.yaml@main
 
 # va-direct fork: api re-enabled so this device shows up in Home Assistant
 # again (entities, OTA discovery, and diagnostics readable from HA). Voice
@@ -182,15 +188,20 @@ ota:
 # ESPHome advertises _esphomelib over mDNS automatically, so the old manual
 # mdns workaround is no longer needed.
 api:
-  encryption:
-    key: ${api_key}
+  encryption:   # the key Home Assistant sets when it adopts the device
   actions:
     # Home Assistant links the device to the add-on: its address, the device
     # secret and the add-on's certificate, kept in flash. The add-on's
     # integration calls this when "Add-on link" or "Add-on connection" says
     # the device needs it. Once linked, a new link needs `proof` (va_client's
     # set_link says how), so nothing else in Home Assistant can redirect the
-    # device. Answers whether it was taken, and if not, why.
+    # device. Before the API has a key, anyone on the network can connect and
+    # call this, so it takes no link until then: the first link comes only from
+    # whoever set the key, i.e. adopted the device. That is ESPHome's own model:
+    # between Wi-Fi setup and adding it to Home Assistant, anyone on the network
+    # can adopt it, and a device adopted by someone else won't add to Home
+    # Assistant until it's factory reset (which clears its link too). Answers
+    # whether it was taken, and if not, why.
     - action: set_addon_link
       variables:
         url: string
@@ -198,7 +209,12 @@ api:
         certificate: string
         proof: string
       then:
-        - lambda: 'id(addon_link_error) = id(va).set_link(url, secret, certificate, proof);'
+        - lambda: |-
+            if (!api::global_api_server->get_noise_ctx().has_psk()) {
+              id(addon_link_error) = "the API has no encryption key yet: add the device to Home Assistant first";
+            } else {
+              id(addon_link_error) = id(va).set_link(url, secret, certificate, proof);
+            }
         - api.respond:
             success: !lambda 'return id(addon_link_error).empty();'
             error_message: !lambda 'return id(addon_link_error);'
@@ -1960,14 +1976,14 @@ external_components:
   # voice_kit (ESPHome's, from its 26.9.0 release, merged into firmware/) and
   # va_client (the OpenAI-realtime thin client) both live in THIS repo, under
   # firmware/, as do the sounds above, so a build's source is this repository
-  # at one commit. They're pulled from GitHub (public, no token) so the config
-  # builds without a local checkout; refresh: 0s = always fetch main.
+  # at one commit (firmware_ref). They're pulled from GitHub (public, no token)
+  # so the config builds without a local checkout; refresh: 0s = always fetch.
   # To iterate on the C++ locally instead, swap this for:
   #   - source: {type: local, path: esphome/components}
   - source:
       type: git
       url: https://github.com/craig-b/ha-openai-realtime
-      ref: main
+      ref: ${firmware_ref}
       path: firmware/esphome/components
     components: [voice_kit, va_client]
     refresh: 0s
@@ -1991,9 +2007,6 @@ time:
 
 va_client:
   id: va
-  url: ${va_url}
-  secret: ${va_secret}
-  certificate: ${va_certificate}
   microphone: i2s_mics
   mic_channel: 0
   # Handsfree barge-in: keep the mic open while the assistant is speaking so

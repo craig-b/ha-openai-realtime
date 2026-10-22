@@ -1,56 +1,71 @@
 # ============================================================================
-# Per-device stub for the OpenAI Realtime Voice PE firmware -- FIXED IP variant.
+# Per-device stub, to build the OpenAI Realtime Voice PE firmware yourself (fixed IP).
 #
-# Same as esphome-builder.dhcp.yaml, but pinned to a static IP. Copy THIS into your
-# ESPHome dashboard ONCE (adopt the device, then edit its YAML). It pulls the
-# full firmware from this repo as a remote package, so updates are one click
-# ("Update available") in the dashboard -- no more copy-pasting the whole config.
+# Most people don't need this: install the prebuilt firmware (INSTALL.md), which
+# Home Assistant sets up and updates. Build it yourself to change it, or to keep
+# Wi-Fi, the API key or the link to the add-on in the build instead of setting
+# them at runtime. Every block marked optional can go: whatever is left out is
+# set as with the prebuilt firmware (Wi-Fi over Bluetooth, the API key by Home
+# Assistant, the link by the add-on's integration).
 #
-#   1. Set `name` / `friendly_name` for your device.
-#   2. Put these keys in your ESPHome secrets.yaml (Builder -> Secrets):
-#        wifi_ssid, wifi_password, ota_password, api_key, va_secret,
-#        va_certificate,
-#        static_ip, gateway, subnet, dns1, dns2
-#   3. Install once. After that, click Update whenever a new version ships.
+# Copy this into ESPHome Device Builder once (take control of the device, then
+# edit its YAML), and put the secrets it uses in Builder -> Secrets.
 #
-# (For DHCP instead of a fixed IP, use esphome-builder.dhcp.yaml.)
+# For an address from DHCP, use esphome-builder.dhcp.yaml instead.
 # ============================================================================
 substitutions:
-  name: my-voice-pe                  # your device's name -- keep it stable!
+  name: home-assistant-voice-xxxxxx   # your device's name: keep it stable
   friendly_name: Home Assistant Voice
-  # Secrets -> substitutions (a remote package can't use !secret directly):
-  wifi_ssid: !secret wifi_ssid
-  wifi_password: !secret wifi_password
-  ota_password: !secret ota_password
-  api_key: !secret api_key
-  va_secret: !secret va_secret
-  va_certificate: !secret va_certificate
-  static_ip: !secret static_ip
-  gateway: !secret gateway
-  subnet: !secret subnet
-  dns1: !secret dns1
-  dns2: !secret dns2
 
-# Long form ON PURPOSE: the github:// shorthand has no refresh option, and
-# ESPHome then caches the downloaded yaml for a DAY -- clicking Update right
-# after a release could silently rebuild yesterday's code. refresh: 0s makes
-# every compile fetch the latest release.
+esphome:
+  name_add_mac_suffix: false
+
+# Long form on purpose: the github:// shorthand has no refresh option, and
+# ESPHome then caches the downloaded yaml for a day; refresh: 0s makes every
+# compile fetch the latest.
 packages:
   realtime:
     url: https://github.com/craig-b/ha-openai-realtime
     ref: main
     files: [firmware/home-assistant-voice.realtime.yaml]
     refresh: 0s
-  # Merge a manual_ip block into the firmware's wifi: config for a fixed IP:
-  static_ip:
-    wifi:
-      manual_ip:
-        static_ip: ${static_ip}
-        gateway: ${gateway}
-        subnet: ${subnet}
-        dns1: ${dns1}
-        dns2: ${dns2}
+
+# Uploads from ESPHome Builder, with a password: how a self-built firmware
+# gets its own updates. (The prebuilt firmware takes no uploads, so the first
+# install of a self-built one onto it is over USB.)
+ota:
+  - platform: esphome
+    id: ota_esphome
+    password: !secret ota_password
+
+# Updates come from Builder, which rebuilds with this stub: not from the
+# prebuilt firmware's releases, whose image would replace what's built in here.
+update: !remove
 
 dashboard_import:
   package_import_url: github://craig-b/ha-openai-realtime/firmware/home-assistant-voice.realtime.yaml@main
   import_full_config: false
+
+# Wi-Fi in the build, with a fixed IP (the network itself is optional: leave out
+# ssid and password to set it over Bluetooth).
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: !secret static_ip
+    gateway: !secret gateway
+    subnet: !secret subnet
+    dns1: !secret dns1
+    dns2: !secret dns2
+
+# Optional: your own API key.
+api:
+  encryption:
+    key: !secret api_key
+
+# Optional: the link to the add-on in the build: its address (wss://, the
+# add-on's port), its device_secret, and the certificate its log prints.
+va_client:
+  url: !secret va_url
+  secret: !secret va_secret
+  certificate: !secret va_certificate
