@@ -2,6 +2,19 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.9.1
+
+Update the add-on, and the integration in HACS (then restart Home Assistant). The
+firmware is unchanged.
+
+- **The integration now adds the Voice PE's Assist satellite.** It failed to: the
+  ESPHome integration knows the Voice PE by its MAC address alone, which the
+  integration didn't expect. *(integration)*
+- **The add-on stays connected to Home Assistant through its restarts.** When Home
+  Assistant restarted, the add-on stopped hearing automations' requests and stopped
+  reporting the device's state, until the add-on itself was restarted. It now
+  reconnects whatever ended the connection, and logs each outage.
+
 ## 0.9.0
 
 Update the add-on. The new integration is optional: to make the Voice PE an Assist
