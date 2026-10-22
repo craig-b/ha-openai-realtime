@@ -85,6 +85,8 @@ class Settings:
     model: str
     voice: str
     speed: float
+    # How hard a reasoning model thinks before answering; ignored by models that don't reason.
+    reasoning_effort: str
     # None = no limit (the API default).
     max_output_tokens: int | None
     # semantic_vad, OpenAI's recommended mode, or the classic silence-based server_vad.
@@ -148,6 +150,7 @@ class Settings:
             model=_resolve_choice("OPENAI_MODEL", "OPENAI_MODEL_CUSTOM", "gpt-realtime-2.1"),
             voice=_resolve_choice("OPENAI_VOICE", "OPENAI_VOICE_CUSTOM", "marin"),
             speed=_float("OPENAI_SPEED", 1.0, 0.25, 1.5),
+            reasoning_effort=_choice("REASONING_EFFORT", ("minimal", "low", "medium", "high", "xhigh"), "low"),
             max_output_tokens=max_output_tokens if max_output_tokens > 0 else None,
             turn_detection_type=_choice("TURN_DETECTION_TYPE", ("semantic_vad", "server_vad"), "semantic_vad"),
             vad_eagerness=_choice("VAD_EAGERNESS", ("low", "medium", "high", "auto"), "low"),

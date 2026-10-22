@@ -72,6 +72,7 @@ options:
     model: "gpt-realtime-2.1"
     voice: "marin"
     speed: 1.0
+    reasoning_effort: "low"
     max_output_tokens: 0
     vad_eagerness: "low"
     noise_reduction: "off"
@@ -129,6 +130,7 @@ schema:
     voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
     voice_custom: str?
     speed: float(0.25,1.5)
+    reasoning_effort: "list(minimal|low|medium|high|xhigh)"
     max_output_tokens: int(0,4096)
     vad_eagerness: "list(low|medium|high|auto)"
     noise_reduction: "list(off|near_field|far_field)"

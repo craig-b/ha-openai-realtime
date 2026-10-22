@@ -67,6 +67,14 @@ configuration:
         description: >-
           1.0 = normal. Lower is slower and clearer (down to 0.25), higher is
           faster (up to 1.5). Changes only the pace, not the words.
+      reasoning_effort:
+        name: "Reasoning effort"
+        description: >-
+          How hard the model thinks before it answers. "low" (default) is
+          OpenAI's recommended start for voice: quick, and it still picks the
+          right device. Higher thinks longer before answering, for harder
+          requests; "minimal" is the quickest. gpt-realtime-1.5 doesn't reason
+          and ignores this.
       max_output_tokens:
         name: "Maximum answer length"
         description: >-

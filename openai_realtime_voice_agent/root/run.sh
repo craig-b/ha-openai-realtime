@@ -10,6 +10,7 @@ INSTRUCTIONS=$(bashio::config 'instructions')
 OPENAI_MODEL=$(bashio::config 'realtime.model')
 OPENAI_VOICE=$(bashio::config 'realtime.voice')
 OPENAI_SPEED=$(bashio::config 'realtime.speed')
+REASONING_EFFORT=$(bashio::config 'realtime.reasoning_effort')
 MAX_OUTPUT_TOKENS=$(bashio::config 'realtime.max_output_tokens')
 VAD_EAGERNESS=$(bashio::config 'realtime.vad_eagerness')
 NOISE_REDUCTION=$(bashio::config 'realtime.noise_reduction')
@@ -57,6 +58,7 @@ export TRANSCRIPTION_LANGUAGE
 export OPENAI_MODEL
 export OPENAI_VOICE
 export OPENAI_SPEED
+export REASONING_EFFORT
 export MAX_OUTPUT_TOKENS
 export FOLLOW_UP_LISTEN_SECONDS
 export FOLLOW_UP_OPEN_DELAY_MS

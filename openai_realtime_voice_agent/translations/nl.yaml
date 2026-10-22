@@ -69,6 +69,14 @@ configuration:
         description: >-
           1.0 = normaal. Lager is langzamer en duidelijker (minimaal 0.25), hoger
           is sneller (maximaal 1.5). Verandert alleen het tempo, niet de woorden.
+      reasoning_effort:
+        name: "Redeneerinspanning"
+        description: >-
+          Hoe lang het model nadenkt voordat het antwoordt. "low" (standaard)
+          is OpenAI's aanbevolen begin voor spraak: snel, en het kiest nog steeds
+          het juiste apparaat. Hoger denkt langer na voor het antwoordt, voor
+          lastigere vragen; "minimal" is het snelst. gpt-realtime-1.5 redeneert
+          niet en negeert dit.
       max_output_tokens:
         name: "Maximale antwoordlengte"
         description: >-

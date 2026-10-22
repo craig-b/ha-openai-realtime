@@ -8,7 +8,7 @@ import dotenv
 import httpx
 from openai import AsyncOpenAI
 
-from app.agent import Agent, SessionSetup
+from app.agent import Agent, SessionSetup, takes_reasoning
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
 from app.tools import (
@@ -127,7 +127,8 @@ class Application:
             logger.warning("⚠️ No Home Assistant token: no Home Assistant tools")
         self._client = AsyncOpenAI(api_key=s.openai_api_key)
         self.agent = Agent(s, self._client, self._session_setup)
-        logger.info(f"🎚️ {s.model}, voice {s.voice}, turn detection {s.turn_detection_type}")
+        reasoning = f"reasoning {s.reasoning_effort}" if takes_reasoning(s.model) else "no reasoning"
+        logger.info(f"🎚️ {s.model} ({reasoning}), voice {s.voice}, turn detection {s.turn_detection_type}")
         if s.log_what_you_say:
             language = s.transcription_language or ("Home Assistant's language" if s.ha_token else "en")
             logger.info(f"🗣️ Logging what you say, transcribed by {Agent.TRANSCRIPTION_MODEL} ({language})")

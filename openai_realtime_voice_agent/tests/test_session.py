@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 import pytest_asyncio
 
-from app.agent import Agent
+from app.agent import Agent, takes_reasoning
 from tests.fakes import pcm_tone, wait_until
 
 
@@ -142,6 +142,29 @@ async def test_a_session_that_is_never_configured_reports_an_error(openai, devic
     conn = await openai.connection()
     await wait_until(lambda: device.errors, 3.0, "an error message")
     await asyncio.wait_for(conn.closed.wait(), 2.0)
+
+
+# --- reasoning -------------------------------------------------------------------
+
+async def test_reasoning_effort_is_low_by_default(openai, session):
+    assert session.session["reasoning"] == {"effort": "low"}
+
+
+async def test_reasoning_effort_can_be_set(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(REASONING_EFFORT="minimal"))
+    assert conn.session["reasoning"] == {"effort": "minimal"}
+
+
+async def test_a_model_that_does_not_reason_is_not_sent_a_reasoning_effort(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(OPENAI_MODEL="gpt-realtime-1.5"))
+    assert "reasoning" not in conn.session
+
+
+def test_which_models_take_a_reasoning_effort():
+    assert all(map(takes_reasoning, ["gpt-realtime-2", "gpt-realtime-2.1", "gpt-realtime-2.1-mini", "gpt-realtime-3"]))
+    assert not any(map(takes_reasoning, [
+        "gpt-realtime-1.5", "gpt-realtime", "gpt-realtime-mini", "gpt-realtime-2025-08-28", "gpt-4o-realtime-preview",
+    ]))
 
 
 # --- closing ---------------------------------------------------------------------

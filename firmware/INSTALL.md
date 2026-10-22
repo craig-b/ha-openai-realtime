@@ -82,6 +82,7 @@ the **⚡ Realtime settings** panel:
 | `realtime → model` | `gpt-realtime-2.1` |
 | `realtime → voice` | `marin` (or `cedar`) |
 | `realtime → speed` | `1.0` |
+| `realtime → reasoning_effort` | `low` |
 | `realtime → max_output_tokens` | `0` (unlimited) |
 | `realtime → noise_reduction` | `off` |
 | `realtime → vad_eagerness` | `low` |

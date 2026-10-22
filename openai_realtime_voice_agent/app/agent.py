@@ -31,6 +31,7 @@ import base64
 import enum
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -433,6 +434,8 @@ class Agent:
         }
         if s.max_output_tokens is not None:
             config["max_output_tokens"] = s.max_output_tokens
+        if takes_reasoning(s.model):
+            config["reasoning"] = {"effort": s.reasoning_effort}
         truncation: dict = {"type": "retention_ratio", "retention_ratio": self.RETENTION_RATIO}
         if s.max_context_tokens:
             truncation["token_limits"] = {"post_instructions": s.max_context_tokens}
@@ -653,6 +656,16 @@ class Agent:
         elif self.phases.current == "thinking":
             # Errors leave the session usable, but this turn may get no reply.
             self._unstick(f"{code}: {error.get('message', '')}")
+
+
+def takes_reasoning(model: str) -> bool:
+    """Whether `model` takes a reasoning effort: gpt-realtime-2 and later do.
+
+    Others reject the session with it, so it isn't sent to them. A dated
+    snapshot (gpt-realtime-2025-08-28) is of the first model, which doesn't.
+    """
+    match = re.match(r"gpt-realtime-(\d+)(?:[.-]|$)", model)
+    return bool(match) and 2 <= int(match.group(1)) < 2000
 
 
 def _b64(audio: bytes) -> str:
