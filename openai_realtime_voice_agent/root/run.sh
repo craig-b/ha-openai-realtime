@@ -4,6 +4,7 @@ set -e
 # --- 🔑 Basics ---
 OPENAI_API_KEY=$(bashio::config 'openai_api_key')
 DEVICE_SECRET=$(bashio::config 'device_secret')
+ENGINE=$(bashio::config 'engine')
 
 # --- ⚡ Realtime (the `realtime` section) ---
 INSTRUCTIONS=$(bashio::config 'realtime.instructions')
@@ -17,6 +18,16 @@ VAD_EAGERNESS=$(bashio::config 'realtime.vad_eagerness')
 NOISE_REDUCTION=$(bashio::config 'realtime.noise_reduction')
 WEB_SEARCH_MODEL=$(bashio::config 'realtime.web_search_model')
 MAX_CONTEXT_TOKENS=$(bashio::config 'realtime.max_context_tokens')
+
+# --- 🎙️ GPT-Live (the `live` section) ---
+LIVE_INSTRUCTIONS=$(bashio::config 'live.instructions')
+LIVE_MODEL=$(bashio::config 'live.model')
+LIVE_VOICE=$(bashio::config 'live.voice')
+LIVE_BACKEND_MODEL=$(bashio::config 'live.backend_model')
+LIVE_BACKEND_INSTRUCTIONS=$(bashio::config 'live.backend_instructions')
+LIVE_REASONING_EFFORT=$(bashio::config 'live.reasoning_effort')
+LIVE_SERVICE_TIER=$(bashio::config 'live.service_tier')
+LIVE_SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'live.session_reuse_timeout_seconds')
 
 # --- 💬 Conversation ---
 FOLLOW_UP_LISTEN_SECONDS=$(bashio::config 'follow_up_listen_seconds')
@@ -53,6 +64,15 @@ fi
 # Export environment variables
 export OPENAI_API_KEY
 export DEVICE_SECRET
+export ENGINE
+export LIVE_INSTRUCTIONS
+export LIVE_MODEL
+export LIVE_VOICE
+export LIVE_BACKEND_MODEL
+export LIVE_BACKEND_INSTRUCTIONS
+export LIVE_REASONING_EFFORT
+export LIVE_SERVICE_TIER
+export LIVE_SESSION_REUSE_TIMEOUT_SECONDS
 export INSTRUCTIONS
 export TRANSCRIPTION_LANGUAGE
 export OPENAI_MODEL
@@ -78,7 +98,7 @@ export LOG_WHAT_YOU_SAY
 export ENABLE_RECORDING
 export LOG_LEVEL
 
-# The *_custom escape hatches (⚡ Realtime) are optional WITHOUT defaults —
+# The *_custom escape hatches (⚡ Realtime, 🎙️ GPT-Live) are optional WITHOUT defaults —
 # bashio::config prints "null" for unset optionals, and config.py's
 # _resolve_choice would treat that literal string as a real custom value.
 # Only export when actually set.
@@ -89,6 +109,14 @@ fi
 if bashio::config.has_value 'realtime.voice_custom'; then
     OPENAI_VOICE_CUSTOM=$(bashio::config 'realtime.voice_custom')
     export OPENAI_VOICE_CUSTOM
+fi
+if bashio::config.has_value 'live.voice_custom'; then
+    LIVE_VOICE_CUSTOM=$(bashio::config 'live.voice_custom')
+    export LIVE_VOICE_CUSTOM
+fi
+if bashio::config.has_value 'live.backend_model_custom'; then
+    LIVE_BACKEND_MODEL_CUSTOM=$(bashio::config 'live.backend_model_custom')
+    export LIVE_BACKEND_MODEL_CUSTOM
 fi
 if bashio::config.has_value 'realtime.web_search_model_custom'; then
     WEB_SEARCH_MODEL_CUSTOM=$(bashio::config 'realtime.web_search_model_custom')

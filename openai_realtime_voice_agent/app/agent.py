@@ -36,6 +36,7 @@ from app.audio import OPENAI_RATE, InputResampler, ReplyAudio, SessionRecording
 from app.config import Settings
 from app.device import DeviceServer
 from app.phases import PhaseTracker, TurnLiveness
+from app.live import LiveSession
 from app.realtime import RealtimeSession
 from app.session import Session, SessionFailed, SessionSetup
 from app.tls import server_context
@@ -304,7 +305,8 @@ class Agent:
     async def _open(self, why: str) -> None:
         started = time.monotonic()
         logger.info(f"🔌 opening an OpenAI session ({why})")
-        session = RealtimeSession(self.settings, self._client, self)
+        engine = LiveSession if self.settings.engine == "live" else RealtimeSession
+        session = engine(self.settings, self._client, self)
         self._session = session
         setup_task = asyncio.create_task(self._session_setup(), name="session_setup")
         try:

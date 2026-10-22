@@ -75,11 +75,12 @@ blank to expose all, or trim to just what you use, e.g.:
 
 **The defaults are the recommended settings** — for a first run you only need the
 API key, the device secret, and the MCP integration (section 3). The
-Configuration tab is grouped: **🔑 Basics → ⚡ Realtime settings → 💬 Conversation →
+Configuration tab is grouped: **🔑 Basics → ⚡ Realtime settings → 🎙️ GPT-Live settings → 💬 Conversation →
 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug**, and every
 option has plain-language inline help. The **⚡ Realtime settings** are a panel of
 their own (`realtime → …` below): the model, its voice and everything else only the
-Realtime models use. Settings saved before the panel existed are moved into it
+Realtime models use; the **🎙️ GPT-Live settings** are its counterpart for the GPT-Live
+engine (section 5). Settings saved before the panels existed are moved into them
 automatically the first time the add-on starts, after which it restarts once.
 
 | Option | Default | Note |
@@ -100,7 +101,27 @@ automatically the first time the add-on starts, after which it restarts once.
 The legacy `server_vad` turn-detection fields are at the bottom of the ⚡ Realtime
 settings — leave them empty unless you have a specific reason.
 
-## 5. Web search
+## 5. Choosing an engine: Realtime or GPT-Live
+
+The **Engine** option (🔑 Basics) picks which kind of OpenAI voice model runs the
+conversation. Each has its own settings panel; only the chosen engine's are used.
+
+| | Realtime (default) | GPT-Live |
+|---|---|---|
+| How it works | one model (`gpt-realtime-2.1`) listens, thinks and speaks, in turns | a voice (`gpt-live-1`) that listens and speaks at once, and hands anything that needs doing to a backend model (`gpt-6-luna`), which calls the tools |
+| Prompts | one: `realtime → instructions` | two: the voice's (`live → instructions`) and the backend's (`live → backend_instructions`) |
+| Billing | per token of audio and text | $0.05 per minute a conversation is open, plus the backend's tokens |
+| Between conversations | the session stays open for `realtime → session_reuse_timeout_seconds` (300), costing nothing | closes as soon as the conversation ends (`live → session_reuse_timeout_seconds`, 0), since open minutes are billed |
+| Web search | the add-on's own search call, on `realtime → web_search_model` | the backend model's own web search |
+| Log of what you said | with `log_what_you_say` | always |
+
+With GPT-Live the light ring shows what is really happening rather than turns:
+**listening** while it hears you, **thinking** while the backend works, **replying**
+while its voice is audible. It often acknowledges a request at once ("Okay, turning
+on the kitchen light") and confirms when the backend is done; the backend prompt
+can steer that.
+
+## 6. Web search
 
 When **`enable_web_search`** is on (**the default**), the assistant gets a `web_search` tool. When
 it needs current or general info (weather, news, facts), it calls that tool; the
@@ -115,7 +136,7 @@ answer back.
 - If the model name is rejected, the assistant just says it couldn't search — it
   won't crash the session, so you can change `realtime → web_search_model` and retry.
 
-## 6. Options reference & tuning
+## 7. Options reference & tuning
 
 Every option has a description on the **Configuration** tab. The ones worth knowing:
 
@@ -138,7 +159,7 @@ doesn't open: the device plays its error sound, and the log names the setting to
 change, e.g. `OpenAI refused the session's settings: … check the setting realtime →
 reasoning_effort`.
 
-## 7. Reading the logs
+## 8. Reading the logs
 
 The add-on log shows each turn: `🤖 assistant:` (the reply text), `🗣️ user:`
 (what it heard you say, with `log_what_you_say` on), `📞 phase ->` (device state), tool calls, and

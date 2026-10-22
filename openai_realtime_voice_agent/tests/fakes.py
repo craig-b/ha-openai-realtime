@@ -281,6 +281,9 @@ class FakeRealtimeServer:
         self.configure_sessions = True
         # An error to answer each session.update with, as OpenAI does when it refuses a setting.
         self.refuse_sessions_with: Optional[dict] = None
+        # GPT-Live sessions (/v1/live/sessions), and an error to answer session.start with.
+        self.live_connections: list[FakeLiveConnection] = []
+        self.refuse_live_with: Optional[dict] = None
 
     @property
     def base_url(self) -> str:
@@ -303,6 +306,9 @@ class FakeRealtimeServer:
         return None
 
     async def _handle(self, websocket) -> None:
+        if websocket.request.path.startswith("/v1/live/sessions"):
+            await self._handle_live(websocket)
+            return
         conn = FakeRealtimeConnection(websocket, websocket.request.path)
         self.connections.append(conn)
         try:
@@ -324,6 +330,33 @@ class FakeRealtimeServer:
         finally:
             conn.closed.set()
 
+    async def _handle_live(self, websocket) -> None:
+        conn = FakeLiveConnection(websocket, websocket.request.headers.get("Authorization", ""))
+        self.live_connections.append(conn)
+        try:
+            async for message in websocket:
+                event = json.loads(message)
+                conn.events.append(event)
+                if event.get("type") == "session.start":
+                    if self.refuse_live_with:
+                        await conn.send({"type": "error", "error": self.refuse_live_with})
+                    else:
+                        await conn.send({"type": "session.started", "session": {"id": _id("live"), **event["session"]}})
+                elif event.get("type") == "session.close":
+                    await conn.send({"type": "session.closed", "reason": "close_requested", "usage": {"seconds": 12.0}})
+                    await websocket.close()
+        except websockets.ConnectionClosed:
+            pass
+        finally:
+            conn.closed.set()
+
+    async def live_connection(self, index: int = 0, timeout: float = 5.0) -> "FakeLiveConnection":
+        """Wait for the `index`-th GPT-Live connection (0-based) and for its session.start."""
+        await wait_until(lambda: len(self.live_connections) > index, timeout, f"GPT-Live connection #{index}")
+        conn = self.live_connections[index]
+        await conn.wait_for("session.start", timeout=timeout)
+        return conn
+
     async def connection(self, index: int = 0, timeout: float = 5.0) -> FakeRealtimeConnection:
         """Wait for the `index`-th connection (0-based) and for its session to be configured."""
         await wait_until(lambda: len(self.connections) > index, timeout, f"OpenAI connection #{index}")
@@ -334,6 +367,56 @@ class FakeRealtimeServer:
     @property
     def live(self) -> list[FakeRealtimeConnection]:
         return [c for c in self.connections if not c.closed.is_set()]
+
+
+class FakeLiveConnection(FakeRealtimeConnection):
+    """One client connection to the fake GPT-Live (/v1/live/sessions)."""
+
+    def __init__(self, websocket, authorization: str):
+        super().__init__(websocket, "/v1/live/sessions")
+        self.authorization = authorization
+        self.ms = 0
+
+    @property
+    def session(self) -> dict:
+        """The session config from session.start."""
+        return self.of_type("session.start")[-1]["session"]
+
+    def appended_audio(self) -> bytes:
+        return b"".join(base64.b64decode(e["audio"]) for e in self.of_type("session.input_audio.append"))
+
+    async def heard(self, text: str) -> None:
+        """GPT-Live hears the user say `text`."""
+        for word in text.split(" "):
+            await self.send({"type": "session.input_transcript.delta", "delta": word + " ",
+                             "start_ms": self.ms, "end_ms": self.ms + 200})
+            self.ms += 200
+
+    async def says(self, text: str, audio: bytes) -> None:
+        """GPT-Live speaks: its words, and the audio of them, in 100 ms chunks."""
+        await self.send({"type": "session.output_transcript.delta", "delta": text,
+                         "start_ms": self.ms, "end_ms": self.ms + 200})
+        chunk = 24000 * 2 // 10
+        for i in range(0, len(audio), chunk):
+            await self.send({"type": "session.output_audio.delta",
+                             "delta": base64.b64encode(audio[i:i + chunk]).decode()})
+
+    async def delegates(self) -> None:
+        await self.send({"type": "session.delegation.created",
+                         "delegation": {"id": _id("dlg"), "target": "responses", "offset_ms": self.ms}})
+
+    async def backend(self, event: dict) -> None:
+        await self.send({"type": "response.event", "event": event})
+
+    async def function_call(self, name: str, arguments: dict) -> str:
+        """The backend's response calls a tool, and completes; returns the call id."""
+        call_id, response_id = _id("call"), _id("resp")
+        await self.backend({"type": "response.created", "response": {"id": response_id}})
+        await self.backend({"type": "response.output_item.done", "item": {
+            "type": "function_call", "id": _id("fc"), "call_id": call_id, "name": name,
+            "arguments": json.dumps(arguments)}})
+        await self.backend({"type": "response.completed", "response": {"id": response_id}})
+        return call_id
 
 
 class FakeDevice:

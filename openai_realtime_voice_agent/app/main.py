@@ -68,7 +68,8 @@ class Application:
         tools = Tools()
         if s.enable_disconnect_tool:
             tools.add(DISCONNECT_DEFINITION, disconnect(lambda: self.agent.device.close_device()))
-        if s.enable_web_search:
+        if s.enable_web_search and s.engine == "realtime":
+            # GPT-Live's backend searches the web with OpenAI's own tool instead.
             tools.add(WEB_SEARCH_DEFINITION, web_search(self._client, s.web_search_model))
         if s.ha_token:
             for definition, handler in await self._read_home_assistant_tools():
@@ -94,7 +95,7 @@ class Application:
     async def _transcription_languages(self) -> list[str]:
         """The languages set, or else Home Assistant's own (e.g. "en-GB" → "en")."""
         s = self.settings
-        if not s.log_what_you_say or s.transcription_language == "auto":
+        if not s.log_what_you_say or s.engine != "realtime" or s.transcription_language == "auto":
             return []
         if s.transcription_language:
             return [code.strip() for code in s.transcription_language.split(",") if code.strip()]
@@ -129,9 +130,16 @@ class Application:
             logger.warning("⚠️ No Home Assistant token: no Home Assistant tools")
         self._client = AsyncOpenAI(api_key=s.openai_api_key)
         self.agent = Agent(s, self._client, self._session_setup)
-        reasoning = f"reasoning {s.reasoning_effort}" if takes_reasoning(s.model) else "no reasoning"
-        logger.info(f"🎚️ {s.model} ({reasoning}), voice {s.voice}, turn detection {s.turn_detection_type}")
-        if s.log_what_you_say:
+        if s.engine == "live":
+            tier = "" if s.live_service_tier == "auto" else f", {s.live_service_tier} tier"
+            logger.info(
+                f"🎚️ GPT-Live {s.live_model}, voice {s.live_voice}; backend {s.live_backend_model} "
+                f"(reasoning {s.live_reasoning_effort}{tier})"
+            )
+        else:
+            reasoning = f"reasoning {s.reasoning_effort}" if takes_reasoning(s.model) else "no reasoning"
+            logger.info(f"🎚️ {s.model} ({reasoning}), voice {s.voice}, turn detection {s.turn_detection_type}")
+        if s.log_what_you_say and s.engine == "realtime":
             language = s.transcription_language or ("Home Assistant's language" if s.ha_token else "en")
             logger.info(f"🗣️ Logging what you say, transcribed by {RealtimeSession.TRANSCRIPTION_MODEL} ({language})")
         logger.info(

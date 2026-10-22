@@ -207,6 +207,18 @@ The add-on keeps one OpenAI Realtime session per conversation.
   until the next `wake`, or at once if a `wake` is still waiting for the user
   to speak. The new session starts afresh.
 
+### With GPT-Live
+
+With `engine: live` the session is a GPT-Live session, and the device protocol is
+unchanged. GPT-Live has no turns, so the phases follow what it reports:
+`listening` when it hears the user's first words, `thinking` when it hands work to
+its backend, `replying` while its voice is audible (silent audio isn't sent to the
+device), and `idle` once the voice has been silent for 0.6 s, after the usual
+debounce. The session closes when the conversation on the device ends
+(`live → session_reuse_timeout_seconds`, default 0), as open minutes are billed.
+A device `interrupt` drops GPT-Live's voice until the next `wake`, and asks
+GPT-Live to stop speaking.
+
 ## Mic gate
 
 The device forwards mic audio only while its gate is open:

@@ -20,11 +20,22 @@ configuration:
       waarde als va_secret in je ESPHome-secrets.yaml. Zonder geheim start de
       add-on niet.
 
+  engine:
+    name: "🔑 Basis · Engine"
+    description: >-
+      Welk soort OpenAI-spraakmodel je gebruikt. "realtime" (standaard): één
+      model luistert, denkt en spreekt, om de beurt. "live": GPT-Live, een stem
+      die tegelijk luistert en spreekt en alles wat gedaan moet worden aan een
+      slimmer backend-model overlaat; het rekent elke minuut dat een gesprek
+      open is ($0,05) plus de tokens van de backend. Elke engine heeft
+      hieronder een eigen instellingenpaneel; alleen dat van de gekozen engine
+      wordt gebruikt.
+
   # --- ⚡ Realtime ---
   realtime:
     name: "⚡ Realtime-instellingen"
     description: >-
-      Instellingen voor de Realtime-engine: OpenAI's gpt-realtime-modellen,
+      Instellingen voor de Realtime-engine (Engine: realtime): OpenAI's gpt-realtime-modellen,
       die in één model luisteren, denken en spreken.
     fields:
       instructions:
@@ -150,6 +161,73 @@ configuration:
           Alleen bij server_vad. Hoe lang een stilte je vraag beëindigt
           (standaard 800). Verhoog als je wordt afgekapt bij een pauze.
 
+  # --- 🎙️ GPT-Live ---
+  live:
+    name: "🎙️ GPT-Live-instellingen"
+    description: >-
+      Instellingen voor de GPT-Live-engine (Engine: live): een stem die alles
+      wat gedaan moet worden aan een backend-model overlaat, dat de tools
+      gebruikt.
+    fields:
+      instructions:
+        name: "Persoonlijkheid van de stem (prompt)"
+        description: >-
+          Instructies voor de stem waarmee je praat: karakter, taal, en wat hij
+          aan de backend overlaat. Leg hier de taal vast. BEWERKTIP: gebruik
+          het ⋮-menu bovenaan dit tabblad → "Bewerken als YAML".
+      model:
+        name: "Stemmodel"
+        description: >-
+          Het GPT-Live-model, gpt-live-1 (standaard).
+      voice:
+        name: "Stem"
+        description: >-
+          De stem waarmee hij praat; GPT-Live heeft een eigen set, met marin
+          (standaard). Voor een andere stem, of het id van een eigen stem: kies
+          "custom" en vul hieronder Stem (custom) in.
+      voice_custom:
+        name: "Stem (custom)"
+        description: >-
+          Alleen gebruikt als Stem op "custom" staat.
+      backend_model:
+        name: "Backend-model"
+        description: >-
+          Het model waaraan de stem het werk overlaat: het gebruikt de Home
+          Assistant-tools en zoekt op internet. gpt-6-luna (standaard) is snel;
+          gpt-6-sol denkt beter na, voor lastigere vragen, en kost meer. Voor een
+          ander model: kies "custom" en vul hieronder Backend-model (custom) in.
+      backend_model_custom:
+        name: "Backend-model (custom)"
+        description: >-
+          Alleen gebruikt als Backend-model op "custom" staat. Elk model voor
+          OpenAI's Responses API.
+      backend_instructions:
+        name: "Backend-instructies (prompt)"
+        description: >-
+          Instructies voor het backend-model: hoe het de tools gebruikt, wanneer
+          het op internet zoekt in plaats van wat het weet of je sensoren te
+          gebruiken, en hoe het antwoordt. Bewerk via "Bewerken als YAML"
+          (⋮-menu).
+      reasoning_effort:
+        name: "Redeneerinspanning van de backend"
+        description: >-
+          Hoe lang de backend nadenkt voordat hij iets doet. "low" (standaard)
+          is snel en kiest nog steeds het juiste apparaat; hoger denkt langer na,
+          voor lastigere vragen; "minimal" is het snelst.
+      service_tier:
+        name: "Snelheid en prijs van de backend"
+        description: >-
+          "auto" (standaard) volgt de instelling van je OpenAI-project, meestal
+          "default". "priority" antwoordt sneller tegen een hogere prijs, als je
+          project er toegang toe heeft.
+      session_reuse_timeout_seconds:
+        name: "Wachttijd gesprek (seconden)"
+        description: >-
+          Hoe lang een gesprek open blijft nadat je bent gestopt met praten.
+          GPT-Live rekent elke minuut dat een gesprek open is, dus 0 (standaard)
+          sluit het zodra het apparaat stopt met luisteren; de volgende wake
+          begint opnieuw.
+
   # --- 💬 Gesprek ---
   follow_up_listen_seconds:
     name: "💬 Gesprek · Naluisteren (seconden)"
@@ -191,6 +269,9 @@ configuration:
       Laat de assistent dingen online opzoeken: weer, nieuws, openingstijden,
       actualiteiten. Elke zoekactie is één extra OpenAI-aanroep op jouw
       sleutel (een paar cent) en duurt een paar seconden extra. Standaard aan.
+      Zet het uit voor een assistent die alleen je huis kent, of als Home
+      Assistant hem een eigen zoektool geeft. Met GPT-Live zoekt het
+      backend-model met OpenAI's eigen tool.
 
   # --- 🎚️ Audio ---
   playback_prebuffer_ms:
@@ -240,7 +321,8 @@ configuration:
       Schrijft in het add-on-log wat de assistent je hoorde zeggen (de
       🗣️-regels), om uit te zoeken wat hij verkeerd verstond. Een apart
       transcriptiemodel doet dit, tegen een kleine meerprijs. Het verandert
-      niet hoe de assistent je verstaat: die hoort je stem zelf.
+      niet hoe de assistent je verstaat: die hoort je stem zelf. Alleen voor
+      Realtime: GPT-Live logt altijd wat hij hoorde.
   transcription_language:
     name: "🔍 Debug · Talen die je spreekt (bijv. nl, of nl, en)"
     description: >-

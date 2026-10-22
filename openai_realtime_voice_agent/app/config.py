@@ -76,11 +76,16 @@ def device_secret_problem(secret: str) -> str | None:
     return None
 
 
+ENGINES = ("realtime", "live")
+
+
 @dataclass
 class Settings:
     openai_api_key: str
     # What the device sends as `Authorization: Bearer <secret>` to connect.
     device_secret: str
+    # "realtime" (gpt-realtime-*) or "live" (GPT-Live); each has its own settings below.
+    engine: str
     instructions: str
     model: str
     voice: str
@@ -128,10 +133,19 @@ class Settings:
     playback_prebuffer_ms: int
     phase_idle_debounce_s: float
     # How long the OpenAI session, and with it the conversation, stays open
-    # after the last thing that happened in it.
+    # after the last thing that happened in it: the engine's own setting.
     session_idle_timeout_s: int
     # The conversation's size, in tokens, at which OpenAI truncates it (0 = the model's limit).
     max_context_tokens: int
+    # GPT-Live: the voice model, its prompt and voice, and the backend model it
+    # hands work to, with that model's prompt, reasoning effort and service tier.
+    live_model: str
+    live_instructions: str
+    live_voice: str
+    live_backend_model: str
+    live_backend_instructions: str
+    live_reasoning_effort: str
+    live_service_tier: str
     enable_recording: bool
     recording_dir: str
     # Where the device connection's certificate and key are kept.
@@ -144,6 +158,7 @@ class Settings:
         return cls(
             openai_api_key=_str("OPENAI_API_KEY"),
             device_secret=_str("DEVICE_SECRET"),
+            engine=_choice("ENGINE", ENGINES, "realtime"),
             instructions=os.environ.get(
                 "INSTRUCTIONS", "You are the Home Assistant Voice Agent and can control the Smart Home."
             ),
@@ -178,8 +193,27 @@ class Settings:
             wake_open_delay_ms=_int("WAKE_OPEN_DELAY_MS", 700, 0, 5000),
             playback_prebuffer_ms=_int("PLAYBACK_PREBUFFER_MS", 150, 0, 2000),
             phase_idle_debounce_s=_int("PHASE_IDLE_DEBOUNCE_MS", 1500, 0) / 1000,
-            session_idle_timeout_s=_int("SESSION_REUSE_TIMEOUT_SECONDS", 300, 0),
+            session_idle_timeout_s=(
+                _int("LIVE_SESSION_REUSE_TIMEOUT_SECONDS", 0, 0)
+                if _choice("ENGINE", ENGINES, "realtime") == "live"
+                else _int("SESSION_REUSE_TIMEOUT_SECONDS", 300, 0)
+            ),
             max_context_tokens=_int("MAX_CONTEXT_TOKENS", 8000, 0),
+            live_model=_str("LIVE_MODEL") or "gpt-live-1",
+            live_instructions=os.environ.get(
+                "LIVE_INSTRUCTIONS",
+                "You are the voice of the smart home. Hand anything that needs doing, or "
+                "checking, to your backend.",
+            ),
+            live_voice=_resolve_choice("LIVE_VOICE", "LIVE_VOICE_CUSTOM", "marin"),
+            live_backend_model=_resolve_choice("LIVE_BACKEND_MODEL", "LIVE_BACKEND_MODEL_CUSTOM", "gpt-6-luna"),
+            live_backend_instructions=os.environ.get(
+                "LIVE_BACKEND_INSTRUCTIONS", "Control the smart home with your tools. Keep replies short."
+            ),
+            live_reasoning_effort=_choice(
+                "LIVE_REASONING_EFFORT", ("minimal", "low", "medium", "high", "xhigh"), "low"
+            ),
+            live_service_tier=_choice("LIVE_SERVICE_TIER", ("auto", "default", "priority"), "auto"),
             enable_recording=_bool("ENABLE_RECORDING", False),
             # The add-on's own folder in Home Assistant's addon_configs share.
             recording_dir=_str("RECORDING_DIR", "/config/recordings"),

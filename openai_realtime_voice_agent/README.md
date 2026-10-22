@@ -18,7 +18,8 @@ drop-in for the stock HA voice pipeline.
 ## What it does
 
 - **Natural voice conversations** with `gpt-realtime-2.1` (speech in → speech out, no
-  separate STT/TTS step).
+  separate STT/TTS step), or with **GPT-Live**, a voice that listens and speaks at
+  once and hands the work to a smarter backend model.
 - **Controls Home Assistant** through the official HA *MCP Server* integration —
   lights, switches, scenes, climate, etc., scoped to the entities you expose to
   Assist.

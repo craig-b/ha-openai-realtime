@@ -22,8 +22,9 @@ map:
 # ----------------------------------------------------------------------------
 # Options are ORDERED for the Configuration tab (HA renders them in this order)
 # and pseudo-grouped via name prefixes in translations/{en,nl}.yaml:
-#   🔑 Basics → ⚡ Realtime settings (a section) → 💬 Conversation → 🌐 Web
-#   search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug
+#   🔑 Basics (with the engine) → ⚡ Realtime settings and 🎙️ GPT-Live settings
+#   (sections) → 💬 Conversation → 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant
+#   → ⚙️ Advanced → 🔍 Debug
 # Options that only one engine uses live in that engine's section. Saved
 # settings from before the sections are moved into them by app/migrate.py.
 # User-facing help lives in translations/, not here — keep comments dev-facing.
@@ -48,6 +49,7 @@ options:
   # --- 🔑 Basics ---
   openai_api_key: ""
   device_secret: ""
+  engine: "realtime"
 
   # --- ⚡ Realtime settings: a section of its own (a collapsible panel) ---
   # The *_custom fields and the legacy server_vad fields (turn_detection_type,
@@ -79,6 +81,36 @@ options:
     web_search_model: "gpt-5.5"
     max_context_tokens: 8000
     session_reuse_timeout_seconds: 300
+
+  # --- 🎙️ GPT-Live settings: a section of its own ---
+  # *_custom fields have NO defaults: optional (shown anyway, as above).
+  live:
+    instructions: >-
+      You are the cheerful, friendly voice of Home Assistant, speaking with the
+      people in this home. LANGUAGE: Speak and understand only English, with a
+      natural, neutral accent. Never switch language, not even for stray foreign
+      words or an accent. STYLE: Keep replies short and natural; they are heard,
+      not read. Use ordinary names ("the bedroom lamp"), never entity IDs or
+      lists. HANDING OFF: Hand every request to do something in the home, every
+      question about the home's state, and every question that needs current
+      information to your backend, and say what it found; never guess or make
+      up a result. Answer small talk yourself.
+    model: "gpt-live-1"
+    voice: "marin"
+    backend_model: "gpt-6-luna"
+    backend_instructions: >-
+      You carry out requests for the voice assistant of a Home Assistant smart
+      home. Use the Home Assistant tools to control devices and to read the
+      home's state (GetLiveContext gives the current states). Act at once; if
+      it is unclear which device, room or action is meant, say so in one short
+      sentence instead of guessing. Search the web only for current
+      information the home can't give, such as the weather, news or opening
+      hours. Reply in one or two short sentences of plain spoken text: no
+      lists, markdown, links or entity IDs.
+    reasoning_effort: "low"
+    service_tier: "auto"
+    # 0: a GPT-Live session bills every minute it is open.
+    session_reuse_timeout_seconds: 0
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds: 8
@@ -122,6 +154,7 @@ schema:
   # --- 🔑 Basics ---
   openai_api_key: password
   device_secret: password
+  engine: "list(realtime|live)"
   # --- ⚡ Realtime settings ---
   realtime:
     instructions: str
@@ -143,6 +176,18 @@ schema:
     vad_threshold: "float(0,1)?"
     vad_prefix_padding_ms: int?
     vad_silence_duration_ms: int?
+  # --- 🎙️ GPT-Live settings ---
+  live:
+    instructions: str
+    model: str
+    voice: "list(marin|quartz|ripple|vesper|willow|stone|gleam|meridian|bossa|tempo|beacon|delta|cinder|nuri|juni|flitz|brise|sillage|nira|harema|shida|noeul|custom)"
+    voice_custom: str?
+    backend_model: "list(gpt-6-luna|gpt-6-sol|custom)"
+    backend_model_custom: str?
+    backend_instructions: str
+    reasoning_effort: "list(minimal|low|medium|high|xhigh)"
+    service_tier: "list(auto|default|priority)"
+    session_reuse_timeout_seconds: int(0,3600)
   # --- 💬 Conversation ---
   follow_up_listen_seconds: int(0,60)
   follow_up_open_delay_ms: int(0,5000)

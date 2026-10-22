@@ -20,11 +20,21 @@ configuration:
       `openssl rand -hex 32`, and put the same value in your ESPHome
       secrets.yaml as va_secret. The add-on doesn't start without one.
 
+  engine:
+    name: "🔑 Basics · Engine"
+    description: >-
+      Which kind of OpenAI voice model to use. "realtime" (default): one model
+      listens, thinks and speaks, in turns. "live": GPT-Live, a voice that
+      listens and speaks at once and hands anything that needs doing to a
+      smarter backend model; it bills each minute a conversation is open
+      ($0.05) plus the backend's tokens. Each engine has its own settings
+      panel below; only the chosen one's are used.
+
   # --- ⚡ Realtime ---
   realtime:
     name: "⚡ Realtime settings"
     description: >-
-      Settings for the Realtime engine: OpenAI's gpt-realtime models, which
+      Settings for the Realtime engine (Engine: realtime): OpenAI's gpt-realtime models, which
       listen, think and speak in one model.
     fields:
       instructions:
@@ -146,6 +156,72 @@ configuration:
           Only with server_vad. How long a silence ends your question (default
           800). Raise it if you get cut off while pausing.
 
+  # --- 🎙️ GPT-Live ---
+  live:
+    name: "🎙️ GPT-Live settings"
+    description: >-
+      Settings for the GPT-Live engine (Engine: live): a voice that hands
+      anything that needs doing to a backend model, which uses the tools.
+    fields:
+      instructions:
+        name: "Voice personality (prompt)"
+        description: >-
+          Instructions for the voice you talk to: its personality, its
+          language, and what to hand to the backend. Lock the language here.
+          EDITING TIP: for comfortable editing use the ⋮ menu at the top of
+          this tab → "Edit in YAML".
+      model:
+        name: "Voice model"
+        description: >-
+          The GPT-Live model, gpt-live-1 (default).
+      voice:
+        name: "Voice"
+        description: >-
+          The voice it speaks with; GPT-Live has its own set, marin (default)
+          among them. For an unlisted voice, or a custom voice's id, pick
+          "custom" and fill in Voice (custom) below.
+      voice_custom:
+        name: "Voice (custom)"
+        description: >-
+          Only used when Voice is set to "custom".
+      backend_model:
+        name: "Backend model"
+        description: >-
+          The model the voice hands work to: it calls the Home Assistant tools
+          and searches the web. gpt-6-luna (default) is quick; gpt-6-sol thinks
+          harder, for more complex requests, and costs more. For another model
+          pick "custom" and fill in Backend model (custom) below.
+      backend_model_custom:
+        name: "Backend model (custom)"
+        description: >-
+          Only used when Backend model is set to "custom". Any model for
+          OpenAI's Responses API.
+      backend_instructions:
+        name: "Backend instructions (prompt)"
+        description: >-
+          Instructions for the backend model: how to use the tools, when to
+          search the web rather than use what it knows or your home's sensors,
+          and how to reply. Use "Edit in YAML" (⋮ menu) to edit comfortably.
+      reasoning_effort:
+        name: "Backend reasoning effort"
+        description: >-
+          How hard the backend thinks before it acts. "low" (default) is quick
+          and still picks the right device; higher thinks longer, for harder
+          requests; "minimal" is the quickest.
+      service_tier:
+        name: "Backend speed and price"
+        description: >-
+          "auto" (default) uses your OpenAI project's setting, normally
+          "default". "priority" answers faster at a higher price, if your
+          project has access to it.
+      session_reuse_timeout_seconds:
+        name: "Conversation idle timeout (seconds)"
+        description: >-
+          How long a conversation stays open once you've stopped talking to the
+          device. GPT-Live bills every minute a conversation is open, so 0
+          (default) closes it as soon as the device stops listening; the next
+          wake starts afresh.
+
   # --- 💬 Conversation ---
   follow_up_listen_seconds:
     name: "💬 Conversation · Follow-up listening (seconds)"
@@ -185,7 +261,10 @@ configuration:
     description: >-
       Lets the assistant look things up online: weather, news, opening hours,
       recent events. Each lookup is one extra OpenAI call on your key (a few
-      cents) and adds a couple of seconds. On by default.
+      cents) and adds a couple of seconds. On by default. Turn it off for an
+      assistant that only knows your home, or if Home Assistant offers it a
+      search tool of its own. With GPT-Live, the backend model searches with
+      OpenAI's own tool.
 
   # --- 🎚️ Audio ---
   playback_prebuffer_ms:
@@ -233,7 +312,8 @@ configuration:
       Writes what the assistant heard you say into the add-on log (the 🗣️
       lines), to find out what it misheard. A separate transcription model
       does this, at a small extra cost. It doesn't change how the assistant
-      understands you: it hears your voice itself.
+      understands you: it hears your voice itself. Realtime only: GPT-Live
+      always logs what it heard.
   transcription_language:
     name: "🔍 Debug · Languages you speak (e.g. en, or en, nl)"
     description: >-
