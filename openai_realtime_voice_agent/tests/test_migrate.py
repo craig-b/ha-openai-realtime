@@ -15,7 +15,7 @@ from tests.fakes import wait_until
 
 DEFAULTS = {
     "openai_api_key": "sk-test",
-    "realtime": {"model": "gpt-realtime-2", "voice": "marin", "speed": 1.0},
+    "realtime": {"model": "gpt-realtime-2.1", "voice": "marin", "speed": 1.0},
     "enable_web_search": True,
 }
 
@@ -85,6 +85,11 @@ def test_options_under_old_names_move_into_their_section():
         "realtime": {"model": "gpt-realtime-1.5", "voice": "cedar", "speed": 1.0, "vad_threshold": 0.6},
         "enable_web_search": True,
     }
+
+
+def test_a_retired_model_moves_to_its_replacement():
+    assert migrated({**DEFAULTS, "openai_model": "gpt-realtime-mini"})["realtime"]["model"] == "gpt-realtime-2.1-mini"
+    assert migrated({**DEFAULTS, "openai_model": "gpt-realtime"})["realtime"]["model"] == "gpt-realtime-2.1"
 
 
 def test_options_under_new_names_are_left_alone():

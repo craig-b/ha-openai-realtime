@@ -12,7 +12,7 @@
 > **Customized fork** of `maxmaxme/home-assistant-voice-pe` (itself a fork of
 > `esphome/home-assistant-voice-pe`). The Voice PE runs as a **thin client**: it
 > streams microphone audio over a plain WebSocket to a backend add-on, which runs
-> an **OpenAI Realtime API** session (`gpt-realtime-2`) for speech-to-speech and
+> an **OpenAI Realtime API** session (`gpt-realtime-2.1`) for speech-to-speech and
 > controls Home Assistant through the official
 > **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)**
 > integration. There is no Home Assistant `voice_assistant` pipeline on the audio
@@ -37,7 +37,7 @@
 - **"stop" word + button interrupt**: say *"stop"* while the assistant is
   talking, or press the center button, to cancel the reply. This is the reliable
   way to interrupt.
-- **Conversational, with online answers**: because the brain is `gpt-realtime-2`
+- **Conversational, with online answers**: because the brain is `gpt-realtime-2.1`
   in the backend, you get a natural back-and-forth — and with web search enabled it
   can look things up online (weather, news, facts), not just control your devices.
 

@@ -31,6 +31,12 @@ MOVED = {
     "vad_silence_duration_ms": ("realtime", "vad_silence_duration_ms"),
 }
 
+# Models OpenAI retires (shut down on 20 January 2027), and their replacements.
+RETIRED_MODELS = {
+    "gpt-realtime": "gpt-realtime-2.1",
+    "gpt-realtime-mini": "gpt-realtime-2.1-mini",
+}
+
 
 def migrated(options: dict) -> dict | None:
     """`options` with any old names moved to their new place, or None if there are none."""
@@ -40,6 +46,8 @@ def migrated(options: dict) -> dict | None:
     for name, value in options.items():
         if name in MOVED:
             section, key = MOVED[name]
+            if name == "openai_model":
+                value = RETIRED_MODELS.get(value, value)
             result[section] = {**result.get(section, {}), key: value}
     return result
 

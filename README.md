@@ -14,7 +14,7 @@
 
 A Home Assistant **add-on** that turns a [Voice PE](https://www.home-assistant.io/voice-pe/)
 device into a low-latency voice assistant built on **OpenAI's Realtime API**
-(`gpt-realtime-2`). The device streams microphone audio to this add-on over a
+(`gpt-realtime-2.1`). The device streams microphone audio to this add-on over a
 plain WebSocket; the add-on runs the Realtime speech-to-speech session and
 controls Home Assistant through the official
 **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)**
@@ -60,7 +60,7 @@ isn't needed for a normal local-build install.)
 
 ```
 Voice PE (ESP32-S3)  ──WS, 16 kHz PCM up──▶   this add-on    ──▶  OpenAI Realtime API
-  va_client firmware  ◀──── 24 kHz PCM down──  (Python)           (gpt-realtime-2)
+  va_client firmware  ◀──── 24 kHz PCM down──  (Python)           (gpt-realtime-2.1)
                                                    │ tools
                                                    ▼
                                          Home Assistant MCP Server

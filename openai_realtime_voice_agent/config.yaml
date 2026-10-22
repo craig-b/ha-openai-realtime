@@ -1,7 +1,7 @@
 name: OpenAI Realtime 2 Voice Agent
 version: "0.6.0"
 slug: openai_realtime_voice_agent
-description: Talk to your home with OpenAI gpt-realtime-2 — a voice agent for the Home Assistant Voice PE, with live device control and web search.
+description: Talk to your home with OpenAI gpt-realtime-2.1 — a voice agent for the Home Assistant Voice PE, with live device control and web search.
 url: https://github.com/craig-b/ha-openai-realtime
 arch:
   - aarch64
@@ -69,7 +69,7 @@ options:
   # anyway (its "Show unused optional" filter only covers top-level options);
   # their help says when they apply. semantic_vad is config.py's default.
   realtime:
-    model: "gpt-realtime-2"
+    model: "gpt-realtime-2.1"
     voice: "marin"
     speed: 1.0
     max_output_tokens: 0
@@ -124,7 +124,7 @@ schema:
   instructions: str
   # --- ⚡ Realtime settings ---
   realtime:
-    model: "list(gpt-realtime-2|gpt-realtime-1.5|gpt-realtime-mini|gpt-realtime|custom)"
+    model: "list(gpt-realtime-2.1|gpt-realtime-2.1-mini|gpt-realtime-2|gpt-realtime-1.5|custom)"
     model_custom: str?
     voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
     voice_custom: str?

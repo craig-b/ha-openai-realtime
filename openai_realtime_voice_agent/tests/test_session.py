@@ -30,8 +30,8 @@ def fast_idle_check(monkeypatch):
 # --- configuration -------------------------------------------------------------
 
 async def test_the_session_uses_the_configured_model(openai, start_addon, open_session):
-    _, conn = await open_session(await start_addon(OPENAI_MODEL="gpt-realtime-mini"))
-    assert parse_qs(urlsplit(conn.uri).query)["model"] == ["gpt-realtime-mini"]
+    _, conn = await open_session(await start_addon(OPENAI_MODEL="gpt-realtime-2.1-mini"))
+    assert parse_qs(urlsplit(conn.uri).query)["model"] == ["gpt-realtime-2.1-mini"]
 
 
 async def test_the_session_is_configured_for_a_voice_assistant(openai, start_addon, open_session):

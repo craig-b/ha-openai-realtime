@@ -1,6 +1,6 @@
 # OpenAI Realtime 2 Voice Agent
 
-Talk to your home with **OpenAI's `gpt-realtime-2`** speech-to-speech model. This
+Talk to your home with **OpenAI's `gpt-realtime-2.1`** speech-to-speech model. This
 Home Assistant add-on runs the realtime voice session and bridges it to Home
 Assistant device control (via the official **MCP Server** integration) and optional
 **web search** — so you can say *"alexa, turn off the bedroom lamp"* or *"what's the
@@ -17,7 +17,7 @@ drop-in for the stock HA voice pipeline.
 
 ## What it does
 
-- **Natural voice conversations** with `gpt-realtime-2` (speech in → speech out, no
+- **Natural voice conversations** with `gpt-realtime-2.1` (speech in → speech out, no
   separate STT/TTS step).
 - **Controls Home Assistant** through the official HA *MCP Server* integration —
   lights, switches, scenes, climate, etc., scoped to the entities you expose to

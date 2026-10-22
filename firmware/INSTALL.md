@@ -79,7 +79,7 @@ the **⚡ Realtime settings** panel:
 
 | Option | Value |
 |---|---|
-| `realtime → model` | `gpt-realtime-2` |
+| `realtime → model` | `gpt-realtime-2.1` |
 | `realtime → voice` | `marin` (or `cedar`) |
 | `realtime → speed` | `1.0` |
 | `realtime → max_output_tokens` | `0` (unlimited) |

@@ -1,6 +1,6 @@
 # OpenAI Realtime 2 Voice Agent — Documentation
 
-This add-on runs an **OpenAI `gpt-realtime-2`** voice session and bridges it to Home
+This add-on runs an **OpenAI `gpt-realtime-2.1`** voice session and bridges it to Home
 Assistant control and web search. It is the backend half of a two-part project; the
 front half is custom **firmware for the Home Assistant Voice PE** device (see
 [Firmware](#firmware-home-assistant-voice-pe-only) below).
@@ -27,7 +27,7 @@ Voice PE device  ──WebSocket──▶  this add-on  ──▶  OpenAI Realti
 ## 2. Get an OpenAI API key and choose a device secret
 
 1. Go to <https://platform.openai.com/> → **API keys** → **Create new secret key**.
-2. Make sure **billing** is set up on your OpenAI account — `gpt-realtime-2` (audio)
+2. Make sure **billing** is set up on your OpenAI account — `gpt-realtime-2.1` (audio)
    and web search are paid usage.
 3. Paste the key into the add-on's **`openai_api_key`** option.
 4. Set **`device_secret`** to a random string of at least 16 characters with no
@@ -44,7 +44,7 @@ the device needs it as `va_certificate` in your ESPHome secrets (see the
 firmware's INSTALL guide).
 
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
-> tier. `gpt-realtime-2` audio is token-heavy, so if you see *"Rate limit reached"*
+> tier. `gpt-realtime-2.1` audio is token-heavy, so if you see *"Rate limit reached"*
 > in the logs, raise your usage tier in the OpenAI dashboard, or keep
 > `realtime → max_context_tokens` modest (default 8000).
 
@@ -84,7 +84,7 @@ automatically the first time the add-on starts, after which it restarts once.
 
 | Option | Default | Note |
 |---|---|---|
-| `realtime → model` | `gpt-realtime-2` | newest speech-to-speech model |
+| `realtime → model` | `gpt-realtime-2.1` | newest speech-to-speech model |
 | `realtime → voice` | `marin` | `marin`/`cedar` are the newest voices |
 | `instructions` | *(English default)* | the system prompt; swap the LANGUAGE line for your language |
 | `follow_up_listen_seconds` | `8` | mic stays open this long so you can answer back |

@@ -145,7 +145,7 @@ class Settings:
             instructions=os.environ.get(
                 "INSTRUCTIONS", "You are the Home Assistant Voice Agent and can control the Smart Home."
             ),
-            model=_resolve_choice("OPENAI_MODEL", "OPENAI_MODEL_CUSTOM", "gpt-realtime-2"),
+            model=_resolve_choice("OPENAI_MODEL", "OPENAI_MODEL_CUSTOM", "gpt-realtime-2.1"),
             voice=_resolve_choice("OPENAI_VOICE", "OPENAI_VOICE_CUSTOM", "marin"),
             speed=_float("OPENAI_SPEED", 1.0, 0.25, 1.5),
             max_output_tokens=max_output_tokens if max_output_tokens > 0 else None,
