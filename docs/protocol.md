@@ -67,12 +67,12 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 - **Sent:** at the start of every session (`start_session()`): the wake word,
   or the centre button pressed while idle. Sent after any `interrupt` that
   session start sends for a reply still playing or being generated.
-- **Add-on:** opens an OpenAI session if none is open (see
-  [OpenAI session](#openai-session)). Marks a turn boundary: until the user
-  actually speaks, an end-of-turn from OpenAI's turn detection is treated as a
-  stale segment from before the wake: its `thinking` is suppressed and the
-  response it creates is cancelled. Also clears any pending post-stop response
-  cancel. With GPT-Live, it lets GPT-Live's voice through again after an
+- **Add-on:** clears the open session's input audio buffer (or the audio held
+  while one opens), and opens an OpenAI session if none is open (see
+  [OpenAI session](#openai-session)). The clear also resets OpenAI's turn
+  detection: a segment whose end never came, because the mic closed on it,
+  would otherwise take the new question's audio and report only its end, with
+  no start. Also clears any pending post-stop response cancel. With GPT-Live, it lets GPT-Live's voice through again after an
   `interrupt`.
 
 ### `flush`
@@ -81,8 +81,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 - **Sent:** when a follow-up window expires with the mic still open (no speech
   arrived).
 - **Add-on:** clears the session's input audio buffer (or the audio held while
-  one opens), dropping any uncommitted partial utterance, and marks a turn
-  boundary as for `wake`.
+  one opens), dropping any uncommitted partial utterance and resetting turn
+  detection, as for `wake`.
 
 ### `interrupt`
 `{"type":"interrupt"}`

@@ -116,7 +116,6 @@ class Agent:
             liveness=self._liveness,
             idle_debounce_s=settings.phase_idle_debounce_s,
             on_idle=self._device_went_idle,
-            on_dangling=self._dangling_turn,
             on_real_speech=self._real_speech,
         )
         self._reply = ReplyAudio(self._play_chunk, self._reply_started, self._reply_stopped)
@@ -199,8 +198,12 @@ class Agent:
             logger.info("🎬 device (re)connected → input audio cleared")
             await self._clear_input_audio()
         elif message_type == "wake":
-            logger.info("👋 device wake")
-            self.phases.note_wake()
+            # Before the new question's audio, which follows the wake: what
+            # OpenAI holds is from before it. The clear also resets OpenAI's
+            # turn detection, which a segment the mic cut off leaves waiting
+            # for an end: the new question would only get one.
+            logger.info("👋 device wake → input audio cleared")
+            await self._clear_input_audio()
             if self._session is not None:
                 self._session.woke()
             self._on_wake()
@@ -209,7 +212,6 @@ class Agent:
             # utterance, so a later wake can't complete it into a stale answer.
             logger.info("🧽 device flush → input audio cleared")
             self._end_engagement()
-            self.phases.note_wake()
             await self._clear_input_audio()
         elif message_type == "interrupt":
             await self._interrupt()
@@ -287,10 +289,6 @@ class Agent:
         """The model ended the conversation: the device opens no follow-up window after this reply."""
         self._stopped = True
         self.device.send_json({"type": "end"})
-
-    def _dangling_turn(self) -> None:
-        if self._session is not None:
-            self._session.dangling_turn()
 
     def _real_speech(self) -> None:
         if self._session is not None:

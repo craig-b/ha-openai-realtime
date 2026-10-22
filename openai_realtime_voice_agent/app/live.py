@@ -190,9 +190,6 @@ class LiveSession:
     def woke(self) -> None:
         self._muted = False
 
-    def dangling_turn(self) -> None:
-        pass  # no turns
-
     def real_speech(self) -> None:
         pass  # no turns
 

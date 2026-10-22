@@ -133,8 +133,5 @@ class Session(Protocol):
     def woke(self) -> None:
         """The device woke."""
 
-    def dangling_turn(self) -> None:
-        """A turn ended with no speech since the wake."""
-
     def real_speech(self) -> None:
         """The user really spoke."""

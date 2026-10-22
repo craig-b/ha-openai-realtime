@@ -23,12 +23,12 @@ watchdog forces idle when `thinking` sees no activity for THINKING_TIMEOUT_S,
 except while a tool runs: a long web search gets all the time it needs, and
 every tool is bounded by its own client timeout.
 
-Two late end-of-turn events are not new turns:
-- During a reply (the mic is gated then), a stop is the tail of the question
-  being answered: `replying` stays.
-- After a wake or a flush with no speech since, a stop is a segment from
-  before the wake closing late: its `thinking` is suppressed, and
-  `on_dangling` lets the add-on cancel the response OpenAI creates for it.
+During a reply (the mic is gated then), an end of turn is the tail of the
+question being answered, not a new turn: `replying` stays.
+
+A wake or a flush clears OpenAI's input buffer, which also resets its turn
+detection, so an end of turn after one is always a new turn, even when its
+start wasn't reported (a segment left open when the mic closed).
 """
 import asyncio
 import logging
@@ -66,34 +66,25 @@ class PhaseTracker:
         liveness: TurnLiveness,
         idle_debounce_s: float,
         on_idle: Callable[[], None],
-        on_dangling: Callable[[], None],
         on_real_speech: Callable[[], None],
     ):
         self._send_phase = send_phase
         self._liveness = liveness
         self._idle_debounce_s = max(0.0, idle_debounce_s)
         self._on_idle = on_idle
-        self._on_dangling = on_dangling
         self._on_real_speech = on_real_speech
         self._idle_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         self._current: Optional[str] = None
         self._suppress_thinking = False
-        # Defaults True so nothing is suppressed before the first wake.
-        self._speech_since_wake = True
 
     @property
     def current(self) -> Optional[str]:
         """The phase last sent to the device, or None before the first."""
         return self._current
 
-    def note_wake(self) -> None:
-        """The device woke, or a follow-up window closed without speech."""
-        self._speech_since_wake = False
-
     def user_started(self) -> None:
         self._suppress_thinking = False
-        self._speech_since_wake = True
         self._on_real_speech()
         self._cancel_pending_idle()
         self._cancel_watchdog()
@@ -103,9 +94,6 @@ class PhaseTracker:
         self._cancel_pending_idle()
         if self._current == "replying":
             logger.info("📞 'thinking' suppressed: replying (stale end of turn)")
-        elif not self._speech_since_wake:
-            logger.info("📞 'thinking' suppressed: no speech since the wake (dangling end of turn)")
-            self._on_dangling()
         elif self._suppress_thinking:
             logger.info("📞 'thinking' suppressed: the turn was already declared dead")
         else:

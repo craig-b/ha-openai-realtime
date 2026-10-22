@@ -7,21 +7,25 @@ from tests.fakes import pcm_tone
 
 # --- wake --------------------------------------------------------------------
 
-async def test_wake_suppresses_a_stale_end_of_turn(openai, device, session):
+async def test_wake_clears_the_openai_input_buffer(openai, device, session):
     conn = session  # opened by a wake
-    # Turn detection closes a segment from before the wake: no speech started.
-    await conn.speech_stopped()
-    await device.assert_no_phase("thinking", within=0.3)
+    clears = conn.count("input_audio_buffer.clear")
+    await device.send({"type": "wake"})
+    await conn.wait_for("input_audio_buffer.clear", count=clears + 1)
 
 
-async def test_wake_cancels_the_response_to_a_stale_end_of_turn(openai, device, session):
-    conn = session  # opened by a wake
+async def test_an_end_of_turn_after_a_wake_is_a_turn_even_without_its_start(openai, device, session):
+    # A segment the mic cut off leaves OpenAI's turn detection waiting for an
+    # end; the wake's clear resets it, so what ends next is the new question
+    # (as seen live 2026-10-22: "what's the weather" only got an end).
+    conn = session
+    clears = conn.count("input_audio_buffer.clear")
+    await device.send({"type": "wake"})
+    await conn.wait_for("input_audio_buffer.clear", count=clears + 1)
     await conn.speech_stopped()
-    # The guard arms when the end-of-turn reaches the end of the pipeline;
-    # OpenAI creates the response some time after the end-of-turn.
-    await asyncio.sleep(0.1)
+    await device.wait_for_phase("thinking")
     await conn.start_response()
-    await conn.wait_for("response.cancel")
+    await conn.assert_none("response.cancel", within=0.3)
 
 
 async def test_real_speech_after_wake_is_a_normal_turn(openai, device, session):
@@ -51,7 +55,7 @@ async def test_flush_clears_the_openai_input_buffer(openai, device, session):
     await conn.wait_for("input_audio_buffer.clear", count=clears + 1)
 
 
-async def test_flush_marks_a_turn_boundary(openai, device, session):
+async def test_an_end_of_turn_after_a_flush_is_a_turn(openai, device, session):
     conn = session
     await conn.user_turn()
     await device.wait_for_phase("thinking")
@@ -61,9 +65,9 @@ async def test_flush_marks_a_turn_boundary(openai, device, session):
     await device.send({"type": "flush"})
     await asyncio.sleep(0.1)
     await conn.speech_stopped()
-    await device.assert_no_phase("thinking", within=0.3, after=1)
+    await device.wait_for_phase("thinking", count=2)
     await conn.start_response()
-    await conn.wait_for("response.cancel")
+    await conn.assert_none("response.cancel", within=0.3)
 
 
 # --- interrupt ---------------------------------------------------------------

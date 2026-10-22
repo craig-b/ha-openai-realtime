@@ -174,10 +174,6 @@ class RealtimeSession:
     def woke(self) -> None:
         self._kill_next = False
 
-    def dangling_turn(self) -> None:
-        """A turn ended with no speech since the wake: cancel the response it brings."""
-        self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
-
     def real_speech(self) -> None:
         self._kill_until = 0.0
         self._kill_next = False
