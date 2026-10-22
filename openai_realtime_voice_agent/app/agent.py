@@ -138,6 +138,8 @@ class Agent:
         self._recording: Optional[SessionRecording] = None
         self._state = SessionState.CLOSED
         self._session_ready = asyncio.Event()
+        # Why OpenAI refused the session's settings, if it did while it opened.
+        self._session_rejected: Optional[str] = None
         self._opened_at = 0.0
         self._last_activity = 0.0
         self._buffered_audio: list[bytes] = []
@@ -349,6 +351,7 @@ class Agent:
         started = time.monotonic()
         logger.info(f"🔌 opening an OpenAI session ({why})")
         self._session_ready.clear()
+        self._session_rejected = None
         session = RealtimeSession(self._client, self.settings.model, self._on_event, self._on_closed)
         self._session = session
         setup_task = asyncio.create_task(self._session_setup(), name="session_setup")
@@ -373,6 +376,10 @@ class Agent:
         except asyncio.TimeoutError:
             await session.close()
             await self._fail_open(f"OpenAI did not configure the session within {self.OPEN_TIMEOUT_S:.0f} s")
+            return
+        if self._session_rejected is not None:
+            await session.close()
+            await self._fail_open(self._session_rejected)
             return
 
         self._state = SessionState.OPEN
@@ -650,6 +657,14 @@ class Agent:
         if code in self.BENIGN_ERROR_CODES:
             logger.warning(f"⚠️ benign realtime error ignored: {code}")
             return
+        if self._state is SessionState.OPENING and not self._session_ready.is_set():
+            # The session's settings were refused: say which setting to change.
+            param = error.get("param") or ""
+            setting = setting_for(param)
+            advice = f"; check the setting {setting}" if setting else ""
+            self._session_rejected = f"OpenAI refused the session's settings: {error.get('message', code)} ({param or code}){advice}"
+            self._session_ready.set()
+            return
         logger.error(f"❌ OpenAI error: {error}")
         if code == "session_expired":
             await self._session_lost(f"{code}: {error.get('message', '')}")
@@ -666,6 +681,31 @@ def takes_reasoning(model: str) -> bool:
     """
     match = re.match(r"gpt-realtime-(\d+)(?:[.-]|$)", model)
     return bool(match) and 2 <= int(match.group(1)) < 2000
+
+
+# The setting behind each part of the session OpenAI may reject, by the
+# error's `param`, most specific first.
+SETTING_FOR_PARAM = (
+    ("session.reasoning", "realtime → reasoning_effort"),
+    ("session.audio.output.voice", "realtime → voice"),
+    ("session.audio.output.speed", "realtime → speed"),
+    ("session.audio.input.transcription", "log_what_you_say / transcription_language"),
+    ("session.audio.input.noise_reduction", "realtime → noise_reduction"),
+    ("session.audio.input.turn_detection", "realtime → vad_eagerness, or the legacy turn detection settings"),
+    ("session.max_output_tokens", "realtime → max_output_tokens"),
+    ("session.truncation", "realtime → max_context_tokens"),
+    ("session.tools", "the Home Assistant tools (mcp_tool_allowlist)"),
+    ("session.instructions", "instructions"),
+    ("session.model", "realtime → model"),
+)
+
+
+def setting_for(param: str) -> str | None:
+    """The add-on setting behind the session field `param`, if one is."""
+    for prefix, setting in SETTING_FOR_PARAM:
+        if param == prefix or param.startswith(prefix + ".") or param.startswith(prefix + "["):
+            return setting
+    return None
 
 
 def _b64(audio: bytes) -> str:

@@ -133,6 +133,11 @@ Every option has a description on the **Configuration** tab. The ones worth know
   nobody" or repeats itself); raise the prebuffer if you hear crackle at the
   start of replies.
 
+If OpenAI refuses a setting (a model that doesn't support it, say), the session
+doesn't open: the device plays its error sound, and the log names the setting to
+change, e.g. `OpenAI refused the session's settings: … check the setting realtime →
+reasoning_effort`.
+
 ## 7. Reading the logs
 
 The add-on log shows each turn: `🤖 assistant:` (the reply text), `🗣️ user:`

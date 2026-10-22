@@ -279,6 +279,8 @@ class FakeRealtimeServer:
         self.rejected = 0
         self.session_updated_delay = 0.0
         self.configure_sessions = True
+        # An error to answer each session.update with, as OpenAI does when it refuses a setting.
+        self.refuse_sessions_with: Optional[dict] = None
 
     @property
     def base_url(self) -> str:
@@ -311,7 +313,9 @@ class FakeRealtimeServer:
             async for message in websocket:
                 event = json.loads(message)
                 conn.events.append(event)
-                if event.get("type") == "session.update" and self.configure_sessions:
+                if event.get("type") == "session.update" and self.refuse_sessions_with:
+                    await conn.send({"type": "error", "error": self.refuse_sessions_with})
+                elif event.get("type") == "session.update" and self.configure_sessions:
                     if self.session_updated_delay:
                         await asyncio.sleep(self.session_updated_delay)
                     await conn.send({"type": "session.updated", "session": event["session"]})

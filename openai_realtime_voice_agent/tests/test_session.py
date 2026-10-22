@@ -144,6 +144,22 @@ async def test_a_session_that_is_never_configured_reports_an_error(openai, devic
     await asyncio.wait_for(conn.closed.wait(), 2.0)
 
 
+async def test_refused_settings_fail_the_session_at_once_naming_the_setting(openai, device):
+    openai.refuse_sessions_with = {
+        "type": "invalid_request_error",
+        "code": "invalid_value",
+        "message": "Unsupported option for this model.",
+        "param": "session.reasoning",
+    }
+    started = time.monotonic()
+    await device.send({"type": "wake"})
+    conn = await openai.connection()
+    await wait_until(lambda: device.errors, 3.0, "an error message")
+    assert time.monotonic() - started < 2.0  # not after the open timeout
+    assert "realtime → reasoning_effort" in device.errors[0]["message"]
+    await asyncio.wait_for(conn.closed.wait(), 2.0)
+
+
 # --- reasoning -------------------------------------------------------------------
 
 async def test_reasoning_effort_is_low_by_default(openai, session):
