@@ -66,6 +66,9 @@ Thank you to Felix and Xander: this is built on their work.
   firmware build comes from this repository alone. A later upstream release
   merges in with the `esphome` remote (`https://github.com/esphome/home-assistant-voice-pe`):
   `git fetch esphome --tags && git merge -s subtree -Xsubtree=firmware <release tag>`.
+  That updates upstream's own files; their changes to the stock config are then
+  ported into ours by hand, as listed by
+  `python3 firmware/tools/upstream_changes.py <previous tag> <release tag>`.
 
 ## Install
 
