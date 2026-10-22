@@ -32,7 +32,8 @@ from websockets.exceptions import ConnectionClosed
 
 from app.audio import OPENAI_RATE
 from app.config import Settings
-from app.session import SessionEvents, SessionFailed, SessionSetup, with_home
+from app import prompts
+from app.session import SessionEvents, SessionFailed, SessionSetup
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ class LiveSession:
             tools.append(search)
         backend = {
             "model": s.live_backend_model,
-            "instructions": with_home(s.live_backend_instructions, setup.home),
+            "instructions": prompts.live_backend(s, setup.home),
             "tools": tools,
             "tool_choice": "auto",
             "reasoning": {"effort": s.live_reasoning_effort},
@@ -133,7 +134,7 @@ class LiveSession:
             backend["service_tier"] = s.live_service_tier
         return {
             "model": s.live_model,
-            "instructions": with_home(s.live_instructions, setup.home),
+            "instructions": prompts.live_voice(s, setup.home),
             "audio": {"format": {"type": "audio/pcm", "rate": OPENAI_RATE}, "output": {"voice": s.live_voice}},
             "delegation": {"type": "responses", "responses": backend},
         }
@@ -389,10 +390,10 @@ SETTING_FOR_PARAM = (
     ("session.delegation.responses.model", "live → backend_model"),
     ("session.delegation.responses.reasoning", "live → reasoning_effort"),
     ("session.delegation.responses.service_tier", "live → service_tier"),
-    ("session.delegation.responses.instructions", "live → backend_instructions"),
+    ("session.delegation.responses.instructions", "house_rules"),
     ("session.delegation.responses.tools", "the Home Assistant tools (mcp_tool_allowlist), or enable_web_search"),
     ("session.audio.output.voice", "live → voice"),
-    ("session.instructions", "live → instructions"),
+    ("session.instructions", "house_rules"),
     ("session.model", "live → model"),
 )
 

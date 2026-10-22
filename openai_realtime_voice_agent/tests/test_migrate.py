@@ -11,13 +11,18 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from app.migrate import migrated
+from app.shipped_prompts import SHIPPED_PROMPTS
 from tests.fakes import wait_until
 
 DEFAULTS = {
     "openai_api_key": "sk-test",
+    "house_rules": "Be cheerful.",
     "realtime": {"model": "gpt-realtime-2.1", "voice": "marin", "speed": 1.0},
     "enable_web_search": True,
 }
+# The 0.7.0 defaults, as Home Assistant saved them.
+SHIPPED_REALTIME = next(p for p in SHIPPED_PROMPTS if "voice assistant of Home Assistant" in p and "ENDING" in p)
+SHIPPED_LIVE = next(p for p in SHIPPED_PROMPTS if "voice of Home Assistant" in p and "ENDING" in p)
 
 
 class FakeSupervisor:
@@ -82,6 +87,7 @@ def test_options_under_old_names_move_into_their_section():
     old = {**DEFAULTS, "openai_model": "gpt-realtime-1.5", "openai_voice": "cedar", "vad_threshold": 0.6}
     assert migrated(old) == {
         "openai_api_key": "sk-test",
+        "house_rules": "Be cheerful.",
         "realtime": {"model": "gpt-realtime-1.5", "voice": "cedar", "speed": 1.0, "vad_threshold": 0.6},
         "enable_web_search": True,
     }
@@ -95,6 +101,35 @@ def test_a_retired_model_moves_to_its_replacement():
 def test_an_old_search_model_moves_to_the_default():
     assert migrated({**DEFAULTS, "web_search_model": "gpt-5.5"})["realtime"]["web_search_model"] == "gpt-6-luna"
     assert migrated({**DEFAULTS, "web_search_model": "custom"})["realtime"]["web_search_model"] == "custom"
+
+
+def test_a_shipped_prompt_gives_way_to_the_built_in_rules():
+    # Saved with the line breaks of an edit in YAML: they don't count.
+    saved = {
+        **DEFAULTS,
+        "realtime": {**DEFAULTS["realtime"], "instructions": SHIPPED_REALTIME.replace(". ", ".\n")},
+        "live": {"voice": "marin", "instructions": SHIPPED_LIVE},
+    }
+    assert migrated(saved) == {**DEFAULTS, "live": {"voice": "marin"}}
+
+
+def test_an_edited_prompt_becomes_the_house_rules():
+    saved = {**DEFAULTS, "realtime": {**DEFAULTS["realtime"], "instructions": "  Speak only Dutch.  "}}
+    assert migrated(saved) == {**DEFAULTS, "house_rules": "Speak only Dutch."}
+
+
+def test_every_edited_prompt_is_kept_once():
+    saved = {
+        **DEFAULTS,
+        "realtime": {**DEFAULTS["realtime"], "instructions": "Speak only Dutch."},
+        "live": {"instructions": "Speak only Dutch.", "backend_instructions": "Call the lounge the lounge."},
+    }
+    assert migrated(saved)["house_rules"] == "Speak only Dutch.\n\nCall the lounge the lounge."
+
+
+def test_a_prompt_under_its_oldest_name_moves_all_the_way():
+    assert migrated({**DEFAULTS, "instructions": "Speak only Dutch."}) == {**DEFAULTS, "house_rules": "Speak only Dutch."}
+    assert migrated({**DEFAULTS, "instructions": SHIPPED_REALTIME}) == DEFAULTS
 
 
 def test_options_under_new_names_are_left_alone():

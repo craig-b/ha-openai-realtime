@@ -95,7 +95,7 @@ the **⚡ Realtime settings** panel:
 | `mcp_tool_allowlist` | **blank** (use all of the official server's tools — it's already a small set) |
 | `enable_web_search` | `true` (online lookups on by default; set `false` to disable) |
 | `realtime → web_search_model` | `gpt-6-luna` (the quickest and cheapest) |
-| `realtime → instructions` | the English default (to change language, see Part 5) |
+| `house_rules` | the English default: the assistant's personality and language (to change language, see Part 5) |
 
 ### 1.5 Start it
 
@@ -236,43 +236,25 @@ any `va_url` you set.
 - **Web search:** it answers weather / news / facts online out of the box
   (`enable_web_search` is on by default, model `gpt-6-luna`; set it `false` if you
   don't want it). See the add-on's DOCS.md.
-- **The system prompt (`realtime → instructions`)** sets the assistant's language, style and
-  behavior. The shipped default (English) is voice-tuned — short spoken replies, silent
-  tool calls, varied confirmations, and strict language pinning:
+- **House rules (`house_rules`)** are your part of the assistant's prompt: its
+  personality, the language it speaks, and anything particular to your home. They
+  come after the add-on's built-in rules (short spoken replies, silent tool calls,
+  looking devices up by name, ending the conversation), which ship with the add-on
+  and improve with its updates, and they win on personality, tone, language and
+  naming. The default:
 
   ```
-  You are the cheerful, friendly voice assistant of Home Assistant and you control the
-  smart home. LANGUAGE: Speak and understand only English, with a natural, neutral
-  accent. Never switch language, not even for stray foreign words or an accent; do not
-  infer the language from accent or a single word. STYLE: Your replies are read aloud,
-  so keep them short and natural. Do not read out entity IDs, lists, or technical names;
-  use ordinary names ("the bedroom lamp"). Call your tools silently: never say anything
-  before a tool call, not even "Okay, let me check" or "one moment"; just do it and then
-  give one complete answer. Do not start every answer with "Okay"; vary your confirmation
-  naturally, e.g. "The bedroom lamp is on now" or "Done, the light is off". BEHAVIOR:
-  Carry out requested actions immediately with your tools and never guess. If a room has
-  no matching devices, look the devices up by name instead (GetLiveContext lists them)
-  before asking. If you are still unsure which device, room, or action is meant, ask a
-  short clarifying question. If something fails, briefly say what went wrong. ENDING: When the user has clearly finished (goodbye, good
-  night, or thanks with nothing more to ask), say a short goodbye and call
-  end_conversation.
+  You are cheerful and friendly. Speak and understand only English, with a natural,
+  neutral accent. Never switch language, not even for stray foreign words or an
+  accent; do not infer the language from accent or a single word.
   ```
 
-  To use another language, swap the wording but keep the same LANGUAGE/STYLE/BEHAVIOR
-  structure. Example (Dutch):
+  To use another language, lock that language instead. Example (Dutch):
 
   ```
-  Je bent de vrolijke, vriendelijke spraakassistent van Home Assistant en bestuurt
-  het smart home in huis. TAAL: Spreek en versta uitsluitend Nederlands, met een
-  natuurlijke, neutrale tongval. Wissel nooit van taal — ook niet bij losse Engelse
-  woorden ("living", "dimmer") of een accent. STIJL: Je antwoorden worden hardop
-  voorgelezen, dus houd ze kort en spreektaal-natuurlijk. Lees geen entity-id's of
-  technische namen voor; gebruik gewone namen ("de slaapkamerlamp"). Roep je
-  gereedschappen stil aan: zeg vooraf NIETS als "Oké, ik kijk even" — voer de actie
-  direct uit en geef daarna één compleet antwoord. Varieer je bevestiging natuurlijk,
-  bijvoorbeeld "De slaapkamerlamp staat nu aan" of "Klaar, het licht is uit". GEDRAG:
-  Voer gevraagde acties meteen uit en gok nooit; weet je iets niet zeker, vraag dan
-  eerst kort om verduidelijking.
+  Je bent vrolijk en vriendelijk. Spreek en versta uitsluitend Nederlands, met een
+  natuurlijke, neutrale tongval. Wissel nooit van taal, ook niet bij losse Engelse
+  woorden ("living", "dimmer") of een accent.
   ```
 
 ---

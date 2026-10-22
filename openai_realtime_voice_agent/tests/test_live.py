@@ -8,6 +8,7 @@ import pytest_asyncio
 
 from app.agent import Agent
 from app.live import LiveSession
+from app.prompts import HOUSE_RULES_HEADING
 from tests.fakes import pcm_silence, pcm_tone, wait_until
 from tests.test_tools import FakeHomeAssistant
 
@@ -44,6 +45,7 @@ async def test_a_wake_starts_a_gpt_live_session_with_its_settings(openai, live):
     assert backend["model"] == "gpt-6-luna"
     assert backend["reasoning"] == {"effort": "low"}
     assert backend["tools"] == []
+    assert "Search the web" not in backend["instructions"]
     assert "service_tier" not in backend
     assert openai.connections == []  # no Realtime session
 
@@ -51,16 +53,18 @@ async def test_a_wake_starts_a_gpt_live_session_with_its_settings(openai, live):
 async def test_settings_reach_the_session(openai, start_addon):
     addon = await start_addon(
         ENGINE="live", LIVE_VOICE="cedar", LIVE_BACKEND_MODEL="gpt-6.1-sol", LIVE_REASONING_EFFORT="medium",
-        LIVE_SERVICE_TIER="priority", LIVE_INSTRUCTIONS="Be the house.", LIVE_BACKEND_INSTRUCTIONS="Use tools.",
+        LIVE_SERVICE_TIER="priority", HOUSE_RULES="Call the living room the lounge.",
     )
     device = await addon.connect()
     await device.send({"type": "wake"})
     session = (await openai.live_connection()).session
     assert session["audio"]["output"]["voice"] == "cedar"
-    assert session["instructions"] == "Be the house."
+    assert session["instructions"].startswith("You are the voice of a Home Assistant smart home")
+    assert session["instructions"].endswith(f"{HOUSE_RULES_HEADING}\nCall the living room the lounge.")
     backend = session["delegation"]["responses"]
     assert backend["model"] == "gpt-6.1-sol"
-    assert backend["instructions"] == "Use tools."
+    assert backend["instructions"].startswith("You carry out requests")
+    assert backend["instructions"].endswith(f"{HOUSE_RULES_HEADING}\nCall the living room the lounge.")
     assert backend["reasoning"] == {"effort": "medium"}
     assert backend["service_tier"] == "priority"
     await device.close()
@@ -70,7 +74,9 @@ async def test_web_search_is_the_backends_own_tool(openai, start_addon):
     addon = await start_addon(ENGINE="live", ENABLE_WEB_SEARCH="true")
     device = await addon.connect()
     await device.send({"type": "wake"})
-    assert (await openai.live_connection()).session["delegation"]["responses"]["tools"] == [{"type": "web_search"}]
+    backend = (await openai.live_connection()).session["delegation"]["responses"]
+    assert backend["tools"] == [{"type": "web_search"}]
+    assert "Search the web" in backend["instructions"]
     await device.close()
 
 

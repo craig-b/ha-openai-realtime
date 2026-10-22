@@ -86,7 +86,8 @@ class Settings:
     device_secret: str
     # "realtime" (gpt-realtime-*) or "live" (GPT-Live); each has its own settings below.
     engine: str
-    instructions: str
+    # The owner's own instructions, after the add-on's built-in ones (app/prompts.py).
+    house_rules: str
     model: str
     voice: str
     speed: float
@@ -144,13 +145,11 @@ class Settings:
     session_idle_timeout_s: int
     # The conversation's size, in tokens, at which OpenAI truncates it (0 = the model's limit).
     max_context_tokens: int
-    # GPT-Live: the voice model, its prompt and voice, and the backend model it
-    # hands work to, with that model's prompt, reasoning effort and service tier.
+    # GPT-Live: the voice model and its voice, and the backend model it hands
+    # work to, with that model's reasoning effort and service tier.
     live_model: str
-    live_instructions: str
     live_voice: str
     live_backend_model: str
-    live_backend_instructions: str
     live_reasoning_effort: str
     live_service_tier: str
     enable_recording: bool
@@ -166,9 +165,7 @@ class Settings:
             openai_api_key=_str("OPENAI_API_KEY"),
             device_secret=_str("DEVICE_SECRET"),
             engine=_choice("ENGINE", ENGINES, "realtime"),
-            instructions=os.environ.get(
-                "INSTRUCTIONS", "You are the Home Assistant Voice Agent and can control the Smart Home."
-            ),
+            house_rules=os.environ.get("HOUSE_RULES", ""),
             model=_resolve_choice("OPENAI_MODEL", "OPENAI_MODEL_CUSTOM", "gpt-realtime-2.1"),
             voice=_resolve_choice("OPENAI_VOICE", "OPENAI_VOICE_CUSTOM", "marin"),
             speed=_float("OPENAI_SPEED", 1.0, 0.25, 1.5),
@@ -213,16 +210,8 @@ class Settings:
             ),
             max_context_tokens=_int("MAX_CONTEXT_TOKENS", 8000, 0),
             live_model=_str("LIVE_MODEL") or "gpt-live-1",
-            live_instructions=os.environ.get(
-                "LIVE_INSTRUCTIONS",
-                "You are the voice of the smart home. Hand anything that needs doing, or "
-                "checking, to your backend.",
-            ),
             live_voice=_resolve_choice("LIVE_VOICE", "LIVE_VOICE_CUSTOM", "marin"),
             live_backend_model=_resolve_choice("LIVE_BACKEND_MODEL", "LIVE_BACKEND_MODEL_CUSTOM", "gpt-6-luna"),
-            live_backend_instructions=os.environ.get(
-                "LIVE_BACKEND_INSTRUCTIONS", "Control the smart home with your tools. Keep replies short."
-            ),
             live_reasoning_effort=_choice(
                 "LIVE_REASONING_EFFORT", ("none", "low", "medium", "high", "xhigh"), "low"
             ),

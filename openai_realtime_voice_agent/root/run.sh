@@ -5,9 +5,9 @@ set -e
 OPENAI_API_KEY=$(bashio::config 'openai_api_key')
 DEVICE_SECRET=$(bashio::config 'device_secret')
 ENGINE=$(bashio::config 'engine')
+HOUSE_RULES=$(bashio::config 'house_rules')
 
 # --- ⚡ Realtime (the `realtime` section) ---
-INSTRUCTIONS=$(bashio::config 'realtime.instructions')
 SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'realtime.session_reuse_timeout_seconds')
 OPENAI_MODEL=$(bashio::config 'realtime.model')
 OPENAI_VOICE=$(bashio::config 'realtime.voice')
@@ -21,11 +21,9 @@ MAX_CONTEXT_TOKENS=$(bashio::config 'realtime.max_context_tokens')
 MUTE_MIC_WHILE_SPEAKING=$(bashio::config 'realtime.mute_mic_while_speaking')
 
 # --- 🎙️ GPT-Live (the `live` section) ---
-LIVE_INSTRUCTIONS=$(bashio::config 'live.instructions')
 LIVE_MODEL=$(bashio::config 'live.model')
 LIVE_VOICE=$(bashio::config 'live.voice')
 LIVE_BACKEND_MODEL=$(bashio::config 'live.backend_model')
-LIVE_BACKEND_INSTRUCTIONS=$(bashio::config 'live.backend_instructions')
 LIVE_REASONING_EFFORT=$(bashio::config 'live.reasoning_effort')
 LIVE_SERVICE_TIER=$(bashio::config 'live.service_tier')
 LIVE_SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'live.session_reuse_timeout_seconds')
@@ -69,16 +67,14 @@ fi
 export OPENAI_API_KEY
 export DEVICE_SECRET
 export ENGINE
-export LIVE_INSTRUCTIONS
+export HOUSE_RULES
 export LIVE_MODEL
 export LIVE_VOICE
 export LIVE_BACKEND_MODEL
-export LIVE_BACKEND_INSTRUCTIONS
 export LIVE_REASONING_EFFORT
 export LIVE_SERVICE_TIER
 export LIVE_SESSION_REUSE_TIMEOUT_SECONDS
 export LIVE_MUTE_MIC_WHILE_SPEAKING
-export INSTRUCTIONS
 export TRANSCRIPTION_LANGUAGE
 export OPENAI_MODEL
 export OPENAI_VOICE

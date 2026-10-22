@@ -26,7 +26,8 @@ map:
 #   (sections) → 💬 Conversation → 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant
 #   → ⚙️ Advanced → 🔍 Debug
 # Options that only one engine uses live in that engine's section. Saved
-# settings from before the sections are moved into them by app/migrate.py.
+# settings from before the sections are moved into them by app/migrate.py, as
+# are saved prompts from before house_rules.
 # User-facing help lives in translations/, not here — keep comments dev-facing.
 #
 # REMOVED options (v0.4.29) — hardcoded to the only sane value; config.py keeps
@@ -41,7 +42,7 @@ map:
 # section).
 # NB the add-on UI renders every string option as a SINGLE-LINE input — there
 # is no multiline/textarea support in the frontend (verified in
-# supervisor-app-config.ts), so long text like the instructions is best edited
+# supervisor-app-config.ts), so long text like house_rules is best edited
 # via the Configuration tab's ⋮ → "Edit in YAML".
 # ----------------------------------------------------------------------------
 options:
@@ -49,6 +50,11 @@ options:
   openai_api_key: ""
   device_secret: ""
   engine: "realtime"
+  # The owner's part of the prompt; the add-on's own rules are in app/prompts.py.
+  house_rules: >-
+    You are cheerful and friendly. Speak and understand only English, with a
+    natural, neutral accent. Never switch language, not even for stray foreign
+    words or an accent; do not infer the language from accent or a single word.
 
   # --- ⚡ Realtime settings: a section of its own (a collapsible panel) ---
   # The *_custom fields and the legacy server_vad fields (turn_detection_type,
@@ -56,24 +62,6 @@ options:
   # anyway (its "Show unused optional" filter only covers top-level options);
   # their help says when they apply. semantic_vad is config.py's default.
   realtime:
-    instructions: >-
-      You are the cheerful, friendly voice assistant of Home Assistant and you
-      control the smart home. LANGUAGE: Speak and understand only English, with a
-      natural, neutral accent. Never switch language, not even for stray foreign
-      words or an accent; do not infer the language from accent or a single word.
-      STYLE: Your replies are read aloud, so keep them short and natural. Do not
-      read out entity IDs, lists, or technical names; use ordinary names ("the
-      bedroom lamp"). Call your tools silently: never say anything before a tool
-      call, not even "Okay, let me check" or "one moment"; just do it and then
-      give one complete answer. Do not start every answer with "Okay"; vary your
-      confirmation naturally, e.g. "The bedroom lamp is on now" or "Done, the
-      light is off". BEHAVIOR: Carry out requested actions immediately with your
-      tools and never guess. If a room has no matching devices, look the devices
-      up by name instead (GetLiveContext lists them) before asking. If you are
-      still unsure which device, room, or action is meant, ask a short clarifying
-      question. If something fails, briefly say what went wrong.
-      ENDING: When the user has clearly finished (goodbye, good night, or thanks
-      with nothing more to ask), say a short goodbye and call end_conversation.
     model: "gpt-realtime-2.1"
     voice: "marin"
     speed: 1.0
@@ -91,35 +79,9 @@ options:
   # --- 🎙️ GPT-Live settings: a section of its own ---
   # *_custom fields have NO defaults: optional (shown anyway, as above).
   live:
-    instructions: >-
-      You are the cheerful, friendly voice of Home Assistant, speaking with the
-      people in this home. LANGUAGE: Speak and understand only English, with a
-      natural, neutral accent. Never switch language, not even for stray foreign
-      words or an accent. STYLE: Keep replies short and natural; they are heard,
-      not read. Use ordinary names ("the bedroom lamp"), never entity IDs or
-      lists. HANDING OFF: Hand every request to do something in the home, every
-      question about the home's state, and every question that needs current
-      information to your backend, and say what it found; never guess or make
-      up a result. Answer small talk yourself. ENDING: When the user says
-      goodbye or good night, thanks you with nothing more to ask, or asks you to
-      stop listening, always hand "end the conversation" to your backend, then
-      say a short goodbye. Never just say goodbye without handing it off: the
-      device keeps listening until the backend ends the conversation.
     model: "gpt-live-1"
     voice: "marin"
     backend_model: "gpt-6-luna"
-    backend_instructions: >-
-      You carry out requests for the voice assistant of a Home Assistant smart
-      home. Use the Home Assistant tools to control devices and to read the
-      home's state (GetLiveContext gives the current states). Act at once. If a
-      room has no matching devices, look the devices up by name instead
-      (GetLiveContext without an area lists them all) before giving up. If it
-      is still unclear which device, room or action is meant, say so in one
-      short sentence instead of guessing. Search the web only for current
-      information the home can't give, such as the weather, news or opening
-      hours. Reply in one or two short sentences of plain spoken text: no
-      lists, markdown, links or entity IDs. When you're asked to end the
-      conversation because the user has finished, call end_conversation.
     reasoning_effort: "low"
     service_tier: "auto"
     # 0: a GPT-Live session bills every minute it is open.
@@ -173,9 +135,9 @@ schema:
   openai_api_key: password
   device_secret: password
   engine: "list(realtime|live)"
+  house_rules: str
   # --- ⚡ Realtime settings ---
   realtime:
-    instructions: str
     model: "list(gpt-realtime-2.1|gpt-realtime-2.1-mini|gpt-realtime-2|gpt-realtime-1.5|custom)"
     model_custom: str?
     voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
@@ -197,13 +159,11 @@ schema:
     vad_silence_duration_ms: int?
   # --- 🎙️ GPT-Live settings ---
   live:
-    instructions: str
     model: str
     voice: "list(marin|quartz|ripple|vesper|willow|stone|gleam|meridian|bossa|tempo|beacon|delta|cinder|nuri|juni|flitz|brise|sillage|nira|harema|shida|noeul|custom)"
     voice_custom: str?
     backend_model: "list(gpt-6-luna|gpt-6.1-sol|gpt-6-astra|custom)"
     backend_model_custom: str?
-    backend_instructions: str
     # The gpt-6 models' efforts: "none" where the realtime models have "minimal".
     reasoning_effort: "list(none|low|medium|high|xhigh)"
     service_tier: "list(auto|default|priority)"

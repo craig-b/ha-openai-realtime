@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 
 from app.agent import Agent
+from app.prompts import HOUSE_RULES_HEADING
 from app.realtime import takes_reasoning
 from tests.fakes import pcm_tone, wait_until
 
@@ -36,10 +37,11 @@ async def test_the_session_uses_the_configured_model(openai, start_addon, open_s
 
 
 async def test_the_session_is_configured_for_a_voice_assistant(openai, start_addon, open_session):
-    addon = await start_addon(INSTRUCTIONS="Be brief.", OPENAI_VOICE="cedar", OPENAI_SPEED="1.2")
+    addon = await start_addon(HOUSE_RULES="Be brief.", OPENAI_VOICE="cedar", OPENAI_SPEED="1.2")
     _, conn = await open_session(addon)
     session = conn.session
-    assert session["instructions"] == "Be brief."
+    assert session["instructions"].startswith("You are the voice assistant of a Home Assistant smart home")
+    assert session["instructions"].endswith(f"{HOUSE_RULES_HEADING}\nBe brief.")
     assert session["audio"]["output"] == {"voice": "cedar", "speed": 1.2}
     assert session["audio"]["input"]["turn_detection"] == {
         "type": "semantic_vad",

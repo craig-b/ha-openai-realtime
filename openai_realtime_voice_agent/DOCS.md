@@ -88,7 +88,7 @@ automatically the first time the add-on starts, after which it restarts once.
 | `realtime → model` | `gpt-realtime-2.1` | newest speech-to-speech model |
 | `realtime → voice` | `marin` | `marin`/`cedar` are the newest voices |
 | `realtime → reasoning_effort` | `low` | how long it thinks before answering; `minimal` is quickest |
-| `realtime → instructions` | *(English default)* | the system prompt; swap the LANGUAGE line for your language |
+| `house_rules` | *(English default)* | your part of the prompt: personality, language, your home's particulars |
 | `follow_up_listen_seconds` | `8` | mic stays open this long so you can answer back |
 | `follow_up_open_delay_ms` | `700` | echo guard before the follow-up mic opens; lower = snappier but risks ghost turns |
 | `wake_open_delay_ms` | `700` | the same echo guard right after the wake chime; lower = snappier wake but risks a ghost turn |
@@ -101,6 +101,19 @@ automatically the first time the add-on starts, after which it restarts once.
 | `home_town` | *(blank)* | the town the home is in, so "what's the weather?" is local; Home Assistant supplies the country, time zone and units |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
 | `realtime → web_search_model` | `gpt-6-luna` | the quickest and cheapest; sol and astra think harder |
+
+**The prompt.** Each model is told the add-on's built-in rules first: short spoken
+replies, tools used without announcing them, devices looked up by name before asking,
+and when to end the conversation. Then come your **`house_rules`**, then where the home
+is. The built-in rules ship with the add-on, so they improve with its updates and
+nothing you write can break them; your house rules win on personality, tone, language
+and naming. Lock the language there, e.g. "Speak and understand only Dutch. Never
+switch language." The built-in rules are in
+[`app/prompts.py`](https://github.com/craig-b/ha-openai-realtime/blob/main/openai_realtime_voice_agent/app/prompts.py),
+and with `log_level: DEBUG` the log shows the whole prompt each session gets. A prompt
+saved by an earlier version is moved on the first start: if it was the shipped default
+it is dropped, and if you had edited it, it becomes your house rules, and the log asks
+you to trim it to what is yours.
 
 The legacy `server_vad` turn-detection fields are at the bottom of the ⚡ Realtime
 settings — leave them empty unless you have a specific reason.
@@ -116,7 +129,7 @@ up automatically, so the add-on doesn't show them.
 | | Realtime (default) | GPT-Live |
 |---|---|---|
 | How it works | one model (`gpt-realtime-2.1`) listens, thinks and speaks, in turns | a voice (`gpt-live-1`) that listens and speaks at once, and hands anything that needs doing to a backend model (`gpt-6-luna`), which calls the tools |
-| Prompts | one: `realtime → instructions` | two: the voice's (`live → instructions`) and the backend's (`live → backend_instructions`) |
+| Prompts | the built-in rules for the model, then `house_rules` | the built-in rules for the voice and for the backend, each followed by `house_rules` |
 | Billing | per token of audio and text | per minute a conversation is open, plus the backend's tokens |
 | Between conversations | the session stays open for `realtime → session_reuse_timeout_seconds` (300), costing nothing | closes as soon as the conversation ends (`live → session_reuse_timeout_seconds`, 0), since open minutes are billed |
 | Web search | the add-on's own search call, on `realtime → web_search_model` | the backend model's own web search |
@@ -125,7 +138,7 @@ up automatically, so the add-on doesn't show them.
 With GPT-Live the light ring shows what is really happening rather than turns:
 **listening** while it hears you, **thinking** while the backend works, **replying**
 while its voice is audible. It often acknowledges a request at once ("Okay, turning
-on the kitchen light") and confirms when the backend is done; the backend prompt
+on the kitchen light") and confirms when the backend is done; your house rules
 can steer that.
 
 ## 6. Web search

@@ -30,6 +30,21 @@ configuration:
       plus the backend's tokens. Current prices: openai.com/api/pricing. Each
       engine has its own settings panel below; only the chosen one's are
       used.
+  house_rules:
+    name: "🔑 Basics · House rules (personality and language)"
+    description: >-
+      Your own instructions for the assistant, in plain words: its
+      personality, the language it speaks, and anything particular to your
+      home ("call the living room the lounge"). Both engines get them, after
+      the add-on's built-in rules, and they win on personality, tone,
+      language and naming. The built-in rules (using the tools quietly,
+      looking devices up, ending the conversation, speaking through a
+      speaker) come with the add-on and improve with its updates; they're in
+      app/prompts.py, and the log shows the whole prompt at DEBUG. Lock the
+      language here ("Speak and understand only Dutch. Never switch
+      language."). EDITING TIP: this field is a single line here (a Home
+      Assistant UI limitation); for comfortable editing use the ⋮ menu at the
+      top of this tab → "Edit in YAML".
 
   # --- ⚡ Realtime ---
   realtime:
@@ -38,17 +53,6 @@ configuration:
       Settings for the Realtime engine (Engine: realtime): OpenAI's gpt-realtime models, which
       listen, think and speak in one model.
     fields:
-      instructions:
-        name: "Assistant personality (system prompt)"
-        description: >-
-          Plain-text instructions that shape the assistant: its personality, its
-          language, and your house rules. Write it like you'd brief a person. Two
-          tips that matter on a voice device: lock the language ("Speak and
-          understand only Dutch. Never switch language.") and tell it to use its
-          tools silently instead of saying "one moment". EDITING TIP: this field
-          is a single line here (a Home Assistant UI limitation) — for comfortable
-          editing use the ⋮ menu at the top of this tab → "Edit in YAML", which
-          gives you a full text editor.
       model:
         name: "Model"
         description: >-
@@ -173,13 +177,6 @@ configuration:
       Settings for the GPT-Live engine (Engine: live): a voice that hands
       anything that needs doing to a backend model, which uses the tools.
     fields:
-      instructions:
-        name: "Voice personality (prompt)"
-        description: >-
-          Instructions for the voice you talk to: its personality, its
-          language, and what to hand to the backend. Lock the language here.
-          EDITING TIP: for comfortable editing use the ⋮ menu at the top of
-          this tab → "Edit in YAML".
       model:
         name: "Voice model"
         description: >-
@@ -207,12 +204,6 @@ configuration:
         description: >-
           Only used when Backend model is set to "custom". Any model for
           OpenAI's Responses API.
-      backend_instructions:
-        name: "Backend instructions (prompt)"
-        description: >-
-          Instructions for the backend model: how to use the tools, when to
-          search the web rather than use what it knows or your home's sensors,
-          and how to reply. Use "Edit in YAML" (⋮ menu) to edit comfortably.
       reasoning_effort:
         name: "Backend reasoning effort"
         description: >-
@@ -278,8 +269,7 @@ configuration:
       When you're clearly done ("thanks, that's all", "goodbye", "good night"),
       the assistant says goodbye and the device stops listening straight away,
       instead of keeping its follow-up window open. Even in a noisy room, a
-      goodbye ends it. How readily it ends a conversation is set in its prompt
-      (Realtime: instructions; GPT-Live: backend instructions). On by default.
+      goodbye ends it. On by default.
   # --- 🌐 Web search ---
   enable_web_search:
     name: "🌐 Web search · Enable web search"
@@ -352,8 +342,8 @@ configuration:
       For Log what you say: the two-letter codes of the languages you speak
       to it, comma separated, to write them down accurately. Leave empty to
       use Home Assistant's own language; "auto" detects it each time. It
-      doesn't change which language the assistant answers in; the
-      instructions decide that.
+      doesn't change which language the assistant answers in; the house
+      rules decide that.
   enable_recording:
     name: "🔍 Debug · Record audio"
     description: >-

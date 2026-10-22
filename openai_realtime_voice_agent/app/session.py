@@ -51,12 +51,6 @@ class Home:
         return location if len(location) > 1 else None
 
 
-def with_home(instructions: str, home: Home) -> str:
-    """`instructions`, followed by what is known of the home."""
-    about = home.describe()
-    return f"{instructions}\n\n{about}" if about else instructions
-
-
 @dataclass
 class SessionSetup:
     """What a session is configured with that is read anew for each one."""

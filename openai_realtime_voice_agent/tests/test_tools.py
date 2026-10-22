@@ -308,6 +308,7 @@ async def test_ending_the_conversation_can_be_turned_off(openai, start_addon, wa
     device = await (await start_addon(ENABLE_END_CONVERSATION="false")).connect()
     conn = await wake(device)
     assert conn.session["tools"] == []
+    assert "end_conversation" not in conn.session["instructions"]
     await device.close()
 
 
@@ -341,9 +342,9 @@ async def test_gpt_lives_web_search_knows_where_the_home_is(openai, start_addon,
 
 
 def test_nothing_known_of_the_home_adds_nothing():
-    from app.session import Home, with_home
+    from app.session import Home
 
-    assert with_home("Be brief.", Home()) == "Be brief."
+    assert Home().describe() == ""
     assert Home().web_search_location() is None
 
 

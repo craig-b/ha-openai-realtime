@@ -26,7 +26,8 @@ from openai.resources.realtime.realtime import AsyncRealtimeConnection
 from websockets.exceptions import ConnectionClosed
 
 from app.config import Settings
-from app.session import SessionEvents, SessionFailed, SessionSetup, with_home
+from app import prompts
+from app.session import SessionEvents, SessionFailed, SessionSetup
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ class RealtimeSession:
             audio_input["noise_reduction"] = {"type": s.noise_reduction}
         config = {
             "type": "realtime",
-            "instructions": with_home(s.instructions, setup.home),
+            "instructions": prompts.realtime(s, setup.home),
             "audio": {"input": audio_input, "output": {"voice": voice(s.voice), "speed": s.speed}},
             "tools": setup.tools.definitions,
         }
@@ -342,7 +343,7 @@ SETTING_FOR_PARAM = (
     ("session.max_output_tokens", "realtime → max_output_tokens"),
     ("session.truncation", "realtime → max_context_tokens"),
     ("session.tools", "the Home Assistant tools (mcp_tool_allowlist)"),
-    ("session.instructions", "instructions"),
+    ("session.instructions", "house_rules"),
     ("session.model", "realtime → model"),
 )
 
