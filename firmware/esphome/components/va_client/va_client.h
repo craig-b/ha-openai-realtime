@@ -115,6 +115,8 @@ class VaClient : public Component {
   // independently of a server-sent phase).
   void fire_phase_led_(const std::string &phase);
   void open_followup_window_(uint32_t duration_ms);
+  // The add-on is about to speak though nobody woke the device (`speak`).
+  void begin_unasked_reply_(uint32_t listen_ms);
 
   std::string url_;
   std::string headers_;
@@ -225,6 +227,11 @@ class VaClient : public Component {
   // The backend ended the conversation (`end`): the next follow-up window,
   // after the goodbye has played, doesn't open. Cleared by a new wake.
   bool end_requested_{false};
+  // The reply the add-on speaks unasked (`speak`) is followed by a window of
+  // unasked_listen_ms_ (0: none) instead of the usual follow-up window.
+  // Cleared by a wake or a stop.
+  bool unasked_reply_{false};
+  uint32_t unasked_listen_ms_{0};
   // Set by send_interrupt() ("stop" word / barge-in). OpenAI bursts the whole
   // reply faster than real-time, so by the time the user says "stop" the audio
   // is already buffered (backend + our PSRAM) and the backend keeps streaming

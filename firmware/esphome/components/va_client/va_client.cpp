@@ -504,6 +504,17 @@ void VaClient::handle_text_(const char *data, size_t len) {
     return;
   }
 
+  if (msg.find("\"type\":\"speak\"") != std::string::npos) {
+    // An automation asked the add-on to speak: an announcement, or the start
+    // of a conversation. "listen_ms":N is how long to listen after it.
+    uint32_t listen_ms = 0;
+    parse_uint_after_key(msg, "\"listen_ms\":", listen_ms);
+    if (listen_ms > kFollowupMsMax)
+      listen_ms = kFollowupMsMax;
+    this->begin_unasked_reply_(listen_ms);
+    return;
+  }
+
   if (msg.find("\"type\":\"request_follow_up\"") != std::string::npos) {
     // Server's model called the request_follow_up tool — it asked a
     // question and wants the user to answer without saying a wake word.
@@ -1014,6 +1025,7 @@ void VaClient::start_session() {
   this->idle_emit_pending_ = false;
   this->suppress_followup_ = false;
   this->end_requested_ = false;
+  this->unasked_reply_ = false;
   // A genuine new turn starts here — drop the post-stop `thinking` guard so
   // this turn's `thinking` shows normally. (Set last, AFTER the residual-reply
   // send_interrupt() above re-set it, so the wake always ends with it clear.)
@@ -1051,6 +1063,43 @@ void VaClient::start_session() {
       }
     });
   });
+}
+
+void VaClient::begin_unasked_reply_(uint32_t listen_ms) {
+  // The reply that follows is played like any other, though nobody woke the
+  // device, and whatever an earlier "stop" or `end` left behind doesn't apply
+  // to it: the stop's audio drop and stale-`thinking` guard, its suppressed
+  // follow-up. The mic stays closed while it plays; afterwards it opens for
+  // listen_ms (open_followup_window_). The add-on only sends `speak` when no
+  // conversation is going on, so there is no turn here to cut short.
+  ESP_LOGI(TAG, "speak — the add-on speaks unasked, then listens for %u ms", (unsigned) listen_ms);
+  this->suppress_incoming_audio_ = false;
+  this->post_stop_guard_ = false;
+  this->suppress_followup_ = false;
+  this->end_requested_ = false;
+  this->unasked_reply_ = true;
+  this->unasked_listen_ms_ = listen_ms;
+  this->streaming_ = false;
+  this->followup_pending_ = false;
+  this->waiting_for_speaker_stop_ = false;
+  this->request_follow_up_pending_ = false;
+  this->followup_armed_ = false;
+  this->idle_emit_pending_ = false;
+  this->cancel_timeout("va_no_speech");
+  this->cancel_timeout("va_followup");
+  this->cancel_timeout("va_followup_open");
+  this->cancel_timeout("va_tts_tail");
+  // A turn of its own, for the latency log and the stale-`idle` guard: the
+  // reply's audio marks it as heard (turn_t_first_audio_out_).
+  this->turn_t_wake_ = millis();
+  this->turn_t_listening_ = 0;
+  this->turn_t_thinking_ = 0;
+  this->turn_t_first_audio_out_ = 0;
+  this->last_binary_ms_ = 0;
+  this->ws_gap_count_ = 0;
+  this->ws_gap_max_ms_ = 0;
+  this->clipped_samples_ = 0;
+  this->underrun_logged_this_turn_ = false;
 }
 
 void VaClient::open_followup_window_(uint32_t duration_ms) {
@@ -1095,6 +1144,11 @@ void VaClient::open_followup_window_(uint32_t duration_ms) {
       }
       this->turn_t_wake_ = 0;  // mark turn as logged
     }
+  }
+  if (this->unasked_reply_) {
+    // After a reply the add-on spoke unasked (`speak`): listen as it said.
+    this->unasked_reply_ = false;
+    duration_ms = this->unasked_listen_ms_;
   }
   if (this->end_requested_) {
     // The conversation was ended (`end`): no follow-up this time.
@@ -1270,6 +1324,7 @@ void VaClient::send_interrupt() {
   // The phase=idle the server is about to send shouldn't open a follow-up
   // mic window — the user said "stop", not "wait for me to keep talking".
   this->suppress_followup_ = true;
+  this->unasked_reply_ = false;
   // Mic gate is now closed: no new turn can begin until a wake. Ignore any
   // `thinking` the backend emits in the meantime — it's the server VAD's
   // end-of-turn for the utterance we just cancelled, not a real new turn.
