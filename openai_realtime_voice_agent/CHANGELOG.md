@@ -2,6 +2,85 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.7.0
+
+> ⚠️ **This update needs a few manual steps, in this order.** The Voice PE now
+> proves who it is to the add-on and talks to it over an encrypted connection,
+> so the device can't connect until both halves have the new settings.
+>
+> 1. **Update this add-on.** On its first start it moves your saved settings into
+>    the new **⚡ Realtime settings** panel and restarts itself once.
+> 2. On the **Configuration** tab, set **`device_secret`** to a random string of at
+>    least 16 characters with no spaces (e.g. the output of `openssl rand -hex 32`),
+>    and restart the add-on.
+> 3. Open the add-on's **Log** and copy the **certificate** it prints, the block from
+>    `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`.
+> 4. In **ESPHome Device Builder → Secrets**, add `va_secret` (the same value as
+>    `device_secret`) and `va_certificate` (the certificate, as a `|` block; see
+>    `secrets.yaml.example`).
+> 5. **Edit your device's YAML** (the stub): under `substitutions:` add
+>    `va_secret: !secret va_secret` and `va_certificate: !secret va_certificate`.
+>    If you set your own `va_url`, change `ws://` to `wss://`.
+> 6. **Update the firmware** (ESPHome Device Builder → Update / Install).
+>
+> The full steps are in the firmware's INSTALL guide (Part 4).
+
+A rebuild of the add-on, a second voice engine, and a secured device connection.
+
+**A secured device connection**
+
+- **The add-on only accepts your Voice PE.** Before, anything on your network could
+  connect and use your OpenAI key and your home's controls through it. The device
+  now presents a shared secret, and the connection is encrypted, with a
+  certificate the add-on makes for itself and the device trusts alone. *(firmware)*
+
+**A new engine: GPT-Live**
+
+- **Choose the engine** under 🔑 Basics: **Realtime** (the default, OpenAI's
+  `gpt-realtime` models) or **GPT-Live**, a voice that listens and speaks at once
+  and hands anything that needs doing to a smarter backend model.
+- **With GPT-Live you can talk over the assistant,** and it stops to listen.
+- GPT-Live bills each minute a conversation is open, so its conversations close
+  as soon as they end. Each engine has its own settings panel.
+
+**Conversations**
+
+- **Say goodbye to end a conversation.** "Thanks, that's all" or "good night" now
+  ends it, and the device stops listening straight away instead of keeping its
+  follow-up window open. *(firmware)*
+- **One OpenAI session per conversation.** A conversation opens when you wake the
+  device and closes after the idle timeout, instead of one session kept open all
+  day, re-billing everything said so far on every reply.
+- **Long conversations stay affordable:** past the conversation memory size,
+  OpenAI drops the oldest half in one go.
+- **Answers are local.** The assistant knows the home's town (new optional
+  **`home_town`** setting), country, time zone and units, so "what's the weather?"
+  needs no town and answers in °C.
+- **Smart-home commands run in the order you gave them.**
+- **Home Assistant needn't be up first.** Its tools and settings are read for each
+  conversation, so changes to what's exposed apply at the next one, with no
+  restart.
+
+**Models and settings**
+
+- **New default model `gpt-realtime-2.1`.** `gpt-realtime` and `gpt-realtime-mini`
+  are being retired by OpenAI on 20 January 2027; if you used one, you're moved
+  to its replacement.
+- **New "Reasoning effort" setting** (low by default), for models that reason.
+- **Web search** now uses `gpt-6-luna` by default: quicker and cheaper. If you had
+  chosen another search model, you're moved to it too.
+- **"Log what you say"** (🔍 Debug) writes what the assistant heard into the log.
+  It's off by default; the log no longer shows it otherwise.
+- **"Mute the mic while it speaks"**, per engine.
+- **Recordings** (🔍 Debug) now work, and are deleted after a week.
+- **Custom voices:** a Realtime voice can be one you've made with OpenAI.
+- **Clearer errors:** if OpenAI refuses a setting, the log names the setting to change.
+
+**Under the hood**
+
+- The add-on no longer uses Pipecat: it talks to OpenAI directly, with half the code.
+- A test suite covers the device protocol and both engines, and runs in CI.
+
 ## 0.6.0
 
 > ⚠️ **This update has two parts — please update both:**
