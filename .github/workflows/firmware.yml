@@ -1,0 +1,92 @@
+name: Firmware
+
+# Builds the Voice PE firmware (firmware/home-assistant-voice.realtime.yaml)
+# from the commit under test: its components and sounds from this checkout, not
+# from GitHub at firmware_ref (firmware/tools/local_sources.py). Every run
+# lays out the site: the install page (firmware/web/), ESP Web Tools for it,
+# and the firmware with its manifest under firmware/. Publishing a GitHub
+# Release deploys it to GitHub Pages, where Voice PEs look for updates and the
+# install page lives (RELEASING.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+env:
+  # The ESPHome the firmware is built and tested with.
+  ESPHOME_VERSION: "2026.9.1"
+  # The install page's installer, served from the site itself rather than a
+  # CDN: the npm package, checked against its hash.
+  ESP_WEB_TOOLS_VERSION: "10.4.0"
+  ESP_WEB_TOOLS_SHA256: "f18da75335d2f0dca044c4bb052848c0696e7b03cc23d61d8530dd6eba0a9008"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build from this checkout
+        run: python3 firmware/tools/local_sources.py
+
+      # Only the release's URL goes into the manifest, not its notes: Home
+      # Assistant links to them from the update.
+      - name: Build the firmware
+        id: build
+        uses: esphome/build-action@f0a331817f5535854a10a42621b6a8b7ebe95c4c  # v7.2.0
+        with:
+          yaml-file: firmware/home-assistant-voice.realtime.yaml
+          version: ${{ env.ESPHOME_VERSION }}
+          complete-manifest: true
+          release-url: ${{ github.event_name == 'release' && github.event.release.html_url || '' }}
+
+      - name: Lay out the site
+        env:
+          FIRMWARE: ${{ steps.build.outputs.name }}
+        run: |
+          mkdir -p site/esp-web-tools
+          cp firmware/web/index.html site/
+          mv "$FIRMWARE" site/firmware
+          curl -fsSL -o esp-web-tools.tgz \
+            "https://registry.npmjs.org/esp-web-tools/-/esp-web-tools-$ESP_WEB_TOOLS_VERSION.tgz"
+          echo "$ESP_WEB_TOOLS_SHA256  esp-web-tools.tgz" | sha256sum -c -
+          tar xzf esp-web-tools.tgz -C site/esp-web-tools --strip-components=3 package/dist/web
+          test -f site/esp-web-tools/install-button.js
+          jq . site/firmware/manifest.json
+          ls -l site/firmware
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Deploy
+    if: github.event_name == 'release'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
