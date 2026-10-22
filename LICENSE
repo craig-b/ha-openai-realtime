@@ -19,38 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-Party Licenses
-
-This project uses the following third-party components:
-
-## Pipecat
-
-This project uses [Pipecat](https://github.com/pipecat-ai/pipecat) which is 
-licensed under BSD 2-Clause License.
-
-See the license at: https://github.com/pipecat-ai/pipecat/blob/main/LICENSE
-
-## ESPHome / Home Assistant Voice PE
-
-This project uses the `voice_kit` component from ESPHome's 
-[home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe) 
-repository, which is licensed under the ESPHome License.
-
-The ESPHome License consists of:
-- MIT License for Python codebase and other parts
-- GPLv3 License for C++/runtime codebase (file extensions .c, .cpp, .h, .hpp, .tcc, .ino)
-
-See the license at: https://github.com/esphome/home-assistant-voice-pe/blob/dev/LICENSE
-
-**Note on GPLv3 Compliance:**
-
-The `voice_kit` component contains C++ code licensed under GPLv3. Since this 
-component is used as an external dependency (downloaded at compile time) and 
-not directly copied into this repository, the GPLv3 license applies to the 
-compiled firmware that includes this component. When distributing compiled 
-firmware images, you must comply with GPLv3 requirements, including 
-providing access to the source code of the GPLv3-licensed components.
-

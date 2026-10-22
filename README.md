@@ -89,4 +89,4 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The firmware in `firmware/` is under ESPHome's licence (MIT and GPLv3): see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
