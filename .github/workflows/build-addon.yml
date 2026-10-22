@@ -2,7 +2,9 @@ name: Add-on
 
 # Every push and pull request builds the add-on image for both architectures
 # and checks that the app's modules import inside it. A v<version> tag also
-# publishes the images to GHCR, where config.yaml's `image:` points.
+# publishes the images to GHCR, where config.yaml's `image:` points. Every
+# other run checks that the images config.yaml points at can be pulled, so
+# main never sends Home Assistant to an image that isn't there (RELEASING.md).
 
 on:
   push:
@@ -44,6 +46,45 @@ jobs:
       - name: Run the tests
         working-directory: openai_realtime_voice_agent
         run: uv run --frozen --python 3.11 pytest
+
+  published:
+    name: Published images
+    # A tag is what publishes them.
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pulled without logging in, as Home Assistant does: an image that
+      # exists but isn't public fails too. config.yaml can be changed by a
+      # pull request, so its values are validated before use.
+      - name: Check every architecture's image can be pulled
+        run: |
+          config="$ADDON_DIR/config.yaml"
+          image=$(sed -n 's/^image: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "$config")
+          if [ -z "$image" ]; then
+            echo "config.yaml has no image: Home Assistant builds the add-on itself"
+            exit 0
+          fi
+          expected=$(echo "$IMAGE_TEMPLATE" | tr '[:upper:]' '[:lower:]')
+          [ "$image" = "$expected" ] || { echo "::error::config.yaml image '$image' is not this workflow's '$expected'"; exit 1; }
+          version=$(sed -n 's/^version: "\(.*\)"$/\1/p' "$config")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::bad version '$version' in config.yaml"; exit 1; }
+          archs=$(sed -n '/^arch:/,/^[^ ]/s/^  - \([a-z0-9]*\)$/\1/p' "$config")
+          [ -n "$archs" ] || { echo "::error::no arch list in config.yaml"; exit 1; }
+          missing=0
+          for arch in $archs; do
+            ref="${image/\{arch\}/$arch}:$version"
+            if docker manifest inspect "$ref" > /dev/null 2>&1; then
+              echo "✅ $ref"
+            else
+              echo "::error::$ref can't be pulled: push tag v$version to publish it, and make the package public"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
   build:
     name: Build ${{ matrix.arch }}
