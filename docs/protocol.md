@@ -185,9 +185,13 @@ The add-on keeps one OpenAI Realtime session per conversation.
   conversation. Once it passes `max_context_tokens` (default 8000), OpenAI
   drops its oldest items until half that remains, in one go, so the cached
   start of the conversation changes rarely.
-- **Closing:** once nothing has happened for `session_reuse_timeout_seconds`
-  (default 300): no mic audio, no reply playing, no response or tool running.
-  The conversation ends with it; the next `wake` starts afresh.
+- **Closing:** `session_reuse_timeout_seconds` (default 300) after the
+  conversation on the device ends, with nothing running in the meantime (no
+  reply playing, no response or tool). The conversation on the device runs
+  from a `wake` (or mic audio) until a `flush`, an `interrupt`, a disconnect,
+  or an `idle` that opens no follow-up window; failing those, until the
+  follow-up window an `idle` opened would have closed. The OpenAI
+  conversation ends with the session; the next `wake` starts afresh.
 - **Rolling over:** at a `wake`, a session more than 50 minutes old (OpenAI
   caps sessions at 60) is replaced by a new one, which starts with a transcript
   of the conversation so far, no longer than half of `max_context_tokens`

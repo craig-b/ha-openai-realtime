@@ -181,11 +181,11 @@ configuration:
   session_reuse_timeout_seconds:
     name: "⚙️ Geavanceerd · Gesprek blijft open (seconden)"
     description: >-
-      Hoe lang een gesprek openblijft na de laatste uitwisseling. Wek je de
+      Hoe lang een gesprek openblijft nadat je bent gestopt met praten tegen
+      het apparaat (na het vervolgvenster, of een "stop"). Wek je de
       assistent binnen deze tijd, dan gaat het gesprek verder; daarna sluit de
       OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
-      goede standaard; 0 = sluiten zodra elk antwoord klaar is, zodat zelfs
-      een vervolgantwoord opnieuw begint.
+      goede standaard; 0 = sluiten zodra het apparaat stopt met luisteren.
   max_context_tokens:
     name: "⚙️ Geavanceerd · Gespreksgeheugen (tokens)"
     description: >-

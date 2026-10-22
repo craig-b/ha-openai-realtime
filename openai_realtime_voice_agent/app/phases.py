@@ -65,12 +65,14 @@ class PhaseTracker:
         send_phase: Callable[[str], None],
         liveness: TurnLiveness,
         idle_debounce_s: float,
+        on_idle: Callable[[], None],
         on_dangling: Callable[[], None],
         on_real_speech: Callable[[], None],
     ):
         self._send_phase = send_phase
         self._liveness = liveness
         self._idle_debounce_s = max(0.0, idle_debounce_s)
+        self._on_idle = on_idle
         self._on_dangling = on_dangling
         self._on_real_speech = on_real_speech
         self._idle_task: Optional[asyncio.Task] = None
@@ -142,6 +144,8 @@ class PhaseTracker:
         self._current = value
         logger.info(f"📞 phase -> {value}")
         self._send_phase(value)
+        if value == "idle":
+            self._on_idle()
 
     def _cancel_pending_idle(self) -> None:
         if self._idle_task is not None and not self._idle_task.done():

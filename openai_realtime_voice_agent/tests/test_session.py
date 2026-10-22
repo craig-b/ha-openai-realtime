@@ -145,11 +145,12 @@ async def test_the_session_closes_after_the_idle_timeout(openai, start_addon, op
     device, conn = await open_session(await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="1"))
     await conn.user_turn()
     await conn.reply(pcm_tone(320, 24000))
-    await device.wait_for_audio(320 * 48)
-    played = time.monotonic()
+    await device.wait_for_phase("idle")
+    # The follow-up window closes without speech: the conversation on the device ends.
+    await device.send({"type": "flush"})
+    ended = time.monotonic()
     await asyncio.wait_for(conn.closed.wait(), 3.0)
-    # Counted from the end of the reply as the device plays it.
-    assert time.monotonic() - played >= 1.0
+    assert time.monotonic() - ended >= 1.0
     assert device.errors == []
 
 
@@ -168,17 +169,58 @@ async def test_mic_audio_keeps_the_session_open(openai, start_addon, open_sessio
 
 
 async def test_a_response_in_progress_keeps_the_session_open(openai, start_addon, open_session, fast_idle_check):
-    device, conn = await open_session(await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0"))
+    addon = await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0", FOLLOW_UP_LISTEN_SECONDS="0")
+    device, conn = await open_session(addon)
     await conn.user_turn()
     response = await conn.start_response()
     await asyncio.sleep(0.5)
     assert not conn.closed.is_set()
+    await response.audio(pcm_tone(320, 24000))
     await response.finish()
+    await asyncio.wait_for(conn.closed.wait(), 3.0)
+
+
+async def test_the_follow_up_window_keeps_the_session_open(openai, start_addon, open_session, fast_idle_check):
+    device, conn = await open_session(await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0"))
+    await conn.user_turn()
+    await conn.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("idle")
+    await asyncio.sleep(1.0)
+    assert not conn.closed.is_set()
+    await device.send({"type": "flush"})
     await asyncio.wait_for(conn.closed.wait(), 2.0)
 
 
+async def test_without_a_flush_the_conversation_ends_with_its_follow_up_window(
+    openai, start_addon, open_session, fast_idle_check, monkeypatch
+):
+    monkeypatch.setattr(Agent, "PLAYBACK_DRAIN_FALLBACK_S", 0.0)
+    monkeypatch.setattr(Agent, "FOLLOW_UP_MARGIN_S", 0.5)
+    addon = await start_addon(
+        SESSION_REUSE_TIMEOUT_SECONDS="0", FOLLOW_UP_LISTEN_SECONDS="1", FOLLOW_UP_OPEN_DELAY_MS="0"
+    )
+    device, conn = await open_session(addon)
+    await conn.user_turn()
+    await conn.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("idle")
+    idle = time.monotonic()
+    await asyncio.wait_for(conn.closed.wait(), 3.0)
+    # 1.5 s from when the add-on sent `idle`, a moment before it arrived here.
+    assert time.monotonic() - idle >= 1.3
+
+
+async def test_a_stop_ends_the_conversation(openai, start_addon, open_session, fast_idle_check):
+    device, conn = await open_session(await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0"))
+    await conn.user_turn()
+    response = await conn.start_response()
+    await response.audio(pcm_tone(500, 24000))
+    await device.send({"type": "interrupt"})
+    await response.finish("cancelled")
+    await asyncio.wait_for(conn.closed.wait(), 4.0)
+
+
 async def test_after_the_idle_timeout_a_wake_starts_afresh(openai, start_addon, open_session, wake, fast_idle_check):
-    addon = await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0", TRANSCRIPTION_LANGUAGE="en")
+    addon = await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0", FOLLOW_UP_LISTEN_SECONDS="0")
     device, conn = await open_session(addon)
     await conn.user_turn()
     await conn.reply(pcm_tone(320, 24000), transcript="It is sunny.")
@@ -192,6 +234,12 @@ async def test_the_device_disconnecting_leaves_the_session_open(openai, device, 
     await device.close()
     await asyncio.sleep(0.3)
     assert not session.closed.is_set()
+
+
+async def test_the_device_disconnecting_ends_the_conversation(openai, start_addon, open_session, fast_idle_check):
+    device, conn = await open_session(await start_addon(SESSION_REUSE_TIMEOUT_SECONDS="0"))
+    await device.close()
+    await asyncio.wait_for(conn.closed.wait(), 2.0)
 
 
 # --- losing the connection ----------------------------------------------------------

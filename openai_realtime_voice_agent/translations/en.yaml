@@ -177,11 +177,11 @@ configuration:
   session_reuse_timeout_seconds:
     name: "⚙️ Advanced · Conversation idle timeout (seconds)"
     description: >-
-      How long a conversation stays open after its last exchange. Waking the
-      assistant within this time continues the conversation; after it, the
-      OpenAI session closes and the next wake starts afresh. 300 (5 min) is a
-      good default; 0 = close as soon as each reply ends, so even a follow-up
-      answer starts afresh.
+      How long a conversation stays open once you've stopped talking to the
+      device (after its follow-up window, or a "stop"). Waking the assistant
+      within this time continues the conversation; after it, the OpenAI
+      session closes and the next wake starts afresh. 300 (5 min) is a good
+      default; 0 = close as soon as the device stops listening.
   max_context_tokens:
     name: "⚙️ Advanced · Conversation memory size (tokens)"
     description: >-

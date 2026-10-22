@@ -2,8 +2,15 @@
 
 One OpenAI session per conversation. A session opens when the device wakes (or
 mic audio arrives with none open), holding the mic audio until OpenAI has
-configured it, and closes once nothing has happened for the idle timeout. A
-connection that dies ends the session; the next wake opens a new one.
+configured it. Once the conversation on the device has ended, and nothing
+has happened since for the idle timeout, the session closes. A connection that
+dies ends the session; the next wake opens a new one.
+
+The conversation on the device runs from a wake (or mic audio) until it sends
+`flush` (a follow-up window closed without speech), `interrupt`, or
+disconnects, or until `idle` when no follow-up window will open. As a
+fallback, once `idle` has been sent, it ends when its follow-up window would
+have.
 
 Within a session, OpenAI bills the whole conversation on every reply. Once it
 passes `max_context_tokens`, OpenAI drops its oldest items down to
@@ -62,6 +69,10 @@ class Agent:
     RETENTION_RATIO = 0.5
     # A rough size of a token in English text, to bound a carried transcript.
     CHARS_PER_TOKEN = 4
+    # The device holds a follow-up window for up to this long while its reply
+    # audio drains, then opens it; this much more covers the network.
+    PLAYBACK_DRAIN_FALLBACK_S = 3.0
+    FOLLOW_UP_MARGIN_S = 1.0
     # OpenAI errors that are harmless protocol races, not a broken session.
     BENIGN_ERROR_CODES = {
         # Turn detection split an utterance; its second response collided with the first.
@@ -92,6 +103,7 @@ class Agent:
             send_phase=self._send_phase,
             liveness=self._liveness,
             idle_debounce_s=settings.phase_idle_debounce_s,
+            on_idle=self._device_went_idle,
             on_dangling=self._arm_kill_window,
             on_real_speech=self._disarm_kills,
         )
@@ -109,6 +121,11 @@ class Agent:
         self._wake_while_closing = False
         # A wake that no speech has followed yet: the user wants a session now.
         self._awaiting_speech = False
+        # Until when the conversation on the device lasts: forever while it
+        # listens or a turn runs; a moment that has passed once it has ended.
+        self._engaged_until = 0.0
+        # A stop since the wake: the next `idle` opens no follow-up window.
+        self._stopped = False
         # Until when a conversation whose session closed early may continue in the next.
         self._carry_until = 0.0
         self._open_task: Optional[asyncio.Task] = None
@@ -160,7 +177,7 @@ class Agent:
         pass
 
     async def device_disconnected(self) -> None:
-        pass
+        self._end_engagement()
 
     async def device_message(self, message_type: str) -> None:
         if message_type == "start":
@@ -177,6 +194,7 @@ class Agent:
             # A follow-up window closed without speech: drop the partial
             # utterance, so a later wake can't complete it into a stale answer.
             logger.info("🧽 device flush → input audio cleared")
+            self._end_engagement()
             self.phases.note_wake()
             await self._clear_input_audio()
         elif message_type == "interrupt":
@@ -184,6 +202,7 @@ class Agent:
 
     async def device_audio(self, pcm: bytes) -> None:
         self._note_activity()
+        self._engaged_until = float("inf")
         audio = self._resampler.resample(pcm)
         if not audio:
             return
@@ -210,6 +229,8 @@ class Agent:
         speech disarms both; a wake disarms the first.
         """
         logger.info("🛑 device interrupt")
+        self._stopped = True
+        self._end_engagement()
         self._reply.flush()
         self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
         self._kill_next = True
@@ -233,6 +254,20 @@ class Agent:
     def _send_phase(self, value: str) -> None:
         logger.info(f"➡️ phase '{value}' to {'the device' if self.device.connected else 'no device'}")
         self.device.send_json({"type": "phase", "value": value})
+
+    def _end_engagement(self) -> None:
+        """The conversation on the device has ended; the idle timeout counts from now."""
+        self._engaged_until = min(self._engaged_until, time.monotonic())
+
+    def _device_went_idle(self) -> None:
+        s = self.settings
+        if self._stopped or not s.follow_up_ms:
+            self._end_engagement()
+        else:
+            follow_up_s = s.follow_up_open_delay_ms / 1000 + s.follow_up_ms / 1000
+            self._engaged_until = (
+                time.monotonic() + self.PLAYBACK_DRAIN_FALLBACK_S + follow_up_s + self.FOLLOW_UP_MARGIN_S
+            )
 
     def _arm_kill_window(self) -> None:
         self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
@@ -260,6 +295,8 @@ class Agent:
         """The user is about to speak: open a session if none is open."""
         self._note_activity()
         self._awaiting_speech = True
+        self._engaged_until = float("inf")
+        self._stopped = False
         if self._state is SessionState.CLOSED:
             self._begin_open("wake")
         elif self._state is SessionState.CLOSING:
@@ -385,9 +422,10 @@ class Agent:
             await asyncio.sleep(self.IDLE_CHECK_S)
             if self._state is not SessionState.OPEN:
                 return
-            if self._busy():
+            now = time.monotonic()
+            if self._busy() or now < self._engaged_until:
                 continue
-            quiet = time.monotonic() - max(self._last_activity, self._liveness.last_activity)
+            quiet = now - max(self._last_activity, self._liveness.last_activity, self._engaged_until)
             if quiet >= self.settings.session_idle_timeout_s:
                 self._idle_task = None
                 await self._close(f"idle for {quiet:.0f} s")
