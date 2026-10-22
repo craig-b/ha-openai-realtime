@@ -180,6 +180,7 @@ class Application:
             supervisor_token=s.supervisor_token,
         )
         self.agent.on_state = bus.set_state
+        self.agent.on_device = bus.device_identified
         listening = asyncio.create_task(bus.run(), name="event_bus")
         listening.add_done_callback(_report_end)
         try:

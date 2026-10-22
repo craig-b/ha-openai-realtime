@@ -149,6 +149,8 @@ class Agent:
         # Told the conversation's state, as an Assist satellite's, and whether
         # the device is connected: whenever either changes.
         self.on_state: Callable[[str, bool], None] = lambda state, connected: None
+        # Told the device's MAC address when it connects (firmware 1.5.0 and later).
+        self.on_device: Callable[[str], None] = lambda mac: None
         self._satellite_state = "idle"
         self._open_task: Optional[asyncio.Task] = None
         self._idle_task: Optional[asyncio.Task] = None
@@ -199,8 +201,10 @@ class Agent:
         # The device goes idle when its connection drops.
         self._report_state("idle")
 
-    async def device_message(self, message_type: str) -> None:
+    async def device_message(self, message_type: str, data: dict) -> None:
         if message_type == "start":
+            if isinstance(mac := data.get("mac"), str) and mac:
+                self.on_device(mac)
             # Once per connection: a reconnect mid-utterance may have left half
             # a sentence in the input buffer.
             logger.info("🎬 device (re)connected → input audio cleared")

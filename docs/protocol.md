@@ -54,12 +54,16 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 ## Device → add-on messages
 
 ### `start`
-`{"type":"start"}`
+`{"type":"start","mac":"AA:BB:CC:DD:EE:FF"}`
 
-- **Sent:** once per connection, immediately on connect.
+- **Sent:** once per connection, immediately on connect. `mac` is the device's
+  MAC address (firmware 1.5.0 and later), by which Home Assistant's ESPHome
+  integration knows it.
 - **Add-on:** if an OpenAI session is open, clears its input audio buffer
   (`input_audio_buffer.clear`; GPT-Live has none), so a reconnect mid-utterance
-  can't leave half a sentence behind. Opens no session.
+  can't leave half a sentence behind. Opens no session. Passes `mac` on to the
+  integration's discovery (see [Home Assistant's view of the
+  device](#home-assistants-view-of-the-device)).
 
 ### `wake`
 `{"type":"wake"}`
@@ -296,8 +300,12 @@ Assist satellite:
 - **Discovery:** when the integration is installed (Home Assistant's
   `manifest/get` finds it), the add-on offers it through the Supervisor's
   discovery (`openai_realtime_voice_agent`), once per run, so Home Assistant shows
-  it as discovered. Without the integration it offers nothing, as Home Assistant
-  logs an error for a discovery no integration takes.
+  it as discovered. The offer names the device, `{"mac": "..."}` from its
+  `start`, so the integration finds its ESPHome device and only asks to confirm;
+  it waits up to 60 s for the device to connect, then offers without (firmware
+  before 1.5.0 doesn't send `mac`), and the integration asks which device it is.
+  Without the integration it offers nothing, as Home Assistant logs an error for
+  a discovery no integration takes.
 
 ## Mic gate
 

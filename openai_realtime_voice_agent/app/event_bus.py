@@ -40,6 +40,10 @@ through Home Assistant's REST API, one at a time and in order.
 When the integration is installed, the add-on offers it to Home Assistant
 through the Supervisor's discovery, so it shows up as discovered. It checks
 first, as Home Assistant logs an error for a discovery no integration takes.
+The offer names the device by its MAC address (`{"mac": "..."}`), which the
+device sends when it connects, so the integration can set itself up for it
+without asking. It waits up to OFFER_WAIT_FOR_DEVICE_S for the device; firmware
+from before 1.5.0 doesn't send it, and is offered without.
 """
 import asyncio
 import json
@@ -70,6 +74,8 @@ class EventBus:
     # Waits between attempts to connect, the last repeating.
     RETRY_S = (1.0, 2.0, 5.0, 10.0, 30.0)
     OPEN_TIMEOUT_S = 10.0
+    # How long the offer of the integration waits to name the device.
+    OFFER_WAIT_FOR_DEVICE_S = 60.0
 
     def __init__(
         self,
@@ -93,6 +99,11 @@ class EventBus:
         self._supervisor_url = supervisor_url
         self._supervisor_token = supervisor_token
         self._discovered = False
+        # Whether Home Assistant has the integration installed (None until asked),
+        # and the device's MAC address once it has said.
+        self._integration_installed: Optional[bool] = None
+        self._device_mac: Optional[str] = None
+        self._offer_task: Optional[asyncio.Task] = None
         self._state = {"state": "idle", "connected": False}
         self._outbox: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         self._tasks: set[asyncio.Task] = set()
@@ -191,19 +202,44 @@ class EventBus:
                 return message
             self._handle(message)
 
+    def device_identified(self, mac: str) -> None:
+        """The device said its MAC address: the offer of the integration can name it."""
+        self._device_mac = mac
+        self._schedule_offer()
+
     async def _offer_integration(self, ws) -> None:
-        """Offer the integration through discovery, once, if it's installed."""
+        """Find out whether the integration is installed, and offer it if it is."""
         if self._discovered or not self._supervisor_token:
             return
         result = await self._command(ws, len(SUBSCRIBED) + 1, {"type": "manifest/get", "integration": INTEGRATION})
-        if not result.get("success"):
+        self._integration_installed = bool(result.get("success"))
+        if not self._integration_installed:
             logger.info("🧩 The integration isn't installed, so there's nothing to offer Home Assistant")
             return
+        self._schedule_offer()
+
+    def _schedule_offer(self) -> None:
+        """Offer the integration once it's known to be installed: at once if the
+        device has named itself, else after waiting OFFER_WAIT_FOR_DEVICE_S for it."""
+        if self._discovered or not self._integration_installed or not self._supervisor_token:
+            return
+        if self._offer_task is not None and not self._offer_task.done():
+            if self._device_mac is None:
+                return  # already waiting for the device
+            self._offer_task.cancel()
+        wait = 0.0 if self._device_mac is not None else self.OFFER_WAIT_FOR_DEVICE_S
+        self._offer_task = asyncio.create_task(self._offer(wait), name="offer_integration")
+        self._tasks.add(self._offer_task)
+        self._offer_task.add_done_callback(self._tasks.discard)
+
+    async def _offer(self, wait: float) -> None:
+        await asyncio.sleep(wait)
+        config = {"mac": self._device_mac} if self._device_mac is not None else {}
         try:
             async with httpx.AsyncClient(timeout=self.OPEN_TIMEOUT_S) as http:
                 response = await http.post(
                     f"{self._supervisor_url}/discovery",
-                    json={"service": INTEGRATION, "config": {}},
+                    json={"service": INTEGRATION, "config": config},
                     headers={"Authorization": f"Bearer {self._supervisor_token}"},
                 )
                 response.raise_for_status()
@@ -211,7 +247,8 @@ class EventBus:
             logger.warning(f"⚠️ Could not offer the integration to Home Assistant: {e!r}")
             return
         self._discovered = True
-        logger.info("🧩 Offered the integration to Home Assistant, which shows it as discovered")
+        which = "for the device" if config else "without naming the device (its firmware doesn't say its MAC)"
+        logger.info(f"🧩 Offered the integration to Home Assistant {which}; it shows it as discovered")
 
     async def _listen(self, ws) -> None:
         async for raw in ws:

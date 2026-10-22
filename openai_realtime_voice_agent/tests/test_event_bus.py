@@ -252,25 +252,47 @@ async def test_a_query_is_answered_with_the_state(openai, home_assistant, ha_dev
 
 async def start_with_supervisor(start_addon, home_assistant, supervisor):  # noqa: F811
     fake = await supervisor(DEFAULTS)
-    await start_addon(
+    addon = await start_addon(
         HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token",
         SUPERVISOR_URL=fake.url, SUPERVISOR_TOKEN="supervisor-token",
     )
     await wait_until(lambda: home_assistant.subscribed(QUERY), 5.0, "the subscriptions")
-    return fake
+    return fake, addon
 
 
-async def test_the_installed_integration_is_offered(openai, home_assistant, supervisor, start_addon):  # noqa: F811
+async def test_the_integration_is_offered_for_the_device(openai, home_assistant, supervisor, start_addon):  # noqa: F811
     home_assistant.installed.add(INTEGRATION)
-    fake = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    fake, addon = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    device = await addon.connect(send_start=False)
+    await device.send({"type": "start", "mac": "02:00:00:A1:B2:C3"})
+    await wait_until(lambda: fake.discoveries, 5.0, "a discovery")
+    assert fake.discoveries == [{"service": INTEGRATION, "config": {"mac": "02:00:00:A1:B2:C3"}}]
+    await device.close()
+
+
+async def test_older_firmware_is_offered_without_naming_the_device(
+    openai, home_assistant, supervisor, start_addon, monkeypatch  # noqa: F811
+):
+    from app.event_bus import EventBus
+
+    monkeypatch.setattr(EventBus, "OFFER_WAIT_FOR_DEVICE_S", 0.5)
+    home_assistant.installed.add(INTEGRATION)
+    fake, addon = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    device = await addon.connect()  # start without its MAC, as firmware before 1.5.0
+    await asyncio.sleep(0.2)
+    assert fake.discoveries == []  # still waiting for the device to say
     await wait_until(lambda: fake.discoveries, 5.0, "a discovery")
     assert fake.discoveries == [{"service": INTEGRATION, "config": {}}]
+    await device.close()
 
 
 async def test_no_integration_no_discovery(openai, home_assistant, supervisor, start_addon):  # noqa: F811
-    fake = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    fake, addon = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    device = await addon.connect(send_start=False)
+    await device.send({"type": "start", "mac": "02:00:00:A1:B2:C3"})
     await asyncio.sleep(0.5)
     assert fake.discoveries == []
+    await device.close()
 
 
 # --- reconnecting -------------------------------------------------------------------------
