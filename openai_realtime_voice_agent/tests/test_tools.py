@@ -89,7 +89,7 @@ async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant,
     assert home_assistant.calls == [("HassTurnOn", {"name": "kitchen light"})]
     assert output["item"]["type"] == "function_call_output"
     assert output["item"]["call_id"] == call_id
-    assert "Turned on kitchen light" in output["item"]["output"]
+    assert output["item"]["output"] == "Turned on kitchen light"
     # And the model is asked to answer with the result.
     await conn.wait_for("response.create")
     await device.close()
