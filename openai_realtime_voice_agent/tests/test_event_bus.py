@@ -266,7 +266,14 @@ async def test_the_integration_is_offered_for_the_device(openai, home_assistant,
     device = await addon.connect(send_start=False)
     await device.send({"type": "start", "mac": "02:00:00:A1:B2:C3"})
     await wait_until(lambda: fake.discoveries, 5.0, "a discovery")
-    assert fake.discoveries == [{"service": INTEGRATION, "config": {"mac": "02:00:00:A1:B2:C3"}}]
+    [discovery] = fake.discoveries
+    assert discovery["service"] == INTEGRATION
+    assert discovery["config"]["mac"] == "02:00:00:A1:B2:C3"
+    # What the device needs to connect, for the integration to set on it.
+    link = discovery["config"]["link"]
+    assert link["port"] == addon.port
+    assert link["secret"] == addon.secret
+    assert link["certificate"] == (addon.tls_dir / "certificate.pem").read_text()
     await device.close()
 
 
@@ -282,7 +289,9 @@ async def test_older_firmware_is_offered_without_naming_the_device(
     await asyncio.sleep(0.2)
     assert fake.discoveries == []  # still waiting for the device to say
     await wait_until(lambda: fake.discoveries, 5.0, "a discovery")
-    assert fake.discoveries == [{"service": INTEGRATION, "config": {}}]
+    [discovery] = fake.discoveries
+    assert "mac" not in discovery["config"]
+    assert discovery["config"]["link"]["secret"] == addon.secret
     await device.close()
 
 

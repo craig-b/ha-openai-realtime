@@ -43,7 +43,10 @@ first, as Home Assistant logs an error for a discovery no integration takes.
 The offer names the device by its MAC address (`{"mac": "..."}`), which the
 device sends when it connects, so the integration can set itself up for it
 without asking. It waits up to OFFER_WAIT_FOR_DEVICE_S for the device; firmware
-from before 1.5.0 doesn't send it, and is offered without.
+from before 1.5.0 doesn't send it, and is offered without. The offer also
+carries what the device needs to connect (`{"link": {"port", "secret",
+"certificate"}}`), which the integration sets on the device: the offer goes
+from the Supervisor to Home Assistant alone, where the integration keeps it.
 """
 import asyncio
 import json
@@ -85,6 +88,7 @@ class EventBus:
         start_conversation: Callable[[Optional[str], Optional[str]], Awaitable[str]],
         supervisor_url: str = "",
         supervisor_token: str = "",
+        link: Optional[dict] = None,
     ):
         """`api_url` is Home Assistant's REST API, e.g. http://supervisor/core/api.
 
@@ -98,6 +102,8 @@ class EventBus:
         self._start_conversation = start_conversation
         self._supervisor_url = supervisor_url
         self._supervisor_token = supervisor_token
+        # What a device needs to connect: offered to the integration with the add-on.
+        self._link = link
         self._discovered = False
         # Whether Home Assistant has the integration installed (None until asked),
         # and the device's MAC address once it has said.
@@ -235,6 +241,8 @@ class EventBus:
     async def _offer(self, wait: float) -> None:
         await asyncio.sleep(wait)
         config = {"mac": self._device_mac} if self._device_mac is not None else {}
+        if self._link is not None:
+            config["link"] = self._link
         try:
             async with httpx.AsyncClient(timeout=self.OPEN_TIMEOUT_S) as http:
                 response = await http.post(
@@ -247,7 +255,7 @@ class EventBus:
             logger.warning(f"⚠️ Could not offer the integration to Home Assistant: {e!r}")
             return
         self._discovered = True
-        which = "for the device" if config else "without naming the device (its firmware doesn't say its MAC)"
+        which = "for the device" if "mac" in config else "without naming the device (its firmware doesn't say its MAC)"
         logger.info(f"🧩 Offered the integration to Home Assistant {which}; it shows it as discovered")
 
     async def _listen(self, ws) -> None:

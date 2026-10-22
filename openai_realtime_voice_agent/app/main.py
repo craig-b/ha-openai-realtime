@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import sys
+from pathlib import Path
 
 import dotenv
 import httpx
@@ -14,6 +15,7 @@ from app.realtime import RealtimeSession, takes_reasoning
 from app.session import Home, SessionSetup
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
+from app.tls import CERTIFICATE_FILE
 from app.tools import (
     END_CONVERSATION_DEFINITION,
     WEB_SEARCH_DEFINITION,
@@ -178,6 +180,11 @@ class Application:
             self.agent.start_conversation,
             supervisor_url=s.supervisor_url,
             supervisor_token=s.supervisor_token,
+            link={
+                "port": s.websocket_port,
+                "secret": s.device_secret,
+                "certificate": (Path(s.tls_dir) / CERTIFICATE_FILE).read_text(),
+            },
         )
         self.agent.on_state = bus.set_state
         self.agent.on_device = bus.device_identified

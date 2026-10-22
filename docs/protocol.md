@@ -304,6 +304,16 @@ Assist satellite:
   `start`, so the integration finds its ESPHome device and only asks to confirm;
   it waits up to 60 s for the device to connect, then offers without (firmware
   before 1.5.0 doesn't send `mac`), and the integration asks which device it is.
+  The offer also carries what a device needs to connect, `{"link": {"port",
+  "secret", "certificate"}}`, which the integration sets on the device (its
+  `set_addon_link` action) when the device's "Add-on link" sensor differs (the
+  first 16 hex digits of SHA-256 over `url\ncertificate`; not the secret, as
+  every Home Assistant user sees it) or its "Add-on connection" sensor says
+  `refused` (a wrong secret). Anything in Home Assistant can call that action,
+  so a linked device takes a new link only with `proof`, the HMAC-SHA256 of
+  `url\nsecret\ncertificate` keyed by the secret it has; an unlinked one takes
+  its first link without. The offer goes from the Supervisor to Home Assistant
+  alone.
   Without the integration it offers nothing, as Home Assistant logs an error for
   a discovery no integration takes.
 
