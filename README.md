@@ -23,12 +23,26 @@ controls Home Assistant through the official
 integration. Speech recognition, speech and the model all run in the OpenAI
 session — there is no Home Assistant `voice_assistant` pipeline on the audio path.
 
-> Fork of **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)**
-> and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**,
-> merged into one repo. Xander's backend is itself a fork of
-> **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**,
-> retargeted at `gpt-realtime-2`, the official HA MCP Server, optional web search,
-> and the **Voice PE thin-client firmware**.
+## Where this comes from
+
+This is a **hard fork**. It began as a fork of Xander van Erven's
+**[ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and
+**[home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**,
+merged into one repository. Xander's backend is itself a fork of Felix Fricke's
+**[ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**: Xander
+retargeted it at `gpt-realtime-2`, the official Home Assistant MCP Server, web search
+and a thin-client firmware for the Voice PE.
+
+Since then it has gone its own way: a direct bridge to OpenAI in place of the Pipecat
+pipeline, a second voice engine (GPT-Live), a secured device connection, announcements
+from automations, and an Assist satellite integration. It no longer follows those
+repositories, so it stands on its own on GitHub rather than as a fork of them. Their
+history is kept here in full: every commit of Felix's and Xander's is in this
+repository, under their names. The firmware still takes in ESPHome's own changes, as
+`firmware/` is a subtree of
+[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe).
+
+Thank you to Felix and Xander: this is built on their work.
 
 ## Repository layout
 
@@ -91,8 +105,8 @@ client. Interrupt a reply with the **"stop"** word or the center button.
 
 ## Credits
 
-- Forked from **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)**.
-- Backend originally from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)**.
+- A hard fork of **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)** (Xander van Erven); see [Where this comes from](#where-this-comes-from).
+- Backend originally from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)** (Felix Fricke).
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)** (a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)**, Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).
 
