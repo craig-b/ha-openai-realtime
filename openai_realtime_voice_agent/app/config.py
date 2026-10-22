@@ -100,8 +100,12 @@ class Settings:
     vad_threshold: float
     vad_prefix_padding_ms: int
     vad_silence_duration_ms: int
-    # Whether OpenAI hearing the user stops the reply (barge-in). Off: speaker
-    # echo would cut replies short; the device's "stop" interrupts instead.
+    # Whether the device stops sending the mic while the assistant speaks: the
+    # engine's own setting. On: speaker echo can't reach the model; the
+    # device's "stop" interrupts.
+    mute_mic_while_speaking: bool
+    # Whether OpenAI hearing the user stops the reply (barge-in): only when the
+    # mic stays open while it speaks.
     interrupt_response: bool
     # Whether OpenAI creates a response when it detects the end of a turn.
     create_response: bool
@@ -172,7 +176,12 @@ class Settings:
             vad_threshold=_float("VAD_THRESHOLD", 0.5),
             vad_prefix_padding_ms=_int("VAD_PREFIX_PADDING_MS", 300),
             vad_silence_duration_ms=_int("VAD_SILENCE_DURATION_MS", 800),
-            interrupt_response=_bool("INTERRUPT_RESPONSE", False),
+            mute_mic_while_speaking=(
+                _bool("LIVE_MUTE_MIC_WHILE_SPEAKING", False)
+                if _choice("ENGINE", ENGINES, "realtime") == "live"
+                else _bool("MUTE_MIC_WHILE_SPEAKING", True)
+            ),
+            interrupt_response=not _bool("MUTE_MIC_WHILE_SPEAKING", True),
             create_response=_bool("SEMANTIC_VAD_CREATE_RESPONSE", True),
             log_what_you_say=_bool("LOG_WHAT_YOU_SAY", False),
             transcription_language=_str("TRANSCRIPTION_LANGUAGE").lower(),

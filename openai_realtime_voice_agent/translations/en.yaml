@@ -124,6 +124,13 @@ configuration:
           more = better memory but higher cost, and long chats can hit OpenAI rate
           limits. 8000 is a good balance; 0 = as much as the model allows. Too
           high a value for the model makes the conversation fail to start.
+      mute_mic_while_speaking:
+        name: "Mute the mic while it speaks"
+        description: >-
+          On (default): while the assistant speaks, the device doesn't send your
+          voice on; say "stop" (the device hears that itself) or press the
+          button to interrupt. Off: you can talk over it, but on the Voice PE
+          its own voice leaks back into the mic and cuts its replies off.
       session_reuse_timeout_seconds:
         name: "Conversation idle timeout (seconds)"
         description: >-
@@ -221,6 +228,13 @@ configuration:
           device. GPT-Live bills every minute a conversation is open, so 0
           (default) closes it as soon as the device stops listening; the next
           wake starts afresh.
+      mute_mic_while_speaking:
+        name: "Mute the mic while it speaks"
+        description: >-
+          Off (default): you can talk over it, and it stops to listen; GPT-Live
+          tells its own voice from yours. On: while it speaks the device
+          doesn't send your voice on; say "stop" or press the button to
+          interrupt.
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds:
@@ -262,7 +276,6 @@ configuration:
       instead of keeping its follow-up window open. Even in a noisy room, a
       goodbye ends it. How readily it ends a conversation is set in its prompt
       (Realtime: instructions; GPT-Live: backend instructions). On by default.
-
   # --- 🌐 Web search ---
   enable_web_search:
     name: "🌐 Web search · Enable web search"

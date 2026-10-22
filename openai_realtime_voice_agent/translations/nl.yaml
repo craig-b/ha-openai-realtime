@@ -129,6 +129,14 @@ configuration:
           kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
           zoveel als het model toelaat. Een te hoge waarde voor het model laat
           het gesprek niet starten.
+      mute_mic_while_speaking:
+        name: "Microfoon dempen terwijl hij spreekt"
+        description: >-
+          Aan (standaard): terwijl de assistent spreekt, stuurt het apparaat je
+          stem niet door; zeg "stop" (dat hoort het apparaat zelf) of druk op de
+          knop om te onderbreken. Uit: je kunt er doorheen praten, maar op de
+          Voice PE lekt zijn eigen stem terug in de microfoon en breekt die zijn
+          antwoorden af.
       session_reuse_timeout_seconds:
         name: "Gesprek blijft open (seconden)"
         description: >-
@@ -227,6 +235,13 @@ configuration:
           GPT-Live rekent elke minuut dat een gesprek open is, dus 0 (standaard)
           sluit het zodra het apparaat stopt met luisteren; de volgende wake
           begint opnieuw.
+      mute_mic_while_speaking:
+        name: "Microfoon dempen terwijl hij spreekt"
+        description: >-
+          Uit (standaard): je kunt er doorheen praten en hij stopt om te
+          luisteren; GPT-Live onderscheidt zijn eigen stem van de jouwe. Aan:
+          terwijl hij spreekt stuurt het apparaat je stem niet door; zeg "stop"
+          of druk op de knop om te onderbreken.
 
   # --- 💬 Gesprek ---
   follow_up_listen_seconds:
@@ -270,7 +285,6 @@ configuration:
       beëindigt een afscheid het gesprek. Hoe snel hij een gesprek beëindigt,
       staat in zijn prompt (Realtime: instructies; GPT-Live:
       backend-instructies). Standaard aan.
-
   # --- 🌐 Websearch ---
   enable_web_search:
     name: "🌐 Websearch · Zoeken op internet"

@@ -78,7 +78,23 @@ async def test_hello_carries_the_defaults(device):
         "follow_up_open_delay_ms": 700,
         "wake_open_delay_ms": 700,
         "playback_prebuffer_ms": 150,
+        "mic_while_replying": False,
     }
+
+
+async def test_an_open_mic_while_speaking_reaches_the_device_and_openai(openai, start_addon, wake):
+    device = await (await start_addon(MUTE_MIC_WHILE_SPEAKING="false")).connect()
+    assert device.messages[0]["mic_while_replying"] is True
+    conn = await wake(device)
+    # OpenAI may then stop its reply when the user talks over it.
+    assert conn.session["audio"]["input"]["turn_detection"]["interrupt_response"] is True
+    await device.close()
+
+
+async def test_gpt_live_leaves_the_mic_open_while_it_speaks_by_default(start_addon):
+    device = await (await start_addon(ENGINE="live")).connect()
+    assert device.messages[0]["mic_while_replying"] is True
+    await device.close()
 
 
 async def test_hello_carries_the_configured_values(start_addon):

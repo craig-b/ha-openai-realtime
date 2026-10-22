@@ -18,6 +18,7 @@ VAD_EAGERNESS=$(bashio::config 'realtime.vad_eagerness')
 NOISE_REDUCTION=$(bashio::config 'realtime.noise_reduction')
 WEB_SEARCH_MODEL=$(bashio::config 'realtime.web_search_model')
 MAX_CONTEXT_TOKENS=$(bashio::config 'realtime.max_context_tokens')
+MUTE_MIC_WHILE_SPEAKING=$(bashio::config 'realtime.mute_mic_while_speaking')
 
 # --- 🎙️ GPT-Live (the `live` section) ---
 LIVE_INSTRUCTIONS=$(bashio::config 'live.instructions')
@@ -28,6 +29,7 @@ LIVE_BACKEND_INSTRUCTIONS=$(bashio::config 'live.backend_instructions')
 LIVE_REASONING_EFFORT=$(bashio::config 'live.reasoning_effort')
 LIVE_SERVICE_TIER=$(bashio::config 'live.service_tier')
 LIVE_SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'live.session_reuse_timeout_seconds')
+LIVE_MUTE_MIC_WHILE_SPEAKING=$(bashio::config 'live.mute_mic_while_speaking')
 
 # --- 💬 Conversation ---
 FOLLOW_UP_LISTEN_SECONDS=$(bashio::config 'follow_up_listen_seconds')
@@ -74,6 +76,7 @@ export LIVE_BACKEND_INSTRUCTIONS
 export LIVE_REASONING_EFFORT
 export LIVE_SERVICE_TIER
 export LIVE_SESSION_REUSE_TIMEOUT_SECONDS
+export LIVE_MUTE_MIC_WHILE_SPEAKING
 export INSTRUCTIONS
 export TRANSCRIPTION_LANGUAGE
 export OPENAI_MODEL
@@ -87,6 +90,7 @@ export WAKE_OPEN_DELAY_MS
 export VAD_EAGERNESS
 export PHASE_IDLE_DEBOUNCE_MS
 export ENABLE_END_CONVERSATION
+export MUTE_MIC_WHILE_SPEAKING
 export ENABLE_WEB_SEARCH
 export WEB_SEARCH_MODEL
 export PLAYBACK_PREBUFFER_MS
@@ -148,8 +152,7 @@ if bashio::config.has_value 'realtime.vad_silence_duration_ms'; then
 fi
 
 # Removed options (v0.4.29) — no longer exported; config.py env defaults take
-# over: SEMANTIC_VAD_CREATE_RESPONSE=true, INTERRUPT_RESPONSE=false,
-# DEVICE_INPUT_SAMPLE_RATE=16000.
+# over: SEMANTIC_VAD_CREATE_RESPONSE=true, DEVICE_INPUT_SAMPLE_RATE=16000.
 
 # Export HA_MCP_URL if set (empty string means use default in config.py)
 if [ -n "$HA_MCP_URL" ]; then

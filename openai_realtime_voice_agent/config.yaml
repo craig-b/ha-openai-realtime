@@ -33,8 +33,8 @@ map:
 # env fallbacks so absent vars are fine:
 #   semantic_vad_create_response → true  (false: nothing answers a turn; the
 #     add-on only creates responses after tool calls)
-#   interrupt_response → false  (handsfree barge-in shelved: the speaker→mic
-#     echo leak made the VAD cut replies / squeal; firmware is barge_in:false)
+#   interrupt_response → now follows realtime → mute_mic_while_speaking: OpenAI may stop
+#     its reply on the user's speech only when the mic stays open during it
 #   device_input_sample_rate → 16000  (the Voice PE firmware always sends 16k)
 # The server_vad escape hatch (turn_detection_type + vad_*) and the *_custom
 # escape-hatch fields are KEPT, optional without defaults (see the realtime
@@ -81,6 +81,9 @@ options:
     noise_reduction: "off"
     web_search_model: "gpt-5.5"
     max_context_tokens: 8000
+    # Its own voice leaks back into the Voice PE's open mic and cuts it off
+    # (verified live 2026-10-22), so Realtime keeps the mic shut while it speaks.
+    mute_mic_while_speaking: true
     session_reuse_timeout_seconds: 300
 
   # --- 🎙️ GPT-Live settings: a section of its own ---
@@ -115,6 +118,9 @@ options:
     service_tier: "auto"
     # 0: a GPT-Live session bills every minute it is open.
     session_reuse_timeout_seconds: 0
+    # GPT-Live let the user talk over it without hearing its own voice
+    # (verified live 2026-10-22): the mic stays open.
+    mute_mic_while_speaking: false
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds: 8
@@ -175,6 +181,7 @@ schema:
     web_search_model: "list(gpt-5-nano|gpt-5.4-nano|gpt-5-mini|gpt-5.4-mini|gpt-5|gpt-5.4|gpt-5.5|custom)"
     web_search_model_custom: str?
     max_context_tokens: int(0,128000)
+    mute_mic_while_speaking: bool
     session_reuse_timeout_seconds: int(0,3600)
     # Legacy server_vad escape hatch.
     turn_detection_type: "list(semantic_vad|server_vad)?"
@@ -193,6 +200,7 @@ schema:
     reasoning_effort: "list(minimal|low|medium|high|xhigh)"
     service_tier: "list(auto|default|priority)"
     session_reuse_timeout_seconds: int(0,3600)
+    mute_mic_while_speaking: bool
   # --- 💬 Conversation ---
   follow_up_listen_seconds: int(0,60)
   follow_up_open_delay_ms: int(0,5000)

@@ -477,6 +477,15 @@ void VaClient::handle_text_(const char *data, size_t len) {
       this->wake_open_delay_ms_ = v;
       ESP_LOGI(TAG, "hello: wake mic-open delay = %u ms", (unsigned) v);
     }
+    // "mic_while_replying":true|false — keep the mic open while the assistant
+    // speaks (barge-in), or gate it as the yaml's barge_in does by default.
+    if (msg.find("\"mic_while_replying\":true") != std::string::npos) {
+      this->barge_in_ = true;
+      ESP_LOGI(TAG, "hello: mic stays open while replying (barge-in)");
+    } else if (msg.find("\"mic_while_replying\":false") != std::string::npos) {
+      this->barge_in_ = false;
+      ESP_LOGI(TAG, "hello: mic closed while replying");
+    }
     if (parse_uint_after_key(msg, "\"playback_prebuffer_ms\":", v)) {
       if (v > kPlaybackPrebufferMaxMs)
         v = kPlaybackPrebufferMaxMs;

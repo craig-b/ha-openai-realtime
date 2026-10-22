@@ -1939,6 +1939,8 @@ va_client:
   # listening<->thinking and once built into a loud acoustic-feedback squeal.
   # false = original turn-based behaviour (mic closed while replying; interrupt
   # only via the "stop" word or the center button) — clean turns, no feedback.
+  # This is only the default until the add-on connects: its hello sets it from
+  # the engine's mute_mic_while_speaking setting.
   barge_in: false
   # Write raw PCM16 mono 24kHz into the media resampler. We can't share the
   # announcement lane with external_media_player — va_client grabs the

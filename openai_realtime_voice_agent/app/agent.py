@@ -85,6 +85,7 @@ class Agent:
                 "follow_up_open_delay_ms": settings.follow_up_open_delay_ms,
                 "wake_open_delay_ms": settings.wake_open_delay_ms,
                 "playback_prebuffer_ms": settings.playback_prebuffer_ms,
+                "mic_while_replying": not settings.mute_mic_while_speaking,
             },
             handler=self,
         )

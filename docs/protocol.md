@@ -106,7 +106,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 ### `hello`
 ```json
-{"type":"hello","follow_up_ms":8000,"follow_up_open_delay_ms":700,"wake_open_delay_ms":700,"playback_prebuffer_ms":150}
+{"type":"hello","follow_up_ms":8000,"follow_up_open_delay_ms":700,"wake_open_delay_ms":700,"playback_prebuffer_ms":150,"mic_while_replying":false}
 ```
 
 - **Sent:** once per connection, on connect, before anything else.
@@ -118,6 +118,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 | `follow_up_open_delay_ms` | Delay after a reply's audio drains before that mic opens | `follow_up_open_delay_ms` (700, 0–5000) | 1500 | ≤ 5000 |
 | `wake_open_delay_ms` | Delay after the wake chime before the mic opens | `wake_open_delay_ms` (700, 0–5000) | 700 | ≤ 5000 |
 | `playback_prebuffer_ms` | Audio to accumulate before starting playback of a reply | `playback_prebuffer_ms` (150, 0–2000) | 0 | ≤ 2000 |
+| `mic_while_replying` | Keep the mic gate open while replying (barge-in) | not the engine's `mute_mic_while_speaking` (Realtime false, GPT-Live true) | the yaml's `barge_in` (false) | — |
 
 ### `phase`
 `{"type":"phase","value":"listening"}`, with value `listening`, `thinking`,
@@ -148,9 +149,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 | Value | Device behaviour |
 |---|---|
-| `listening` | Mic gate opens. Lifts the post-`interrupt` audio drop. Cancels the no-speech watchdog and any follow-up timeout. With barge-in enabled (`barge_in`, off in this firmware), also flushes any queued reply audio |
+| `listening` | Mic gate opens. Lifts the post-`interrupt` audio drop. Cancels the no-speech watchdog and any follow-up timeout. With barge-in on (`mic_while_replying`, off by default), also flushes any queued reply audio |
 | `thinking` | Mic stays open (turn detection can flap `listening`↔`thinking` while the user is still speaking). Cancels follow-up timers. Ignored entirely after an `interrupt` until the next wake |
-| `replying` | Mic gate closes (unless barge-in is on). Cancels follow-up timers |
+| `replying` | Mic gate closes (unless `mic_while_replying`). Cancels follow-up timers |
 | `idle` | See below |
 
 **`idle` on the device** depends on the previous phase:

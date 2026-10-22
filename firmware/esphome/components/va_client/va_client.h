@@ -194,7 +194,8 @@ class VaClient : public Component {
   //   - between wake-word start_session() and "listening"/"thinking"
   //   - and again after "idle" for kFollowupMs (in case AI asked a question)
   bool streaming_{false};
-  // Handsfree barge-in toggle, set from yaml (`barge_in:`). See set_barge_in().
+  // Handsfree barge-in toggle, set from yaml (`barge_in:`), then by the
+  // add-on's hello (`mic_while_replying`). See set_barge_in().
   bool barge_in_{true};
   // Set on phase=idle when there's still TTS audio queued — we can't open
   // the mic until the speaker drains, otherwise it picks up its own output.
