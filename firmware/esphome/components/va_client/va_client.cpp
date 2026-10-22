@@ -1,6 +1,7 @@
 #include "va_client.h"
 #include "automation.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/audio/audio.h"
 
@@ -371,9 +372,13 @@ void VaClient::on_ws_event(int32_t event_id, void *event_data) {
         }
       });
 
-      const char start_msg[] = "{\"type\":\"start\"}";
+      // The device's MAC address, by which Home Assistant knows it (the
+      // ESPHome integration registers it by MAC): the add-on passes it on, so
+      // its integration finds this device without asking which it is.
+      const std::string start_msg =
+          "{\"type\":\"start\",\"mac\":\"" + get_mac_address_pretty() + "\"}";
       auto handle = static_cast<esp_websocket_client_handle_t>(this->ws_handle_);
-      esp_websocket_client_send_text(handle, start_msg, sizeof(start_msg) - 1, portMAX_DELAY);
+      esp_websocket_client_send_text(handle, start_msg.c_str(), start_msg.size(), portMAX_DELAY);
       this->set_phase_("idle");
       break;
     }
