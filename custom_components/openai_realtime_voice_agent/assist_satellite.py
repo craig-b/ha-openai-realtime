@@ -33,12 +33,10 @@ from homeassistant.components.assist_satellite.entity import AssistSatelliteStat
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
-    CONF_DEVICE_ID,
     DOMAIN,
     EVENT_ANNOUNCE,
     EVENT_DONE,
@@ -70,22 +68,8 @@ class VoicePESatellite(AssistSatelliteEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        """A device of its own, connected via the Voice PE's.
-
-        A device belongs to one config entry, so the satellite can't join the
-        ESPHome integration's device for the Voice PE.
-        """
-        voice_pe = dr.async_get(self.hass).async_get(self._entry.data[CONF_DEVICE_ID])
-        name = (voice_pe.name_by_user or voice_pe.name) if voice_pe else "Voice PE"
-        info = DeviceInfo(
-            identifiers={(DOMAIN, self._entry.entry_id)},
-            name=f"{name} OpenAI",
-            manufacturer="OpenAI Realtime Voice Agent",
-            model="Assist satellite",
-        )
-        if voice_pe is not None:
-            info["via_device"] = next(iter(voice_pe.identifiers))
-        return info
+        """The integration's own device (__init__.py)."""
+        return DeviceInfo(identifiers={(DOMAIN, self._entry.entry_id)})
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

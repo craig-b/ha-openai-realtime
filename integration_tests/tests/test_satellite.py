@@ -23,7 +23,7 @@ async def test_the_satellite_is_connected_via_the_voice_pe(
     assert device.name == "Home Assistant Voice a1b2c3 OpenAI"
     assert device.via_device_id == voice_pe.id
     # Not a second copy of the Voice PE's own device.
-    assert ("esphome", "02:00:00:a1:b2:c3") not in device.identifiers
+    assert (dr.CONNECTION_NETWORK_MAC, "02:00:00:a1:b2:c3") not in device.connections
 
 
 async def test_it_asks_the_add_on_for_the_state_when_set_up(hass: HomeAssistant, satellite: str):
