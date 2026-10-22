@@ -8,7 +8,9 @@ import dotenv
 import httpx
 from openai import AsyncOpenAI
 
-from app.agent import Agent, SessionSetup, takes_reasoning
+from app.agent import Agent
+from app.realtime import RealtimeSession, takes_reasoning
+from app.session import SessionSetup
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
 from app.tools import (
@@ -131,7 +133,7 @@ class Application:
         logger.info(f"🎚️ {s.model} ({reasoning}), voice {s.voice}, turn detection {s.turn_detection_type}")
         if s.log_what_you_say:
             language = s.transcription_language or ("Home Assistant's language" if s.ha_token else "en")
-            logger.info(f"🗣️ Logging what you say, transcribed by {Agent.TRANSCRIPTION_MODEL} ({language})")
+            logger.info(f"🗣️ Logging what you say, transcribed by {RealtimeSession.TRANSCRIPTION_MODEL} ({language})")
         logger.info(
             f"🔁 Follow-up window {s.follow_up_ms // 1000} s, mic-open delay {s.follow_up_open_delay_ms} ms, "
             f"wake-open delay {s.wake_open_delay_ms} ms, playback prebuffer {s.playback_prebuffer_ms} ms"

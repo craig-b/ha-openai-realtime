@@ -1,4 +1,4 @@
-"""The voice agent: the device's turns, carried out by an OpenAI Realtime session.
+"""The voice agent: the device's conversations, carried out by OpenAI sessions.
 
 One OpenAI session per conversation. A session opens when the device wakes (or
 mic audio arrives with none open), holding the mic audio until OpenAI has
@@ -15,26 +15,19 @@ disconnects, or until `idle` when no follow-up window will open. As a
 fallback, once `idle` has been sent, it ends when its follow-up window would
 have.
 
-Within a session, OpenAI bills the whole conversation on every reply. Once it
-passes `max_context_tokens`, OpenAI drops its oldest items down to
-RETENTION_RATIO of that limit in one go: dropping a little on every turn would
-change the start of the conversation each time, and with it lose the prompt
-cache for everything after.
-
 The conversation is the session's: OpenAI holds it, and it ends with the
-session. At a wake once a session nears OpenAI's 60-minute cap, the add-on
-rolls over to a new one, so a turn isn't cut off by the cap; the new session
+session. At a wake once a session that has an age limit nears it, the add-on
+rolls over to a new one, so a turn isn't cut off by the limit; the new session
 starts afresh, as one after a lost connection does.
+
+The session itself, the connection to OpenAI and what its events mean, is the
+engine's (app/session.py); the agent owns the rest.
 """
 import asyncio
-import base64
 import enum
 import json
 import logging
-import re
 import time
-import uuid
-from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional
 
 from openai import AsyncOpenAI
@@ -44,21 +37,13 @@ from app.config import Settings
 from app.device import DeviceServer
 from app.phases import PhaseTracker, TurnLiveness
 from app.realtime import RealtimeSession
+from app.session import Session, SessionFailed, SessionSetup
 from app.tls import server_context
 from app.tools import Tools
 
 logger = logging.getLogger(__name__)
 
 _INPUT_BYTES_PER_S = OPENAI_RATE * 2
-
-
-@dataclass
-class SessionSetup:
-    """What a session is configured with that is read anew for each one."""
-
-    tools: Tools
-    # The languages to expect when transcribing the user; none for no hint.
-    transcription_languages: list[str]
 
 
 class SessionState(enum.Enum):
@@ -76,28 +61,11 @@ class Agent:
     # Mic audio held while a session opens; older audio is dropped beyond this.
     BUFFER_LIMIT_S = 10.0
     IDLE_CHECK_S = 1.0
-    # After a device "stop", any response OpenAI starts within this window is
-    # cancelled: the stop word's audio may already have been committed as a turn.
-    INTERRUPT_KILL_WINDOW_S = 1.5
     IDLE_UNSTICK_COOLDOWN_S = 2.0
-    # Transcribes the user for the log (log_what_you_say).
-    TRANSCRIPTION_MODEL = "gpt-live-transcribe"
-    # Share of max_context_tokens kept when OpenAI truncates the conversation.
-    RETENTION_RATIO = 0.5
     # The device holds a follow-up window for up to this long while its reply
     # audio drains, then opens it; this much more covers the network.
     PLAYBACK_DRAIN_FALLBACK_S = 3.0
     FOLLOW_UP_MARGIN_S = 1.0
-    # OpenAI errors that are harmless protocol races, not a broken session.
-    BENIGN_ERROR_CODES = {
-        # Turn detection split an utterance; its second response collided with the first.
-        "conversation_already_has_active_response",
-        # A response.cancel landed after the response had finished.
-        "response_cancel_not_active",
-        # A commit raced an input_audio_buffer.clear: empty, as wanted.
-        "input_audio_buffer_commit_empty",
-    }
-
     def __init__(
         self, settings: Settings, client: AsyncOpenAI, session_setup: Callable[[], Awaitable[SessionSetup]]
     ):
@@ -125,21 +93,15 @@ class Agent:
             liveness=self._liveness,
             idle_debounce_s=settings.phase_idle_debounce_s,
             on_idle=self._device_went_idle,
-            on_dangling=self._arm_kill_window,
-            on_real_speech=self._disarm_kills,
+            on_dangling=self._dangling_turn,
+            on_real_speech=self._real_speech,
         )
         self._reply = ReplyAudio(self._play_chunk, self._reply_started, self._reply_stopped)
         self._resampler = InputResampler(settings.device_input_rate)
-        # The names of the tool calls in the session, by item id: a call's
-        # arguments arrive without its name.
-        self._call_names: dict[str, str] = {}
 
-        self._session: Optional[RealtimeSession] = None
+        self._session: Optional[Session] = None
         self._recording: Optional[SessionRecording] = None
         self._state = SessionState.CLOSED
-        self._session_ready = asyncio.Event()
-        # Why OpenAI refused the session's settings, if it did while it opened.
-        self._session_rejected: Optional[str] = None
         self._opened_at = 0.0
         self._last_activity = 0.0
         self._buffered_audio: list[bytes] = []
@@ -156,14 +118,8 @@ class Agent:
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
 
-        # The response being generated, and those cancelled whose audio may still arrive.
-        self._response_id: Optional[str] = None
-        self._cancelled: set[str] = set()
-        self._reply_text = ""
         # Tool calls of the response being generated, as (call_id, task).
         self._tool_calls: list[tuple[str, asyncio.Task]] = []
-        self._kill_until = 0.0
-        self._kill_next = False
         self._last_idle_unstick = 0.0
 
     # --- running ---------------------------------------------------------------
@@ -213,7 +169,8 @@ class Agent:
         elif message_type == "wake":
             logger.info("👋 device wake")
             self.phases.note_wake()
-            self._kill_next = False
+            if self._session is not None:
+                self._session.woke()
             self._on_wake()
         elif message_type == "flush":
             # A follow-up window closed without speech: drop the partial
@@ -246,29 +203,24 @@ class Agent:
     async def _interrupt(self) -> None:
         """The device's "stop": it has already silenced itself and closed its mic.
 
-        The add-on drops the reply audio it still holds, the stop word's audio
-        in OpenAI's input buffer, and the response being generated. If OpenAI
-        committed the stop word as a turn before the clear landed, it creates a
-        response to it moments later; so the next response to appear, whenever
-        it does, and any within INTERRUPT_KILL_WINDOW_S, are cancelled too. Real
-        speech disarms both; a wake disarms the first.
+        The add-on drops the reply audio it still holds, and the session drops
+        the stop word's audio and the reply being made.
         """
         logger.info("🛑 device interrupt")
         self._stopped = True
         self._end_engagement()
         self._reply.flush()
-        self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
-        self._kill_next = True
-        await self._clear_input_audio()
-        if self._response_id is not None:
-            logger.info("🛑 response.cancel (a response was active)")
-            await self._cancel_response()
-
-    async def _clear_input_audio(self) -> None:
-        """Drop the user's uncommitted audio: OpenAI's input buffer, or ours."""
         self._resampler.reset()
         if self._state is SessionState.OPEN:
-            await self._session.send({"type": "input_audio_buffer.clear"})
+            await self._session.interrupt()
+        else:
+            self._drop_buffered_audio()
+
+    async def _clear_input_audio(self) -> None:
+        """Drop the user's uncommitted audio: the session's, or ours."""
+        self._resampler.reset()
+        if self._state is SessionState.OPEN:
+            await self._session.clear_input()
         else:
             self._drop_buffered_audio()
 
@@ -294,12 +246,13 @@ class Agent:
                 time.monotonic() + self.PLAYBACK_DRAIN_FALLBACK_S + follow_up_s + self.FOLLOW_UP_MARGIN_S
             )
 
-    def _arm_kill_window(self) -> None:
-        self._kill_until = time.monotonic() + self.INTERRUPT_KILL_WINDOW_S
+    def _dangling_turn(self) -> None:
+        if self._session is not None:
+            self._session.dangling_turn()
 
-    def _disarm_kills(self) -> None:
-        self._kill_until = 0.0
-        self._kill_next = False
+    def _real_speech(self) -> None:
+        if self._session is not None:
+            self._session.real_speech()
 
     # --- reply audio -----------------------------------------------------------------
 
@@ -328,12 +281,13 @@ class Agent:
             self._begin_open("wake")
         elif self._state is SessionState.CLOSING:
             self._wake_while_closing = True
-        elif self._state is SessionState.OPEN and self._should_roll_over():
+        elif self._state is SessionState.OPEN and self._session.ROLLS_OVER and self._should_roll_over():
             self._state = SessionState.CLOSING
             self._spawn(self._roll_over(), "roll_over")
 
     def _busy(self) -> bool:
-        return self._response_id is not None or self._liveness.in_flight > 0 or self._reply.playing
+        busy = self._session is not None and self._session.busy
+        return busy or self._liveness.in_flight > 0 or self._reply.playing
 
     def _should_roll_over(self) -> bool:
         return not self._busy() and time.monotonic() - self._opened_at >= self.ROLLOVER_AGE_S
@@ -350,14 +304,12 @@ class Agent:
     async def _open(self, why: str) -> None:
         started = time.monotonic()
         logger.info(f"🔌 opening an OpenAI session ({why})")
-        self._session_ready.clear()
-        self._session_rejected = None
-        session = RealtimeSession(self._client, self.settings.model, self._on_event, self._on_closed)
+        session = RealtimeSession(self.settings, self._client, self)
         self._session = session
         setup_task = asyncio.create_task(self._session_setup(), name="session_setup")
         try:
             try:
-                await asyncio.wait_for(session.connect(), self.OPEN_TIMEOUT_S)
+                await session.connect(self.OPEN_TIMEOUT_S)
             except Exception as e:
                 await self._fail_open(f"could not connect to OpenAI: {e!r}")
                 return
@@ -370,16 +322,11 @@ class Agent:
         finally:
             setup_task.cancel()
         self._tools = setup.tools
-        await session.send({"type": "session.update", "session": self._session_config(setup)})
         try:
-            await asyncio.wait_for(self._session_ready.wait(), self.OPEN_TIMEOUT_S)
-        except asyncio.TimeoutError:
+            await session.configure(setup, self.OPEN_TIMEOUT_S)
+        except SessionFailed as e:
             await session.close()
-            await self._fail_open(f"OpenAI did not configure the session within {self.OPEN_TIMEOUT_S:.0f} s")
-            return
-        if self._session_rejected is not None:
-            await session.close()
-            await self._fail_open(self._session_rejected)
+            await self._fail_open(str(e))
             return
 
         self._state = SessionState.OPEN
@@ -401,7 +348,7 @@ class Agent:
         )
 
     async def _send_mic_audio(self, audio: bytes) -> None:
-        await self._session.send({"type": "input_audio_buffer.append", "audio": _b64(audio)})
+        await self._session.send_audio(audio)
         if self._recording is not None:
             self._recording.mic(audio)
 
@@ -409,45 +356,6 @@ class Agent:
         if self._recording is not None:
             self._recording.close()
             self._recording = None
-
-    def _session_config(self, setup: SessionSetup) -> dict:
-        s = self.settings
-        if s.turn_detection_type == "semantic_vad":
-            turn_detection = {
-                "type": "semantic_vad",
-                "eagerness": s.vad_eagerness,
-                "create_response": s.create_response,
-                "interrupt_response": s.interrupt_response,
-            }
-        else:
-            turn_detection = {
-                "type": "server_vad",
-                "threshold": s.vad_threshold,
-                "prefix_padding_ms": s.vad_prefix_padding_ms,
-                "silence_duration_ms": s.vad_silence_duration_ms,
-            }
-        audio_input: dict = {"turn_detection": turn_detection}
-        if s.log_what_you_say:
-            audio_input["transcription"] = {"model": self.TRANSCRIPTION_MODEL}
-            if setup.transcription_languages:
-                audio_input["transcription"]["languages"] = setup.transcription_languages
-        if s.noise_reduction:
-            audio_input["noise_reduction"] = {"type": s.noise_reduction}
-        config = {
-            "type": "realtime",
-            "instructions": s.instructions,
-            "audio": {"input": audio_input, "output": {"voice": s.voice, "speed": s.speed}},
-            "tools": setup.tools.definitions,
-        }
-        if s.max_output_tokens is not None:
-            config["max_output_tokens"] = s.max_output_tokens
-        if takes_reasoning(s.model):
-            config["reasoning"] = {"effort": s.reasoning_effort}
-        truncation: dict = {"type": "retention_ratio", "retention_ratio": self.RETENTION_RATIO}
-        if s.max_context_tokens:
-            truncation["token_limits"] = {"post_instructions": s.max_context_tokens}
-        config["truncation"] = truncation
-        return config
 
     async def _fail_open(self, reason: str) -> None:
         if self._state is not SessionState.OPENING:
@@ -489,10 +397,7 @@ class Agent:
         if session is not None:
             await session.close()
         self._stop_recording()
-        self._response_id = None
-        self._cancelled = set()
         self._tool_calls = []
-        self._call_names = {}
         self._state = SessionState.CLOSED
         age = time.monotonic() - self._opened_at if self._opened_at else 0.0
         logger.info(f"🔌 OpenAI session closed after {age:.0f} s ({reason})")
@@ -501,12 +406,10 @@ class Agent:
             self._wake_while_closing = False
             self._begin_open("woken while closing")
 
-    async def _on_closed(self, session: RealtimeSession, reason: str) -> None:
-        if session is self._session:
-            await self._session_lost(reason)
-
-    async def _session_lost(self, reason: str) -> None:
+    async def session_lost(self, session: Session, reason: str) -> None:
         """OpenAI's connection died, or the session ended. The next wake opens another."""
+        if session is not self._session:
+            return  # one already replaced
         if self._state is SessionState.OPENING:
             if self._open_task is not None:
                 self._open_task.cancel()
@@ -524,73 +427,23 @@ class Agent:
                 self.device.send_json({"type": "error", "message": "connection to OpenAI lost"})
                 self.phases.force_idle(f"session lost: {reason}")
 
-    # --- OpenAI's events ------------------------------------------------------------------
+    # --- the session's events ---------------------------------------------------------------
 
-    async def _on_event(self, session: RealtimeSession, event: dict) -> None:
-        if session is not self._session:
-            return  # from a session already replaced
-        kind = event.get("type", "")
-        if kind != "response.output_audio.delta":
-            logger.debug(f"⬅️ {kind}")
-        handler = getattr(self, "_on_" + kind.replace(".", "_"), None)
-        if handler is not None:
-            await handler(event)
-
-    async def _on_session_updated(self, event: dict) -> None:
-        self._session_ready.set()
-
-    async def _on_input_audio_buffer_speech_started(self, event: dict) -> None:
+    def user_started(self) -> None:
         self._awaiting_speech = False
         self._reply.flush()
         self.phases.user_started()
 
-    async def _on_input_audio_buffer_speech_stopped(self, event: dict) -> None:
+    def user_stopped(self) -> None:
         self.phases.user_stopped()
 
-    async def _on_conversation_item_added(self, event: dict) -> None:
-        item = event.get("item") or {}
-        if item.get("type") == "function_call":
-            self._call_names[item.get("id", "")] = item.get("name", "")
-        if item.get("role") == "assistant":
-            await self._kill_racing_response()
+    def reply_audio(self, audio: bytes) -> None:
+        self._reply.feed(audio)
 
-    async def _kill_racing_response(self) -> None:
-        within_window = time.monotonic() < self._kill_until
-        if not within_window and not self._kill_next:
-            return
-        self._kill_next = False
-        logger.info("🛑 a response raced in right after a device interrupt → response.cancel")
-        await self._cancel_response()
+    def reply_ended(self) -> None:
+        self._reply.end_of_reply()
 
-    async def _cancel_response(self) -> None:
-        """Cancel the response being generated; whatever audio of it still arrives is dropped."""
-        if self._response_id is not None:
-            self._cancelled.add(self._response_id)
-        await self._session.send({"type": "response.cancel"})
-
-    async def _on_conversation_item_input_audio_transcription_completed(self, event: dict) -> None:
-        text = (event.get("transcript") or "").strip()
-        if text:
-            logger.info(f"🗣️ user: {text}")
-
-    async def _on_response_created(self, event: dict) -> None:
-        self._response_id = (event.get("response") or {}).get("id", "")
-
-    async def _on_response_output_audio_delta(self, event: dict) -> None:
-        if event.get("response_id") not in self._cancelled:
-            self._reply.feed(base64.b64decode(event.get("delta", "")))
-
-    async def _on_response_output_audio_done(self, event: dict) -> None:
-        if event.get("response_id") not in self._cancelled:
-            self._reply.end_of_reply()
-
-    async def _on_response_output_audio_transcript_delta(self, event: dict) -> None:
-        self._reply_text += event.get("delta", "")
-
-    async def _on_response_function_call_arguments_done(self, event: dict) -> None:
-        arguments = event.get("arguments") or ""
-        call_id = event.get("call_id", "")
-        name = self._call_names.get(event.get("item_id", ""), event.get("name", ""))
+    def tool_call(self, call_id: str, name: str, arguments: str) -> None:
         # One at a time, in the model's order: two calls on the same device
         # must not finish the wrong way round.
         previous = self._tool_calls[-1][1] if self._tool_calls else None
@@ -613,100 +466,26 @@ class Agent:
         finally:
             self._liveness.tool_finished()
 
-    async def _on_response_done(self, event: dict) -> None:
-        response = event.get("response") or {}
-        self._response_id = None
-        self._cancelled.discard(response.get("id"))
-        self._reply.end_of_reply()
-        if self._reply_text.strip():
-            logger.info(f"🤖 assistant: {self._reply_text.strip()}")
-        self._reply_text = ""
-        if response.get("status") == "failed":
-            self._unstick(f"response failed: {response.get('status_details')}")
+    def response_done(self, session: Session) -> None:
         if self._tool_calls:
             calls, self._tool_calls = self._tool_calls, []
-            self._spawn(self._answer_tool_calls(self._session, calls), "tool_results")
+            self._spawn(self._answer_tool_calls(session, calls), "tool_results")
 
-    async def _answer_tool_calls(self, session: RealtimeSession, calls: list[tuple[str, asyncio.Task]]) -> None:
-        """Send each call's result, then ask the model to answer with them."""
-        for call_id, task in calls:
-            result = await task
-            if session is not self._session:
-                return  # the session the calls belong to has closed
-            await session.send({
-                "type": "conversation.item.create",
-                "item": {
-                    "id": f"item_{uuid.uuid4().hex[:24]}",
-                    "type": "function_call_output",
-                    "call_id": call_id,
-                    "output": result,
-                },
-            })
-        await session.send({"type": "response.create"})
+    async def _answer_tool_calls(self, session: Session, calls: list[tuple[str, asyncio.Task]]) -> None:
+        """Send the calls' results, once all are in, for the model to answer with."""
+        results = [(call_id, await task) for call_id, task in calls]
+        if session is self._session:  # not if the session the calls belong to has closed
+            await session.send_tool_results(results)
 
-    def _unstick(self, reason: str) -> None:
+    def turn_failed(self, reason: str) -> None:
         """A turn ended without a reply: put the device back to idle, so the user can try again."""
         now = time.monotonic()
         if now - self._last_idle_unstick >= self.IDLE_UNSTICK_COOLDOWN_S:
             self._last_idle_unstick = now
             self.phases.force_idle(f"turn ended on error: {reason[:60]}")
 
-    async def _on_error(self, event: dict) -> None:
-        error = event.get("error") or {}
-        code = error.get("code")
-        if code in self.BENIGN_ERROR_CODES:
-            logger.warning(f"⚠️ benign realtime error ignored: {code}")
-            return
-        if self._state is SessionState.OPENING and not self._session_ready.is_set():
-            # The session's settings were refused: say which setting to change.
-            param = error.get("param") or ""
-            setting = setting_for(param)
-            advice = f"; check the setting {setting}" if setting else ""
-            self._session_rejected = f"OpenAI refused the session's settings: {error.get('message', code)} ({param or code}){advice}"
-            self._session_ready.set()
-            return
-        logger.error(f"❌ OpenAI error: {error}")
-        if code == "session_expired":
-            await self._session_lost(f"{code}: {error.get('message', '')}")
-        elif self.phases.current == "thinking":
-            # Errors leave the session usable, but this turn may get no reply.
-            self._unstick(f"{code}: {error.get('message', '')}")
+    def error(self, reason: str) -> None:
+        # Errors leave the session usable, but a turn waiting for a reply may get none.
+        if self.phases.current == "thinking":
+            self.turn_failed(reason)
 
-
-def takes_reasoning(model: str) -> bool:
-    """Whether `model` takes a reasoning effort: gpt-realtime-2 and later do.
-
-    Others reject the session with it, so it isn't sent to them. A dated
-    snapshot (gpt-realtime-2025-08-28) is of the first model, which doesn't.
-    """
-    match = re.match(r"gpt-realtime-(\d+)(?:[.-]|$)", model)
-    return bool(match) and 2 <= int(match.group(1)) < 2000
-
-
-# The setting behind each part of the session OpenAI may reject, by the
-# error's `param`, most specific first.
-SETTING_FOR_PARAM = (
-    ("session.reasoning", "realtime → reasoning_effort"),
-    ("session.audio.output.voice", "realtime → voice"),
-    ("session.audio.output.speed", "realtime → speed"),
-    ("session.audio.input.transcription", "log_what_you_say / transcription_language"),
-    ("session.audio.input.noise_reduction", "realtime → noise_reduction"),
-    ("session.audio.input.turn_detection", "realtime → vad_eagerness, or the legacy turn detection settings"),
-    ("session.max_output_tokens", "realtime → max_output_tokens"),
-    ("session.truncation", "realtime → max_context_tokens"),
-    ("session.tools", "the Home Assistant tools (mcp_tool_allowlist)"),
-    ("session.instructions", "instructions"),
-    ("session.model", "realtime → model"),
-)
-
-
-def setting_for(param: str) -> str | None:
-    """The add-on setting behind the session field `param`, if one is."""
-    for prefix, setting in SETTING_FOR_PARAM:
-        if param == prefix or param.startswith(prefix + ".") or param.startswith(prefix + "["):
-            return setting
-    return None
-
-
-def _b64(audio: bytes) -> str:
-    return base64.b64encode(audio).decode("ascii")

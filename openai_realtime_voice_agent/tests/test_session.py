@@ -7,7 +7,8 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 import pytest_asyncio
 
-from app.agent import Agent, takes_reasoning
+from app.agent import Agent
+from app.realtime import takes_reasoning
 from tests.fakes import pcm_tone, wait_until
 
 
