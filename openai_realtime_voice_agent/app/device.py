@@ -1,5 +1,9 @@
 """The WebSocket server the Voice PE connects to (docs/protocol.md).
 
+Only a device that presents the shared secret, as `Authorization: Bearer
+<secret>` on the upgrade request, is let in; anything else is turned away
+before it can take over from the device that is connected.
+
 One device at a time. A Voice PE that reconnects after a Wi-Fi drop leaves its
 old connection half-open, its close never answered; so a new connection takes
 over at once, the old one is closed in the background, and its ending changes
@@ -9,12 +13,15 @@ Everything sent to the device goes through one queue per connection, written
 by its own task, so a slow device never holds up the add-on.
 """
 import asyncio
+import hmac
 import json
 import logging
+from http import HTTPStatus
 from typing import Optional, Protocol
 
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.exceptions import ConnectionClosed
+from websockets.http11 import Request, Response
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +56,10 @@ class _Connection:
 
 
 class DeviceServer:
-    def __init__(self, host: str, port: int, hello: dict, handler: DeviceHandler):
+    def __init__(self, host: str, port: int, secret: str, hello: dict, handler: DeviceHandler):
         self._host = host
         self._port = port
+        self._authorization = f"Bearer {secret}".encode()
         self._hello = hello
         self._handler = handler
         self._current: Optional[_Connection] = None
@@ -63,9 +71,19 @@ class DeviceServer:
 
     async def serve(self) -> None:
         """Serve devices until cancelled."""
-        async with serve(self._serve_connection, self._host, self._port):
+        async with serve(
+            self._serve_connection, self._host, self._port, process_request=self._authorize
+        ):
             logger.info(f"✅ Listening for the device on ws://{self._host}:{self._port}/")
             await asyncio.Future()
+
+    def _authorize(self, websocket: ServerConnection, request: Request) -> Optional[Response]:
+        """Turn away a connection without the device secret; None lets it in."""
+        presented = request.headers.get("Authorization", "").encode()
+        if hmac.compare_digest(presented, self._authorization):
+            return None
+        logger.warning(f"🚫 Refused a device connection from {websocket.remote_address}: wrong or missing secret")
+        return websocket.respond(HTTPStatus.UNAUTHORIZED, "Wrong or missing device secret\n")
 
     def send_json(self, obj: dict) -> None:
         """Send a control message to the device, if one is connected.

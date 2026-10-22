@@ -283,6 +283,7 @@ void VaClient::connect_() {
 
   esp_websocket_client_config_t cfg = {};
   cfg.uri = this->url_.c_str();
+  cfg.headers = this->headers_.c_str();
   cfg.disable_auto_reconnect = true;  // we drive reconnects ourselves with exponential backoff
   cfg.reconnect_timeout_ms = 5000;    // ignored because disable_auto_reconnect=true
 
@@ -400,6 +401,10 @@ void VaClient::on_ws_event(int32_t event_id, void *event_data) {
     case WEBSOCKET_EVENT_DISCONNECTED:
     case WEBSOCKET_EVENT_CLOSED:
     case WEBSOCKET_EVENT_ERROR: {
+      if (event_id == WEBSOCKET_EVENT_ERROR && data != nullptr &&
+          data->error_handle.esp_ws_handshake_status_code == 401) {
+        ESP_LOGE(TAG, "The add-on refused the connection: va_secret doesn't match its device_secret");
+      }
       if (this->ws_connected_) {
         ESP_LOGW(TAG, "WS disconnected (event %d)", (int) event_id);
       }

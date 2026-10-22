@@ -5,8 +5,34 @@ import json
 import time
 
 import pytest
+from websockets.exceptions import InvalidStatus
 
 from tests.fakes import OUTPUT_CHUNK_MS, pcm_silence, pcm_tone, wait_until
+
+
+@pytest.mark.parametrize("secret", [None, "not-the-device-secret"])
+async def test_a_device_without_the_secret_is_refused(addon, secret):
+    with pytest.raises(InvalidStatus) as refused:
+        await addon.device(secret).connect()
+    assert refused.value.response.status_code == 401
+
+
+async def test_a_refused_device_does_not_take_over(openai, addon, wake):
+    device = await addon.connect()
+    conn = await wake(device)
+    with pytest.raises(InvalidStatus):
+        await addon.device("not-the-device-secret").connect()
+    await asyncio.sleep(0.3)
+    assert not device.closed.is_set()
+    await conn.user_turn()
+    await device.wait_for_phase("listening")
+    await device.close()
+
+
+@pytest.mark.parametrize("secret", [None, "", "too-short", "has a space in it, so no"])
+async def test_the_addon_does_not_start_without_a_usable_secret(start_addon, secret):
+    with pytest.raises(ValueError, match="device_secret"):
+        await start_addon(DEVICE_SECRET=secret)
 
 
 async def test_hello_is_the_first_message(device):

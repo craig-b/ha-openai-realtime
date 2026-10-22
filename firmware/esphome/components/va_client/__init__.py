@@ -8,6 +8,7 @@ from esphome.const import CONF_ID, CONF_URL, CONF_TRIGGER_ID
 CODEOWNERS = ["@maxmaxme"]
 DEPENDENCIES = ["network", "microphone", "speaker"]
 
+CONF_SECRET = "secret"
 CONF_MICROPHONE = "microphone"
 CONF_MIC_CHANNEL = "mic_channel"
 CONF_SPEAKER = "speaker"
@@ -28,10 +29,22 @@ OnFollowupOpenedTrigger = va_client_ns.class_(
     "OnFollowupOpenedTrigger", automation.Trigger.template()
 )
 
+
+def device_secret(value):
+    """The add-on's device_secret: sent in an HTTP header, and checked the same way there."""
+    value = cv.string_strict(value)
+    if len(value) < 16:
+        raise cv.Invalid("secret must be at least 16 characters: the add-on's device_secret")
+    if not all("!" <= c <= "~" for c in value):
+        raise cv.Invalid("secret may only contain visible ASCII characters, no spaces")
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VaClient),
         cv.Required(CONF_URL): cv.string,
+        cv.Required(CONF_SECRET): device_secret,
         cv.Required(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
         cv.Optional(CONF_MIC_CHANNEL, default=0): cv.int_range(min=0, max=1),
         cv.Optional(CONF_BARGE_IN, default=True): cv.boolean,
@@ -66,6 +79,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_url(config[CONF_URL]))
+    cg.add(var.set_secret(config[CONF_SECRET]))
     cg.add(var.set_mic_channel(config[CONF_MIC_CHANNEL]))
     cg.add(var.set_barge_in(config[CONF_BARGE_IN]))
 

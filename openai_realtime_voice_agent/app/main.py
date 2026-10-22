@@ -9,7 +9,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.agent import Agent
-from app.config import Settings
+from app.config import Settings, device_secret_problem
 from app.tools import (
     DISCONNECT_DEFINITION,
     WEB_SEARCH_DEFINITION,
@@ -74,6 +74,8 @@ class Application:
         s = self.settings
         if not s.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
+        if problem := device_secret_problem(s.device_secret):
+            raise ValueError(problem)
         client = AsyncOpenAI(api_key=s.openai_api_key)
         if not s.transcription_language:
             s.transcription_language = await self._home_assistant_language() if s.ha_token else "en"

@@ -46,6 +46,10 @@ up online** (weather, news, facts) — web search is on by default.
 1. Go to <https://platform.openai.com/> → **API keys** → **Create new secret key**,
    and make sure **billing** is enabled on the account.
 2. Open the add-on's **Configuration** tab and paste the key into **`openai_api_key`**.
+3. Set **`device_secret`** to a random string of at least 16 characters with no
+   spaces, e.g. the output of `openssl rand -hex 32`. Keep it to hand: the device
+   needs the same value (step 2.3). The add-on refuses any connection without it,
+   and doesn't start until it's set.
 
 > New OpenAI accounts start on a low rate-limit tier. If you later see *"Rate limit
 > reached"* in the log, raise your usage tier on the OpenAI dashboard.
@@ -136,6 +140,7 @@ wifi_ssid: "Your-WiFi"
 wifi_password: "your-wifi-password"
 ota_password: "the-OTA-password-from-step-2.2"
 api_key: "the-API-encryption-key-from-step-2.2"   # 44-char base64
+va_secret: "the-device_secret-from-step-1.2"
 
 # Optional — ONLY if you want a fixed IP (otherwise the device uses DHCP):
 # static_ip: "192.168.1.50"

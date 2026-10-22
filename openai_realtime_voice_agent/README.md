@@ -33,10 +33,11 @@ drop-in for the stock HA voice pipeline.
 1. Add this repository to Home Assistant (Settings → Add-ons → Add-on Store → ⋮ →
    **Repositories**): `https://github.com/craig-b/ha-openai-realtime`
 2. Install **OpenAI Realtime 2 Voice Agent** and open its **Configuration** tab.
-3. Paste your **OpenAI API key**, install the HA **MCP Server** integration, expose
-   a few entities to Assist, and **Start** the add-on.
+3. Paste your **OpenAI API key**, choose a **device secret**, install the HA **MCP
+   Server** integration, expose a few entities to Assist, and **Start** the add-on.
 4. Flash the **Voice PE firmware** from
    **[`firmware/`](https://github.com/craig-b/ha-openai-realtime/tree/main/firmware)**
+   with the same device secret
    (one-click adopt-and-update in ESPHome Builder; full steps in its INSTALL guide).
 
 Full step-by-step instructions are on the **Documentation** tab (`DOCS.md`).

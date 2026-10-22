@@ -9,6 +9,11 @@ never exercises, it is listed under [Gaps](#gaps).
 
 - One WebSocket. The device is the client, the add-on the server, at
   `ws://<host>:8080/` (`va_url` in the firmware, `websocket_port` in the add-on).
+- The device authenticates with a shared secret, sent on the upgrade request as
+  `Authorization: Bearer <secret>` (`va_secret` in the firmware, `device_secret`
+  in the add-on). The add-on answers anything else with HTTP 401, before the
+  WebSocket opens, so it can't take over from the connected device. The device
+  logs the 401 and retries on its usual backoff.
 - One device at a time. When a second client connects, it takes over at once,
   and the add-on closes the first in the background.
 - TEXT frames carry JSON control messages. BINARY frames carry audio.

@@ -24,12 +24,18 @@ Voice PE device  ──WebSocket──▶  this add-on  ──▶  OpenAI Realti
    which takes a few minutes.)
 4. Open the add-on's **Configuration** tab to set it up (next sections).
 
-## 2. Get an OpenAI API key
+## 2. Get an OpenAI API key and choose a device secret
 
 1. Go to <https://platform.openai.com/> → **API keys** → **Create new secret key**.
 2. Make sure **billing** is set up on your OpenAI account — `gpt-realtime-2` (audio)
    and web search are paid usage.
 3. Paste the key into the add-on's **`openai_api_key`** option.
+4. Set **`device_secret`** to a random string of at least 16 characters with no
+   spaces, e.g. the output of `openssl rand -hex 32`. Your Voice PE sends the same
+   value (`va_secret` in your ESPHome secrets) to connect; the add-on refuses any
+   connection without it, so nothing else on your network can use your OpenAI key
+   or your home's controls through the add-on. The add-on doesn't start until it's
+   set.
 
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
 > tier. `gpt-realtime-2` audio is token-heavy, so if you see *"Rate limit reached"*
@@ -61,7 +67,7 @@ blank to expose all, or trim to just what you use, e.g.:
 ## 4. Recommended starting settings
 
 **The defaults are the recommended settings** — for a first run you only need the
-API key, the MCP integration (section 3), and ideally your language. The
+API key, the device secret, the MCP integration (section 3), and ideally your language. The
 Configuration tab is grouped: **🔑 Basics → 🗣️ Model & voice → 💬 Conversation →
 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug**, and every
 option has plain-language inline help.

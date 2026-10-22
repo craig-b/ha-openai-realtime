@@ -3,6 +3,7 @@ set -e
 
 # --- 🔑 Basics ---
 OPENAI_API_KEY=$(bashio::config 'openai_api_key')
+DEVICE_SECRET=$(bashio::config 'device_secret')
 INSTRUCTIONS=$(bashio::config 'instructions')
 TRANSCRIPTION_LANGUAGE=$(bashio::config 'transcription_language')
 
@@ -50,6 +51,7 @@ fi
 
 # Export environment variables
 export OPENAI_API_KEY
+export DEVICE_SECRET
 export INSTRUCTIONS
 export TRANSCRIPTION_LANGUAGE
 export OPENAI_MODEL

@@ -11,6 +11,14 @@ configuration:
       platform.openai.com → API keys, and make sure billing is set up.
       Everything the assistant does — listening, thinking, speaking, web
       search — runs on this key.
+  device_secret:
+    name: "🔑 Basics · Device secret"
+    description: >-
+      A password your Voice PE must present to connect to this add-on, so
+      nothing else on your network can talk to the assistant through it. Use
+      at least 16 characters with no spaces, e.g. the output of
+      `openssl rand -hex 32`, and put the same value in your ESPHome
+      secrets.yaml as va_secret. The add-on doesn't start without one.
   instructions:
     name: "🔑 Basics · Assistant personality (system prompt)"
     description: >-

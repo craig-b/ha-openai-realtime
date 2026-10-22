@@ -90,6 +90,7 @@ class Agent:
         self.device = DeviceServer(
             settings.websocket_host,
             settings.websocket_port,
+            secret=settings.device_secret,
             hello={
                 "follow_up_ms": settings.follow_up_ms,
                 "follow_up_open_delay_ms": settings.follow_up_open_delay_ms,

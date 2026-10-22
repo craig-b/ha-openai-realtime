@@ -63,9 +63,24 @@ def _resolve_choice(name: str, custom_name: str, default: str) -> str:
     return choice or default
 
 
+# The device secret travels in an HTTP header: visible ASCII, no spaces.
+DEVICE_SECRET_MIN_LENGTH = 16
+
+
+def device_secret_problem(secret: str) -> str | None:
+    """Why `secret` can't be the device secret, or None if it can."""
+    if len(secret) < DEVICE_SECRET_MIN_LENGTH:
+        return f"device_secret must be at least {DEVICE_SECRET_MIN_LENGTH} characters"
+    if not all("!" <= c <= "~" for c in secret):
+        return "device_secret may only contain visible ASCII characters, no spaces"
+    return None
+
+
 @dataclass
 class Settings:
     openai_api_key: str
+    # What the device sends as `Authorization: Bearer <secret>` to connect.
+    device_secret: str
     instructions: str
     model: str
     voice: str
@@ -120,6 +135,7 @@ class Settings:
         noise_reduction = _str("NOISE_REDUCTION").lower()
         return cls(
             openai_api_key=_str("OPENAI_API_KEY"),
+            device_secret=_str("DEVICE_SECRET"),
             instructions=os.environ.get(
                 "INSTRUCTIONS", "You are the Home Assistant Voice Agent and can control the Smart Home."
             ),

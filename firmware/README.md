@@ -45,10 +45,11 @@
 
 1. Install and configure the **OpenAI Realtime 2 Voice Agent** add-on from
    [craig-b/ha-openai-realtime](https://github.com/craig-b/ha-openai-realtime)
-   (sets your OpenAI API key, the model, and the Home Assistant MCP connection).
+   (sets your OpenAI API key, the device secret, the model, and the Home Assistant
+   MCP connection).
 2. In **Builder → Secrets**, add the keys from
    [`secrets.yaml.example`](secrets.yaml.example): `wifi_ssid`, `wifi_password`,
-   `ota_password`, `api_key` (plus `static_ip`/`gateway`/`subnet`/`dns1`/`dns2`
+   `ota_password`, `api_key`, `va_secret` (the add-on's `device_secret`) (plus `static_ip`/`gateway`/`subnet`/`dns1`/`dns2`
    only if you want a fixed IP).
 3. Create a new device in the dashboard and replace its YAML with a ready-made
    stub — [`esphome-builder.dhcp.yaml`](esphome-builder.dhcp.yaml) for DHCP, or

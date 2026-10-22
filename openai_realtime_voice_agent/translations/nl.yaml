@@ -10,6 +10,15 @@ configuration:
       platform.openai.com → API keys, en zorg dat facturering is ingesteld.
       Alles wat de assistent doet — luisteren, denken, praten, zoeken op
       internet — loopt via deze sleutel.
+  device_secret:
+    name: "🔑 Basis · Apparaatgeheim"
+    description: >-
+      Een wachtwoord dat je Voice PE moet tonen om met deze add-on te
+      verbinden, zodat niets anders op je netwerk via de add-on met de
+      assistent kan praten. Gebruik minstens 16 tekens zonder spaties,
+      bijvoorbeeld de uitvoer van `openssl rand -hex 32`, en zet dezelfde
+      waarde als va_secret in je ESPHome-secrets.yaml. Zonder geheim start de
+      add-on niet.
   instructions:
     name: "🔑 Basis · Persoonlijkheid (systeemprompt)"
     description: >-

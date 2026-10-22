@@ -332,8 +332,10 @@ class FakeRealtimeServer:
 class FakeDevice:
     """A WebSocket client speaking the va_client side of docs/protocol.md."""
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, secret: Optional[str]):
         self.url = url
+        # Sent as the firmware does; None sends no Authorization header.
+        self.secret = secret
         self.websocket = None
         self.raw_text: list[str] = []
         self.messages: list[dict] = []
@@ -342,7 +344,8 @@ class FakeDevice:
         self._reader = None
 
     async def connect(self, send_start: bool = True) -> "FakeDevice":
-        self.websocket = await websockets.connect(self.url)
+        headers = {"Authorization": f"Bearer {self.secret}"} if self.secret is not None else {}
+        self.websocket = await websockets.connect(self.url, additional_headers=headers)
         self._reader = asyncio.create_task(self._read())
         if send_start:
             await self.send({"type": "start"})

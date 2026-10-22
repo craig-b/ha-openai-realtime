@@ -47,6 +47,7 @@ map:
 options:
   # --- 🔑 Basics ---
   openai_api_key: ""
+  device_secret: ""
   instructions: >-
     You are the cheerful, friendly voice assistant of Home Assistant and you
     control the smart home. LANGUAGE: Speak and understand only English, with a
@@ -118,6 +119,7 @@ options:
 schema:
   # --- 🔑 Basics ---
   openai_api_key: password
+  device_secret: password
   instructions: str
   transcription_language: str?
   # --- 🗣️ Model & voice ---

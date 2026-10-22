@@ -28,8 +28,9 @@ async def openai(monkeypatch):
 class Addon:
     """The add-on's Application running in this event loop."""
 
-    def __init__(self, port: int):
+    def __init__(self, port: int, secret: str | None):
         self.port = port
+        self.secret = secret
         self.app = None
         self.task = None
 
@@ -37,8 +38,9 @@ class Addon:
     def url(self) -> str:
         return f"ws://127.0.0.1:{self.port}/"
 
-    def device(self) -> FakeDevice:
-        return FakeDevice(self.url)
+    def device(self, secret: str | None = ...) -> FakeDevice:
+        """A device presenting the add-on's secret, or `secret` if one is given."""
+        return FakeDevice(self.url, self.secret if secret is ... else secret)
 
     async def connect(self, send_start: bool = True) -> FakeDevice:
         """Connect a device and wait for its hello, so the add-on has taken it on."""
@@ -65,6 +67,7 @@ def addon_env(monkeypatch):
     port = _free_port()
     env = {
         "OPENAI_API_KEY": "test-key",
+        "DEVICE_SECRET": "test-device-secret",
         "WEBSOCKET_HOST": "127.0.0.1",
         "WEBSOCKET_PORT": str(port),
         "ENABLE_WEB_SEARCH": "false",
@@ -96,7 +99,7 @@ async def start_addon(openai, addon_env, monkeypatch, running):
                 monkeypatch.delenv(name, raising=False)
             else:
                 monkeypatch.setenv(name, value)
-        addon = Addon(int(env["WEBSOCKET_PORT"]))
+        addon = Addon(int(env["WEBSOCKET_PORT"]), env.get("DEVICE_SECRET"))
         addon.app = Application()
         addon.task = asyncio.create_task(addon.app.run())
         started.append(addon)

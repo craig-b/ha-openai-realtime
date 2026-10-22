@@ -7,14 +7,14 @@
 # a small per-device stub, so updates are one click in the dashboard (no more
 # copy-pasting the whole file). The stub provides the device identity + secrets
 # as SUBSTITUTIONS (a remote package can't use !secret):
-#   name, friendly_name, wifi_ssid, wifi_password, ota_password, api_key
+#   name, friendly_name, wifi_ssid, wifi_password, ota_password, api_key, va_secret
 #   (+ static_ip/gateway/subnet/dns1/dns2 and a manual_ip override for a fixed IP)
 # See esphome-builder.dhcp.yaml in this repo for the stub template.
 # ============================================================================
 substitutions:
   # Device identity comes from the per-device stub (esphome-builder.dhcp.yaml); these
   # are safe defaults the stub overrides. Wi-Fi + secrets (wifi_ssid, wifi_password,
-  # ota_password, api_key) MUST be provided by the stub as substitutions, because
+  # ota_password, api_key, va_secret) MUST be provided by the stub as substitutions, because
   # a remote `packages:` include can't use !secret.
   name: home-assistant-voice
   friendly_name: Home Assistant Voice
@@ -59,7 +59,6 @@ substitutions:
   # change this if your HA host has a different name/IP, e.g.
   # "ws://192.168.1.10:8080/".
   va_url: "ws://homeassistant.local:8080/"
-  # (device→add-on WebSocket needs no auth token; it's a LAN-local service.)
 
 esphome:
   name: ${name}
@@ -1925,6 +1924,7 @@ time:
 va_client:
   id: va
   url: ${va_url}
+  secret: ${va_secret}
   microphone: i2s_mics
   mic_channel: 0
   # Handsfree barge-in: keep the mic open while the assistant is speaking so
