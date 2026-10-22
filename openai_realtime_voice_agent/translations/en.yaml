@@ -180,15 +180,14 @@ configuration:
       OpenAI session closes and the next wake starts afresh. 300 (5 min) is a
       good default; 0 = close as soon as each reply ends, so even a follow-up
       answer starts afresh.
-  max_context_messages:
-    name: "⚙️ Advanced · Conversation memory size"
+  max_context_tokens:
+    name: "⚙️ Advanced · Conversation memory size (tokens)"
     description: >-
-      How many recent conversation items the assistant keeps within a
-      conversation; each thing you say, each reply, each tool call and each
-      tool result is one. Older turns are dropped as new ones come. More =
-      better memory, but every answer re-bills everything kept, so long chats
-      get expensive and can hit OpenAI rate limits. 12 is a good balance; 0 =
-      unlimited.
+      How big a conversation may grow, in tokens, before OpenAI forgets its
+      oldest half in one go. Every answer re-bills the whole conversation, so
+      more = better memory but higher cost, and long chats can hit OpenAI rate
+      limits. 8000 is a good balance; 0 = as much as the model allows. Too
+      high a value for the model makes the conversation fail to start.
   transcription_model:
     name: "⚙️ Advanced · Transcript model"
     description: >-

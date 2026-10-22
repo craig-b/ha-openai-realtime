@@ -393,44 +393,35 @@ async def _exchanges(device, conn, count):
     return ids
 
 
-def _deleted(conn) -> list[str]:
-    return [e["item_id"] for e in conn.of_type("conversation.item.delete")]
+async def test_openai_truncates_the_conversation_by_half_at_the_token_limit(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(MAX_CONTEXT_TOKENS="6000"))
+    assert conn.session["truncation"] == {
+        "type": "retention_ratio",
+        "retention_ratio": 0.5,
+        "token_limits": {"post_instructions": 6000},
+    }
 
 
-async def test_the_oldest_turns_are_removed_past_the_cap(openai, start_addon, open_session):
-    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="4"))
-    turns = await _exchanges(device, conn, 3)
-    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
-    assert _deleted(conn) == list(turns[0])
+async def test_the_token_limit_defaults_to_8000(openai, session):
+    assert session.session["truncation"]["token_limits"] == {"post_instructions": 8000}
 
 
-async def test_the_cap_defaults_to_12_items(openai, start_addon, open_session):
-    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES=None))
-    turns = await _exchanges(device, conn, 7)
-    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
-    assert _deleted(conn) == list(turns[0])
+async def test_no_token_limit_leaves_the_models_own(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(MAX_CONTEXT_TOKENS="0"))
+    assert conn.session["truncation"] == {"type": "retention_ratio", "retention_ratio": 0.5}
 
 
-async def test_no_cap_keeps_every_item(openai, start_addon, open_session):
-    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="0"))
-    await _exchanges(device, conn, 4)
+async def test_the_add_on_deletes_no_conversation_items(openai, device, session):
+    await _exchanges(device, session, 8)
     await asyncio.sleep(0.3)
-    assert _deleted(conn) == []
+    assert session.count("conversation.item.delete") == 0
 
 
-async def test_the_current_turn_is_kept_even_past_the_cap(openai, start_addon, open_session):
-    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="1"))
-    await _exchanges(device, conn, 1)
-    await asyncio.sleep(0.3)
-    assert _deleted(conn) == []
-
-
-async def test_removed_turns_are_not_carried_over(openai, start_addon, open_session, wake):
-    device, conn = await open_session(await start_addon(MAX_CONTEXT_MESSAGES="4"))
+async def test_a_carried_conversation_is_no_bigger_than_truncation_keeps(openai, start_addon, open_session, wake):
+    # 20 tokens, half kept: about 40 characters, the last turn's two lines.
+    device, conn = await open_session(await start_addon(MAX_CONTEXT_TOKENS="20"))
     await _exchanges(device, conn, 3)
-    await wait_until(lambda: _deleted(conn), 2.0, "items deleted")
     await conn.close(1011)
     second = await wake(device)
     text = await _carried_text(second)
-    assert "Answer 0." not in text
-    assert "Assistant: Answer 1." in text and "Assistant: Answer 2." in text
+    assert text == "User: (not transcribed)\nAssistant: Answer 2.\n</earlier_conversation>\n(The user's words were not transcribed.)"

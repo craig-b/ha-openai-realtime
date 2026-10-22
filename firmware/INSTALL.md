@@ -86,7 +86,7 @@ known-good starting point — you can fine-tune later:
 | `follow_up_open_delay_ms` | `700` |
 | `wake_open_delay_ms` | `700` |
 | `playback_prebuffer_ms` | `150` |
-| `max_context_messages` | `12` |
+| `max_context_tokens` | `8000` |
 | `mcp_tool_allowlist` | **blank** (use all of the official server's tools — it's already a small set) |
 | `enable_web_search` | `true` (online lookups on by default; set `false` to disable) |
 | `web_search_model` | `gpt-5.5` (best quality; mini/nano are cheaper) |

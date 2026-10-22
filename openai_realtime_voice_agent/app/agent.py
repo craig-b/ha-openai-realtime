@@ -5,10 +5,11 @@ mic audio arrives with none open), holding the mic audio until OpenAI has
 configured it, and closes once nothing has happened for the idle timeout. A
 connection that dies ends the session; the next wake opens a new one.
 
-Within a session, OpenAI's conversation is kept to the last `max_items` items
-(each question, reply, tool call and tool result is one) by deleting the
-oldest whole turns; OpenAI otherwise keeps everything and bills it all on
-every reply.
+Within a session, OpenAI bills the whole conversation on every reply. Once it
+passes `max_context_tokens`, OpenAI drops its oldest items down to
+RETENTION_RATIO of that limit in one go: dropping a little on every turn would
+change the start of the conversation each time, and with it lose the prompt
+cache for everything after.
 
 The conversation outlives its session in two cases: at a wake once the session
 nears OpenAI's 60-minute cap, the add-on rolls over to a new session; and after
@@ -57,6 +58,10 @@ class Agent:
     # cancelled: the stop word's audio may already have been committed as a turn.
     INTERRUPT_KILL_WINDOW_S = 1.5
     IDLE_UNSTICK_COOLDOWN_S = 2.0
+    # Share of max_context_tokens kept when OpenAI truncates the conversation.
+    RETENTION_RATIO = 0.5
+    # A rough size of a token in English text, to bound a carried transcript.
+    CHARS_PER_TOKEN = 4
     # OpenAI errors that are harmless protocol races, not a broken session.
     BENIGN_ERROR_CODES = {
         # Turn detection split an utterance; its second response collided with the first.
@@ -345,6 +350,10 @@ class Agent:
         }
         if s.max_output_tokens is not None:
             config["max_output_tokens"] = s.max_output_tokens
+        truncation: dict = {"type": "retention_ratio", "retention_ratio": self.RETENTION_RATIO}
+        if s.max_context_tokens:
+            truncation["token_limits"] = {"post_instructions": s.max_context_tokens}
+        config["truncation"] = truncation
         return config
 
     def _take_carried_conversation(self) -> list[dict]:
@@ -352,7 +361,10 @@ class Agent:
         if not self._conversation or time.monotonic() > self._carry_until:
             self._conversation.clear()
             return []  # nothing to carry, or it timed out while no session was open
-        return self._conversation.carry_items()
+        # No bigger than what OpenAI keeps after truncating.
+        limit = self.settings.max_context_tokens
+        max_chars = int(limit * self.RETENTION_RATIO * self.CHARS_PER_TOKEN) if limit else None
+        return self._conversation.carry_items(max_chars)
 
     async def _fail_open(self, reason: str) -> None:
         if self._state is not SessionState.OPENING:
@@ -536,7 +548,6 @@ class Agent:
         if self._tool_calls:
             calls, self._tool_calls = self._tool_calls, []
             self._spawn(self._answer_tool_calls(self._session, calls), "tool_results")
-        await self._trim_conversation()
 
     async def _answer_tool_calls(self, session: RealtimeSession, calls: list[tuple[str, asyncio.Task]]) -> None:
         """Send each call's result, then ask the model to answer with them."""
@@ -574,20 +585,6 @@ class Agent:
         elif self.phases.current == "thinking":
             # Errors leave the session usable, but this turn may get no reply.
             self._unstick(f"{code}: {error.get('message', '')}")
-
-    async def _trim_conversation(self) -> None:
-        """Delete the oldest whole turns until at most `max_context_messages` items remain."""
-        max_items = self.settings.max_context_messages
-        if not max_items or self._state is not SessionState.OPEN or self._response_id is not None:
-            return
-        dropped = self._conversation.oldest_turns_over(max_items)
-        for item in dropped:
-            await self._session.send({"type": "conversation.item.delete", "item_id": item.item_id})
-        if dropped:
-            logger.info(
-                f"✂️ removed the {len(dropped)} oldest conversation items "
-                f"({len(self._conversation)} kept, cap {max_items})"
-            )
 
 
 def _b64(audio: bytes) -> str:

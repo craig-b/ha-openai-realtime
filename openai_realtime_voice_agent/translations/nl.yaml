@@ -184,15 +184,15 @@ configuration:
       OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
       goede standaard; 0 = sluiten zodra elk antwoord klaar is, zodat zelfs
       een vervolgantwoord opnieuw begint.
-  max_context_messages:
-    name: "⚙️ Geavanceerd · Gespreksgeheugen (berichten)"
+  max_context_tokens:
+    name: "⚙️ Geavanceerd · Gespreksgeheugen (tokens)"
     description: >-
-      Hoeveel recente gespreksonderdelen de assistent binnen een gesprek
-      bewaart; alles wat je zegt, elk antwoord, elke toolaanroep en elk
-      toolresultaat telt als één. Oudere beurten vallen af als er nieuwe
-      bijkomen. Meer = beter geheugen, maar elk antwoord rekent alles wat
-      bewaard is opnieuw af, dus lange gesprekken worden duurder en kunnen
-      tegen OpenAI-limieten aanlopen. 12 is een goede balans; 0 = onbeperkt.
+      Hoe groot een gesprek mag worden, in tokens, voordat OpenAI in één keer
+      de oudste helft vergeet. Elk antwoord rekent het hele gesprek opnieuw
+      af, dus meer = beter geheugen maar hogere kosten, en lange gesprekken
+      kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
+      zoveel als het model toelaat. Een te hoge waarde voor het model laat
+      het gesprek niet starten.
   transcription_model:
     name: "⚙️ Geavanceerd · Transcriptmodel"
     description: >-

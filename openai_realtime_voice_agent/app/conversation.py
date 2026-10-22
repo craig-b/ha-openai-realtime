@@ -99,9 +99,23 @@ class Conversation:
         if item_id in self._by_id:
             self._by_id[item_id].text += text
 
-    def carry_items(self) -> list[dict]:
-        """The note and transcript that start a new session; recorded as its first item."""
-        lines = "\n".join(line for item in self.items if (line := item.line()))
+    def carry_items(self, max_chars: int | None = None) -> list[dict]:
+        """The note and transcript that start a new session; recorded as its first item.
+
+        Beyond `max_chars`, the oldest whole turns are left out (a turn starts
+        with what the user said); the latest turn always stays.
+        """
+        turns: list[list[str]] = []
+        for item in self.items:
+            for line in item.line().split("\n"):
+                if line and (not turns or line.startswith("User: ")):
+                    turns.append([line])
+                elif line:
+                    turns[-1].append(line)
+        size = sum(len(line) + 1 for turn in turns for line in turn)
+        while max_chars is not None and size > max_chars and len(turns) > 1:
+            size -= sum(len(line) + 1 for line in turns.pop(0))
+        lines = "\n".join(line for turn in turns for line in turn)
         text = f"{CARRY_START}\n{lines}\n{CARRY_END}"
         if any(item.kind == "user" and not item.text for item in self.items):
             text += "\n(The user's words were not transcribed.)"
@@ -111,26 +125,3 @@ class Conversation:
         # As lines only, so a later carry doesn't nest the markers.
         self.record(RecordedItem(transcript["id"], "carried", lines))
         return [note, transcript]
-
-    def oldest_turns_over(self, max_items: int) -> list[RecordedItem]:
-        """Remove and return the oldest whole turns, until at most `max_items` remain.
-
-        A turn starts with what the user said, or with carried history; the
-        current turn always stays.
-        """
-        turns: list[list[RecordedItem]] = []
-        for item in self.items:
-            if not turns or item.kind in ("user", "carried"):
-                turns.append([item])
-            else:
-                turns[-1].append(item)
-        excess = len(self.items) - max_items
-        dropped: list[RecordedItem] = []
-        while excess > 0 and len(turns) > 1:
-            turn = turns.pop(0)
-            excess -= len(turn)
-            dropped += turn
-        for item in dropped:
-            self.items.remove(item)
-            del self._by_id[item.item_id]
-        return dropped

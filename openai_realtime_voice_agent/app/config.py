@@ -107,8 +107,8 @@ class Settings:
     # How long the OpenAI session, and with it the conversation, stays open
     # after the last thing that happened in it.
     session_idle_timeout_s: int
-    # How many conversation items OpenAI keeps within a session (0 = all).
-    max_context_messages: int
+    # The conversation's size, in tokens, at which OpenAI truncates it (0 = the model's limit).
+    max_context_tokens: int
     enable_recording: bool
 
     @classmethod
@@ -151,6 +151,6 @@ class Settings:
             playback_prebuffer_ms=_int("PLAYBACK_PREBUFFER_MS", 150, 0, 2000),
             phase_idle_debounce_s=_int("PHASE_IDLE_DEBOUNCE_MS", 1500, 0) / 1000,
             session_idle_timeout_s=_int("SESSION_REUSE_TIMEOUT_SECONDS", 300, 0),
-            max_context_messages=_int("MAX_CONTEXT_MESSAGES", 12, 0),
+            max_context_tokens=_int("MAX_CONTEXT_TOKENS", 8000, 0),
             enable_recording=_bool("ENABLE_RECORDING", False),
         )
