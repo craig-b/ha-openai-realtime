@@ -107,8 +107,8 @@ def conversation_start(prompt: str) -> str:
     """What the model is told to start a conversation an automation asks for."""
     return (
         "An automation in the home asks you to start a conversation with the people in it, about this: "
-        f"{prompt}\nSpeak first, now, in a sentence or two, as if you had just walked into the room; then wait "
-        "for their answer."
+        f"{prompt}\nSpeak first, now, in one short sentence that ends with your question, as if you had just "
+        "walked into the room: no offers or explanations after it. Then wait for their answer."
     )
 
 

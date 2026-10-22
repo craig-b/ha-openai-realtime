@@ -262,7 +262,7 @@ subscribes to over Home Assistant's WebSocket API (`app/automations.py`):
 | Event | Data | What the model is told |
 |---|---|---|
 | `openai_realtime_voice_agent_announce` | `message` | Say it word for word, and nothing else. The device doesn't listen after it |
-| `openai_realtime_voice_agent_start_conversation` | `prompt` | Speak first about it, in a sentence or two, then wait for the answer. The device listens after it |
+| `openai_realtime_voice_agent_start_conversation` | `prompt` | Speak first about it, in one short sentence ending with the question, then wait for the answer. The device listens after it |
 
 - The request waits, up to 120 s, until the device is connected and free: no
   conversation going on it (see [OpenAI session](#openai-session)), no turn,
