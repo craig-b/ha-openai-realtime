@@ -1,6 +1,7 @@
 """The GPT-Live engine (app/live.py): a session per conversation on /v1/live/sessions."""
 
 import asyncio
+import time
 
 import pytest
 import pytest_asyncio
@@ -234,3 +235,14 @@ async def test_words_said_over_a_reply_cut_it(openai, live):
     await asyncio.sleep(0.1)
     await conn.heard("actually what time is it")
     await device.wait_for_phase("listening", count=2)
+
+
+async def test_a_wake_while_a_session_closes_doesnt_wait_for_gpt_live_to_confirm(openai, live, fast_idle_check):
+    openai.live_close_delay = 3.0
+    device, conn = live
+    await device.send({"type": "flush"})  # the conversation ends: the session closes
+    await conn.wait_for("session.close", timeout=3.0)
+    started = time.monotonic()
+    await device.send({"type": "wake"})
+    await openai.live_connection(1, timeout=3.0)
+    assert time.monotonic() - started < 1.5

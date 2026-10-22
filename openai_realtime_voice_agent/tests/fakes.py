@@ -284,6 +284,8 @@ class FakeRealtimeServer:
         # GPT-Live sessions (/v1/live/sessions), and an error to answer session.start with.
         self.live_connections: list[FakeLiveConnection] = []
         self.refuse_live_with: Optional[dict] = None
+        # How long GPT-Live takes to confirm session.close.
+        self.live_close_delay = 0.0
 
     @property
     def base_url(self) -> str:
@@ -344,6 +346,7 @@ class FakeRealtimeServer:
                         conn.started_at = time.monotonic()
                         await conn.send({"type": "session.started", "session": {"id": _id("live"), **event["session"]}})
                 elif event.get("type") == "session.close":
+                    await asyncio.sleep(self.live_close_delay)
                     await conn.send({"type": "session.closed", "reason": "close_requested", "usage": {"seconds": 12.0}})
                     await websocket.close()
         except websockets.ConnectionClosed:

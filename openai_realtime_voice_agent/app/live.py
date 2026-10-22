@@ -37,6 +37,10 @@ from app.session import SessionEvents, SessionFailed, SessionSetup
 logger = logging.getLogger(__name__)
 
 
+# Sessions closing in the background, kept until GPT-Live confirms.
+_closing_sessions: set[asyncio.Task] = set()
+
+
 class LiveSession:
     """A GPT-Live connection: the session's settings, the user's audio in, GPT-Live's events out."""
 
@@ -132,13 +136,22 @@ class LiveSession:
         }
 
     async def close(self) -> None:
-        """End the session, and wait for GPT-Live's final usage."""
+        """End the session. GPT-Live's confirmation, with the final usage, is
+        awaited in the background, so the next session can open meanwhile."""
         if self._closing:
             return
         self._closing = True
         self._cancel_hang()
         if self._backend_watch is not None:
             self._backend_watch.cancel()
+        if self._reader is asyncio.current_task():
+            await self._finish_closing()  # GPT-Live ended it: nothing to wait for
+            return
+        task = asyncio.create_task(self._finish_closing())
+        _closing_sessions.add(task)
+        task.add_done_callback(_closing_sessions.discard)
+
+    async def _finish_closing(self) -> None:
         if self._ws is not None and self._started.is_set() and not self._closed.is_set():
             try:
                 await self._ws.send(json.dumps({"type": "session.close"}))
