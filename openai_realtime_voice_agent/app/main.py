@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 
 from app.agent import Agent
 from app.realtime import RealtimeSession, takes_reasoning
-from app.session import SessionSetup
+from app.session import Home, SessionSetup
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
 from app.tools import (
@@ -39,10 +39,10 @@ dotenv.load_dotenv()
 class Application:
     """The add-on, and what each session reads from Home Assistant.
 
-    Home Assistant's tools and language are read for each session, while it
-    connects to OpenAI: a session has them as they are when it opens, and Home
-    Assistant needn't be up when the add-on starts. A read that fails leaves
-    the last one that worked in place.
+    Home Assistant's tools and configuration (its language, and where the home
+    is) are read for each session, while it connects to OpenAI: a session has
+    them as they are when it opens, and Home Assistant needn't be up when the
+    add-on starts. A read that fails leaves the last one that worked in place.
     """
 
     # How long a session waits for Home Assistant before using the last read.
@@ -54,26 +54,43 @@ class Application:
         self.settings = Settings.from_env()
         self.agent: Agent | None = None
         self._client: AsyncOpenAI | None = None
-        # The last of Home Assistant's tools and language read: none, and
-        # English, until a read works.
+        # The last of Home Assistant's tools and configuration read: none
+        # until a read works.
         self._last_tools: list[tuple[dict, Handler]] = []
-        self._last_language = "en"
+        self._last_config: dict = {}
 
     async def _session_setup(self) -> SessionSetup:
-        tools, languages = await asyncio.gather(self._tools(), self._transcription_languages())
-        return SessionSetup(tools=tools, transcription_languages=languages)
+        s = self.settings
+        if s.ha_token:
+            ha_tools, config = await asyncio.gather(
+                self._read_home_assistant_tools(), self._read_home_assistant_config()
+            )
+        else:
+            ha_tools, config = [], {}
+        home = Home(
+            town=s.home_town,
+            country=str(config.get("country") or ""),
+            time_zone=str(config.get("time_zone") or ""),
+            temperature_unit=str((config.get("unit_system") or {}).get("temperature") or ""),
+        )
+        return SessionSetup(
+            tools=self._tools(ha_tools, home),
+            transcription_languages=self._transcription_languages(config),
+            home=home,
+        )
 
-    async def _tools(self) -> Tools:
+    def _tools(self, ha_tools: list[tuple[dict, Handler]], home: Home) -> Tools:
         s = self.settings
         tools = Tools()
         if s.enable_end_conversation:
             tools.add(END_CONVERSATION_DEFINITION, end_conversation(lambda: self.agent.end_conversation()))
         if s.enable_web_search and s.engine == "realtime":
             # GPT-Live's backend searches the web with OpenAI's own tool instead.
-            tools.add(WEB_SEARCH_DEFINITION, web_search(self._client, s.web_search_model))
-        if s.ha_token:
-            for definition, handler in await self._read_home_assistant_tools():
-                tools.add(definition, handler)
+            tools.add(
+                WEB_SEARCH_DEFINITION, web_search(self._client, s.web_search_model, home.web_search_location())
+            )
+        for definition, handler in ha_tools:
+            tools.add(definition, handler)
         return tools
 
     async def _read_home_assistant_tools(self) -> list[tuple[dict, Handler]]:
@@ -92,30 +109,29 @@ class Application:
         self._last_tools = fetched
         return fetched
 
-    async def _transcription_languages(self) -> list[str]:
-        """The languages set, or else Home Assistant's own (e.g. "en-GB" → "en")."""
+    async def _read_home_assistant_config(self) -> dict:
+        """Home Assistant's configuration (/api/config), or the last read if it can't be read."""
+        s = self.settings
+        api_url = s.ha_mcp_url.removesuffix("/mcp")
+        try:
+            async with httpx.AsyncClient(timeout=self.HOME_ASSISTANT_TIMEOUT_S) as http:
+                response = await http.get(f"{api_url}/config", headers={"Authorization": f"Bearer {s.ha_token}"})
+                response.raise_for_status()
+                config = response.json()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not read Home Assistant's configuration, using the last read: {e!r}")
+            return self._last_config
+        self._last_config = config
+        return config
+
+    def _transcription_languages(self, config: dict) -> list[str]:
+        """The languages set, or else Home Assistant's own (e.g. "en-GB" → "en"), or English."""
         s = self.settings
         if not s.log_what_you_say or s.engine != "realtime" or s.transcription_language == "auto":
             return []
         if s.transcription_language:
             return [code.strip() for code in s.transcription_language.split(",") if code.strip()]
-        if not s.ha_token:
-            return ["en"]
-        api_url = s.ha_mcp_url.removesuffix("/mcp")
-        try:
-            async with httpx.AsyncClient(timeout=self.HOME_ASSISTANT_TIMEOUT_S) as http:
-                response = await http.get(
-                    f"{api_url}/config", headers={"Authorization": f"Bearer {s.ha_token}"}
-                )
-                response.raise_for_status()
-                language = str(response.json()["language"]).split("-")[0].lower()
-        except Exception as e:
-            logger.warning(
-                f"⚠️ Could not read Home Assistant's language, using {self._last_language!r}: {e!r}"
-            )
-            return [self._last_language]
-        self._last_language = language
-        return [language]
+        return [str(config.get("language") or "en").split("-")[0].lower()]
 
     async def run(self) -> None:
         s = self.settings

@@ -48,6 +48,7 @@ PLAYBACK_PREBUFFER_MS=$(bashio::config 'playback_prebuffer_ms')
 HA_MCP_URL=$(bashio::config 'ha_mcp_url')
 LONGLIVED_TOKEN=$(bashio::config 'longlived_token')
 MCP_TOOL_ALLOWLIST=$(bashio::config 'mcp_tool_allowlist')
+HOME_TOWN=$(bashio::config 'home_town')
 
 # --- ⚙️ Advanced ---
 WEBSOCKET_PORT=$(bashio::config 'websocket_port')
@@ -97,6 +98,7 @@ export PLAYBACK_PREBUFFER_MS
 export NOISE_REDUCTION
 export LONGLIVED_TOKEN
 export MCP_TOOL_ALLOWLIST
+export HOME_TOWN
 export WEBSOCKET_PORT
 export SESSION_REUSE_TIMEOUT_SECONDS
 export MAX_CONTEXT_TOKENS

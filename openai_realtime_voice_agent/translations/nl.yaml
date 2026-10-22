@@ -328,6 +328,14 @@ configuration:
       gebruiken; leeg = allemaal. Met de ingebouwde MCP-server kun je dit
       leeg laten. Vooral nuttig met de ha-mcp-add-on (80+ tools) om gesprekken
       snel en goedkoop te houden.
+  home_town:
+    name: "🏠 Home Assistant · Plaats waar het huis staat"
+    description: >-
+      Voor lokale antwoorden: "wat voor weer is het?" heeft dan geen plaats
+      nodig. De instellingen van Home Assistant geven al het land, de tijdzone
+      en de temperatuureenheid, die de assistent ook krijgt; een plaats staat
+      er niet in. Wordt met je vragen naar OpenAI gestuurd. Laat leeg om
+      alleen die te geven.
 
   # --- ⚙️ Geavanceerd ---
   websocket_port:

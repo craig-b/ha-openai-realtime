@@ -36,7 +36,12 @@ class FakeHomeAssistant:
 
     async def _config(self, request):
         await asyncio.sleep(self.config_delay)
-        return JSONResponse({"language": self.language})
+        return JSONResponse({
+            "language": self.language,
+            "country": "GB",
+            "time_zone": "Europe/London",
+            "unit_system": {"temperature": "°C", "length": "km"},
+        })
 
     async def _turn_off(self, name: str) -> str:
         self.calls.append(("HassTurnOff", {"name": name}))
@@ -304,3 +309,39 @@ async def test_ending_the_conversation_can_be_turned_off(openai, start_addon, wa
     conn = await wake(device)
     assert conn.session["tools"] == []
     await device.close()
+
+
+# --- where the home is --------------------------------------------------------------------
+
+async def test_the_model_is_told_where_the_home_is(openai, start_addon, home_assistant, wake):
+    addon = await start_addon(HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token", HOME_TOWN="London")
+    device = await addon.connect()
+    conn = await wake(device)
+    assert conn.session["instructions"].endswith(
+        "ABOUT THE HOME: The home is in London, GB. Its time zone is Europe/London. Give temperatures in °C. "
+        "Unless the user names another place, questions about the weather or local things are about the home."
+    )
+    await device.close()
+
+
+async def test_gpt_lives_web_search_knows_where_the_home_is(openai, start_addon, home_assistant):
+    addon = await start_addon(
+        ENGINE="live", ENABLE_WEB_SEARCH="true", HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token",
+        HOME_TOWN="London",
+    )
+    device = await addon.connect()
+    await device.send({"type": "wake"})
+    session = (await openai.live_connection()).session
+    search = [t for t in session["delegation"]["responses"]["tools"] if t["type"] == "web_search"]
+    assert search == [{"type": "web_search", "user_location": {
+        "type": "approximate", "city": "London", "country": "GB", "timezone": "Europe/London"}}]
+    assert "ABOUT THE HOME" in session["instructions"]
+    assert "ABOUT THE HOME" in session["delegation"]["responses"]["instructions"]
+    await device.close()
+
+
+def test_nothing_known_of_the_home_adds_nothing():
+    from app.session import Home, with_home
+
+    assert with_home("Be brief.", Home()) == "Be brief."
+    assert Home().web_search_location() is None

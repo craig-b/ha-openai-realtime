@@ -123,6 +123,9 @@ class Settings:
     enable_end_conversation: bool
     ha_mcp_url: str
     ha_token: str
+    # The town or city the home is in, for local answers; Home Assistant's
+    # configuration has its country, time zone and units but not its town.
+    home_town: str
     # The Supervisor's API, and the add-on's token for it; empty outside Home Assistant.
     supervisor_url: str
     supervisor_token: str
@@ -191,6 +194,7 @@ class Settings:
             enable_end_conversation=_bool("ENABLE_END_CONVERSATION", True),
             ha_mcp_url=_str("HA_MCP_URL") or "http://supervisor/core/api/mcp",
             ha_token=_str("LONGLIVED_TOKEN") or _str("SUPERVISOR_TOKEN"),
+            home_town=_str("HOME_TOWN"),
             supervisor_url=_str("SUPERVISOR_URL", "http://supervisor"),
             supervisor_token=_str("SUPERVISOR_TOKEN"),
             mcp_tool_allowlist=[t.strip() for t in _str("MCP_TOOL_ALLOWLIST").split(",") if t.strip()],

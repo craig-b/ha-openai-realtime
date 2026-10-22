@@ -116,8 +116,12 @@ WEB_SEARCH_DEFINITION = {
 }
 
 
-def web_search(client: AsyncOpenAI, model: str) -> Handler:
-    """The Realtime API has no web search: run one through the Responses API."""
+def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) -> Handler:
+    """The Realtime API has no web search: run one through the Responses API.
+
+    `location` is the home's approximate location, for local answers.
+    """
+    tool = {"type": "web_search", **({"user_location": location} if location else {})}
 
     async def search(arguments: dict) -> str:
         query = str(arguments.get("query", "")).strip()
@@ -127,7 +131,7 @@ def web_search(client: AsyncOpenAI, model: str) -> Handler:
         try:
             response = await client.responses.create(
                 model=model,
-                tools=[{"type": "web_search"}],
+                tools=[tool],
                 input=(
                     "Answer in at most 2 short sentences suitable for being read "
                     "aloud, in the same language as the question. Do not include "

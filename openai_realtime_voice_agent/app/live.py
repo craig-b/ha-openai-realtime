@@ -32,7 +32,7 @@ from websockets.exceptions import ConnectionClosed
 
 from app.audio import OPENAI_RATE
 from app.config import Settings
-from app.session import SessionEvents, SessionFailed, SessionSetup
+from app.session import SessionEvents, SessionFailed, SessionSetup, with_home
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +118,13 @@ class LiveSession:
         s = self.settings
         tools = list(setup.tools.definitions)
         if s.enable_web_search:
-            tools.append({"type": "web_search"})
+            search = {"type": "web_search"}
+            if location := setup.home.web_search_location():
+                search["user_location"] = location
+            tools.append(search)
         backend = {
             "model": s.live_backend_model,
-            "instructions": s.live_backend_instructions,
+            "instructions": with_home(s.live_backend_instructions, setup.home),
             "tools": tools,
             "tool_choice": "auto",
             "reasoning": {"effort": s.live_reasoning_effort},
@@ -130,7 +133,7 @@ class LiveSession:
             backend["service_tier"] = s.live_service_tier
         return {
             "model": s.live_model,
-            "instructions": s.live_instructions,
+            "instructions": with_home(s.live_instructions, setup.home),
             "audio": {"format": {"type": "audio/pcm", "rate": OPENAI_RATE}, "output": {"voice": s.live_voice}},
             "delegation": {"type": "responses", "responses": backend},
         }

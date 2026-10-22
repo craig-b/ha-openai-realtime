@@ -5,10 +5,56 @@ phases, reply playback and running tools. A session (app/realtime.py) is one
 connection to OpenAI: it takes the user's audio and turns OpenAI's events into
 the calls on SessionEvents below.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.tools import Tools
+
+
+@dataclass
+class Home:
+    """Where the home is, so "what's the weather?" needs no town, and gets the
+    home's units. The town is the add-on's setting; the rest is Home
+    Assistant's own configuration."""
+
+    town: str = ""
+    # ISO 3166-1 alpha-2, e.g. "GB".
+    country: str = ""
+    # IANA, e.g. "Europe/London".
+    time_zone: str = ""
+    # e.g. "°C".
+    temperature_unit: str = ""
+
+    def describe(self) -> str:
+        """A line for the model's instructions; empty if nothing is known."""
+        place = ", ".join(part for part in (self.town, self.country) if part)
+        parts = []
+        if place:
+            parts.append(f"The home is in {place}.")
+        if self.time_zone:
+            parts.append(f"Its time zone is {self.time_zone}.")
+        if self.temperature_unit:
+            parts.append(f"Give temperatures in {self.temperature_unit}.")
+        if not parts:
+            return ""
+        return "ABOUT THE HOME: " + " ".join(parts) + " Unless the user names another place, questions about the weather or local things are about the home."
+
+    def web_search_location(self) -> dict | None:
+        """The home as OpenAI's web search takes a user's approximate location."""
+        location = {"type": "approximate"}
+        if self.town:
+            location["city"] = self.town
+        if self.country:
+            location["country"] = self.country
+        if self.time_zone:
+            location["timezone"] = self.time_zone
+        return location if len(location) > 1 else None
+
+
+def with_home(instructions: str, home: Home) -> str:
+    """`instructions`, followed by what is known of the home."""
+    about = home.describe()
+    return f"{instructions}\n\n{about}" if about else instructions
 
 
 @dataclass
@@ -18,6 +64,7 @@ class SessionSetup:
     tools: Tools
     # The languages to expect when transcribing the user; none for no hint.
     transcription_languages: list[str]
+    home: Home = field(default_factory=Home)
 
 
 class SessionFailed(Exception):

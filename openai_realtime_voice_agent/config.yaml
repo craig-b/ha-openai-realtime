@@ -151,6 +151,7 @@ options:
   ha_mcp_url: ""
   longlived_token: ""
   mcp_tool_allowlist: ""
+  home_town: ""
 
   # --- ⚙️ Advanced ---
   websocket_port: 8080
@@ -215,6 +216,7 @@ schema:
   ha_mcp_url: str
   longlived_token: password
   mcp_tool_allowlist: str
+  home_town: str?
   # --- ⚙️ Advanced ---
   websocket_port: int(1024,65535)
   # --- 🔍 Debug ---

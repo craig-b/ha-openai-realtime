@@ -98,6 +98,7 @@ automatically the first time the add-on starts, after which it restarts once.
 | `realtime → mute_mic_while_speaking` | `true` | the device stops sending your voice while it speaks: on the Voice PE, Realtime hears its own voice through an open mic |
 | `live → mute_mic_while_speaking` | `false` | GPT-Live tells its voice from yours, so you can talk over it |
 | `enable_end_conversation` | `true` | after a clear goodbye the device stops listening, without a follow-up window |
+| `home_town` | *(blank)* | the town the home is in, so "what's the weather?" is local; Home Assistant supplies the country, time zone and units |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
 | `realtime → web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
 

@@ -26,7 +26,7 @@ from openai.resources.realtime.realtime import AsyncRealtimeConnection
 from websockets.exceptions import ConnectionClosed
 
 from app.config import Settings
-from app.session import SessionEvents, SessionFailed, SessionSetup
+from app.session import SessionEvents, SessionFailed, SessionSetup, with_home
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ class RealtimeSession:
             audio_input["noise_reduction"] = {"type": s.noise_reduction}
         config = {
             "type": "realtime",
-            "instructions": s.instructions,
+            "instructions": with_home(s.instructions, setup.home),
             "audio": {"input": audio_input, "output": {"voice": s.voice, "speed": s.speed}},
             "tools": setup.tools.definitions,
         }

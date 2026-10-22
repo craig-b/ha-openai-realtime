@@ -317,6 +317,13 @@ configuration:
       all of them. With the built-in MCP server you can leave this empty.
       Mainly useful with the ha-mcp add-on (80+ tools) to keep conversations
       fast and cheap.
+  home_town:
+    name: "🏠 Home Assistant · Town or city the home is in"
+    description: >-
+      For local answers: "what's the weather?" then needs no town. Home
+      Assistant's own settings already give the country, time zone and
+      temperature unit, which the assistant is told too; it has no town.
+      Sent to OpenAI with your questions. Leave empty to give only those.
 
   # --- ⚙️ Advanced ---
   websocket_port:
