@@ -22,8 +22,10 @@ map:
 # ----------------------------------------------------------------------------
 # Options are ORDERED for the Configuration tab (HA renders them in this order)
 # and pseudo-grouped via name prefixes in translations/{en,nl}.yaml:
-#   🔑 Basics → 🗣️ Model & voice → 💬 Conversation → 🌐 Web search → 🎚️ Audio
-#   → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug
+#   🔑 Basics → ⚡ Realtime settings (a section) → 💬 Conversation → 🌐 Web
+#   search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug
+# Options that only one engine uses live in that engine's section. Saved
+# settings from before the sections are moved into them by app/migrate.py.
 # User-facing help lives in translations/, not here — keep comments dev-facing.
 #
 # REMOVED options (v0.4.29) — hardcoded to the only sane value; config.py keeps
@@ -34,11 +36,9 @@ map:
 #   interrupt_response → false  (handsfree barge-in shelved: the speaker→mic
 #     echo leak made the VAD cut replies / squeal; firmware is barge_in:false)
 #   device_input_sample_rate → 16000  (the Voice PE firmware always sends 16k)
-# The server_vad escape hatch (turn_detection_type + vad_*) is KEPT but
-# optional-without-default → hidden behind the UI's "Show unused optional
-# configuration options" toggle on fresh installs. Same trick (v0.4.30) for
-# the three *_custom escape-hatch fields: optional, no default, hidden until
-# needed (the dropdown descriptions tell users how to reveal them).
+# The server_vad escape hatch (turn_detection_type + vad_*) and the *_custom
+# escape-hatch fields are KEPT, optional without defaults (see the realtime
+# section).
 # NB the add-on UI renders every string option as a SINGLE-LINE input — there
 # is no multiline/textarea support in the frontend (verified in
 # supervisor-app-config.ts), so long text like `instructions` is best edited
@@ -63,13 +63,20 @@ options:
     guess. If you are unsure which device, room, or action is meant, ask a short
     clarifying question first. If something fails, briefly say what went wrong.
 
-  # --- 🗣️ Model & voice ---
-  # (*_custom fields have NO defaults: optional → hidden until revealed via
-  # "Show unused optional configuration options" or set in YAML.)
-  openai_model: "gpt-realtime-2"
-  openai_voice: "marin"
-  openai_speed: 1.0
-  max_output_tokens: 0
+  # --- ⚡ Realtime settings: a section of its own (a collapsible panel) ---
+  # The *_custom fields and the legacy server_vad fields (turn_detection_type,
+  # vad_*) have NO defaults: optional. Inside a section the UI shows them
+  # anyway (its "Show unused optional" filter only covers top-level options);
+  # their help says when they apply. semantic_vad is config.py's default.
+  realtime:
+    model: "gpt-realtime-2"
+    voice: "marin"
+    speed: 1.0
+    max_output_tokens: 0
+    vad_eagerness: "low"
+    noise_reduction: "off"
+    web_search_model: "gpt-5.5"
+    max_context_tokens: 8000
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds: 8
@@ -85,18 +92,15 @@ options:
   # an unprompted answer). Was a hardcoded 400 ms in the firmware yaml; now sent
   # in `hello` so it's tunable like follow_up_open_delay_ms.
   wake_open_delay_ms: 700
-  vad_eagerness: "low"
   phase_idle_debounce_ms: 1500
 
   # --- 🌐 Web search ---
   enable_web_search: true
-  web_search_model: "gpt-5.5"
 
   # --- 🎚️ Audio ---
   # 150 (not 0): cushions WS jitter so the speaker doesn't run dry mid-word
   # (the start-of-reply crackle); costs 150 ms of reply latency.
   playback_prebuffer_ms: 150
-  noise_reduction: "off"
 
   # --- 🏠 Home Assistant ---
   ha_mcp_url: ""
@@ -106,9 +110,6 @@ options:
   # --- ⚙️ Advanced ---
   websocket_port: 8080
   session_reuse_timeout_seconds: 300
-  max_context_tokens: 8000
-  # (turn_detection_type + vad_* deliberately have NO defaults here — see the
-  # header comment; semantic_vad is the hardwired default in config.py.)
 
   # --- 🔍 Debug ---
   log_what_you_say: false
@@ -121,26 +122,33 @@ schema:
   openai_api_key: password
   device_secret: password
   instructions: str
-  # --- 🗣️ Model & voice ---
-  openai_model: "list(gpt-realtime-2|gpt-realtime-1.5|gpt-realtime-mini|gpt-realtime|custom)"
-  openai_model_custom: str?
-  openai_voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
-  openai_voice_custom: str?
-  openai_speed: float(0.25,1.5)
-  max_output_tokens: int(0,4096)
+  # --- ⚡ Realtime settings ---
+  realtime:
+    model: "list(gpt-realtime-2|gpt-realtime-1.5|gpt-realtime-mini|gpt-realtime|custom)"
+    model_custom: str?
+    voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
+    voice_custom: str?
+    speed: float(0.25,1.5)
+    max_output_tokens: int(0,4096)
+    vad_eagerness: "list(low|medium|high|auto)"
+    noise_reduction: "list(off|near_field|far_field)"
+    web_search_model: "list(gpt-5-nano|gpt-5.4-nano|gpt-5-mini|gpt-5.4-mini|gpt-5|gpt-5.4|gpt-5.5|custom)"
+    web_search_model_custom: str?
+    max_context_tokens: int(0,128000)
+    # Legacy server_vad escape hatch.
+    turn_detection_type: "list(semantic_vad|server_vad)?"
+    vad_threshold: "float(0,1)?"
+    vad_prefix_padding_ms: int?
+    vad_silence_duration_ms: int?
   # --- 💬 Conversation ---
   follow_up_listen_seconds: int(0,60)
   follow_up_open_delay_ms: int(0,5000)
   wake_open_delay_ms: int(0,5000)
-  vad_eagerness: "list(low|medium|high|auto)"
   phase_idle_debounce_ms: int(0,10000)
   # --- 🌐 Web search ---
   enable_web_search: bool
-  web_search_model: "list(gpt-5-nano|gpt-5.4-nano|gpt-5-mini|gpt-5.4-mini|gpt-5|gpt-5.4|gpt-5.5|custom)"
-  web_search_model_custom: str?
   # --- 🎚️ Audio ---
   playback_prebuffer_ms: int(0,2000)
-  noise_reduction: "list(off|near_field|far_field)"
   # --- 🏠 Home Assistant ---
   ha_mcp_url: str
   longlived_token: password
@@ -148,13 +156,6 @@ schema:
   # --- ⚙️ Advanced ---
   websocket_port: int(1024,65535)
   session_reuse_timeout_seconds: int(0,3600)
-  max_context_tokens: int(0,128000)
-  # Legacy server_vad escape hatch — optional, hidden until "Show unused
-  # optional configuration options" is toggled (or a value is saved).
-  turn_detection_type: "list(semantic_vad|server_vad)?"
-  vad_threshold: "float(0,1)?"
-  vad_prefix_padding_ms: int?
-  vad_silence_duration_ms: int?
   # --- 🔍 Debug ---
   log_what_you_say: bool
   transcription_language: str?

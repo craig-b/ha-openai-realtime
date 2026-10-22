@@ -46,7 +46,7 @@ firmware's INSTALL guide).
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
 > tier. `gpt-realtime-2` audio is token-heavy, so if you see *"Rate limit reached"*
 > in the logs, raise your usage tier in the OpenAI dashboard, or keep
-> `max_context_tokens` modest (default 8000).
+> `realtime → max_context_tokens` modest (default 8000).
 
 ## 3. Let it control Home Assistant (MCP)
 
@@ -75,34 +75,36 @@ blank to expose all, or trim to just what you use, e.g.:
 
 **The defaults are the recommended settings** — for a first run you only need the
 API key, the device secret, and the MCP integration (section 3). The
-Configuration tab is grouped: **🔑 Basics → 🗣️ Model & voice → 💬 Conversation →
+Configuration tab is grouped: **🔑 Basics → ⚡ Realtime settings → 💬 Conversation →
 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug**, and every
-option has plain-language inline help.
+option has plain-language inline help. The **⚡ Realtime settings** are a panel of
+their own (`realtime → …` below): the model, its voice and everything else only the
+Realtime models use. Settings saved before the panel existed are moved into it
+automatically the first time the add-on starts, after which it restarts once.
 
 | Option | Default | Note |
 |---|---|---|
-| `openai_model` | `gpt-realtime-2` | newest speech-to-speech model |
-| `openai_voice` | `marin` | `marin`/`cedar` are the newest voices |
+| `realtime → model` | `gpt-realtime-2` | newest speech-to-speech model |
+| `realtime → voice` | `marin` | `marin`/`cedar` are the newest voices |
 | `instructions` | *(English default)* | the system prompt; swap the LANGUAGE line for your language |
 | `follow_up_listen_seconds` | `8` | mic stays open this long so you can answer back |
 | `follow_up_open_delay_ms` | `700` | echo guard before the follow-up mic opens; lower = snappier but risks ghost turns |
 | `wake_open_delay_ms` | `700` | the same echo guard right after the wake chime; lower = snappier wake but risks a ghost turn |
-| `vad_eagerness` | `low` | waits longest before deciding you're done talking |
+| `realtime → vad_eagerness` | `low` | waits longest before deciding you're done talking |
 | `playback_prebuffer_ms` | `150` | raise to ~250 if you hear crackle; 0 = play immediately |
-| `max_context_tokens` | `8000` | conversation size at which OpenAI forgets the oldest half; bounds per-reply token cost |
+| `realtime → max_context_tokens` | `8000` | conversation size at which OpenAI forgets the oldest half; bounds per-reply token cost |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
-| `web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
+| `realtime → web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
 
-The legacy `server_vad` turn-detection fields live at the bottom of ⚙️ Advanced and
-only appear when you enable **"Show unused optional configuration options"** —
-leave them unset unless you have a specific reason.
+The legacy `server_vad` turn-detection fields are at the bottom of the ⚡ Realtime
+settings — leave them empty unless you have a specific reason.
 
 ## 5. Web search
 
 When **`enable_web_search`** is on (**the default**), the assistant gets a `web_search` tool. When
 it needs current or general info (weather, news, facts), it calls that tool; the
 add-on then makes a **second, server-side OpenAI call** (the Responses API
-`web_search` built-in tool, on **`web_search_model`**) and reads a short spoken
+`web_search` built-in tool, on **`realtime → web_search_model`**) and reads a short spoken
 answer back.
 
 - Uses your **existing OpenAI key** — no extra account.
@@ -110,7 +112,7 @@ answer back.
   (`gpt-5.4`, `gpt-5-mini`, the nano models, …) — a few cents per search.
 - Adds ~1–3 s while it searches (the device shows "thinking").
 - If the model name is rejected, the assistant just says it couldn't search — it
-  won't crash the session, so you can change `web_search_model` and retry.
+  won't crash the session, so you can change `realtime → web_search_model` and retry.
 
 ## 6. Options reference & tuning
 

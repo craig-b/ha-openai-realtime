@@ -6,26 +6,27 @@ OPENAI_API_KEY=$(bashio::config 'openai_api_key')
 DEVICE_SECRET=$(bashio::config 'device_secret')
 INSTRUCTIONS=$(bashio::config 'instructions')
 
-# --- 🗣️ Model & voice ---
-OPENAI_MODEL=$(bashio::config 'openai_model')
-OPENAI_VOICE=$(bashio::config 'openai_voice')
-OPENAI_SPEED=$(bashio::config 'openai_speed')
-MAX_OUTPUT_TOKENS=$(bashio::config 'max_output_tokens')
+# --- ⚡ Realtime (the `realtime` section) ---
+OPENAI_MODEL=$(bashio::config 'realtime.model')
+OPENAI_VOICE=$(bashio::config 'realtime.voice')
+OPENAI_SPEED=$(bashio::config 'realtime.speed')
+MAX_OUTPUT_TOKENS=$(bashio::config 'realtime.max_output_tokens')
+VAD_EAGERNESS=$(bashio::config 'realtime.vad_eagerness')
+NOISE_REDUCTION=$(bashio::config 'realtime.noise_reduction')
+WEB_SEARCH_MODEL=$(bashio::config 'realtime.web_search_model')
+MAX_CONTEXT_TOKENS=$(bashio::config 'realtime.max_context_tokens')
 
 # --- 💬 Conversation ---
 FOLLOW_UP_LISTEN_SECONDS=$(bashio::config 'follow_up_listen_seconds')
 FOLLOW_UP_OPEN_DELAY_MS=$(bashio::config 'follow_up_open_delay_ms')
 WAKE_OPEN_DELAY_MS=$(bashio::config 'wake_open_delay_ms')
-VAD_EAGERNESS=$(bashio::config 'vad_eagerness')
 PHASE_IDLE_DEBOUNCE_MS=$(bashio::config 'phase_idle_debounce_ms')
 
 # --- 🌐 Web search ---
 ENABLE_WEB_SEARCH=$(bashio::config 'enable_web_search')
-WEB_SEARCH_MODEL=$(bashio::config 'web_search_model')
 
 # --- 🎚️ Audio ---
 PLAYBACK_PREBUFFER_MS=$(bashio::config 'playback_prebuffer_ms')
-NOISE_REDUCTION=$(bashio::config 'noise_reduction')
 
 # --- 🏠 Home Assistant ---
 HA_MCP_URL=$(bashio::config 'ha_mcp_url')
@@ -35,7 +36,6 @@ MCP_TOOL_ALLOWLIST=$(bashio::config 'mcp_tool_allowlist')
 # --- ⚙️ Advanced ---
 WEBSOCKET_PORT=$(bashio::config 'websocket_port')
 SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'session_reuse_timeout_seconds')
-MAX_CONTEXT_TOKENS=$(bashio::config 'max_context_tokens')
 
 # --- 🔍 Debug ---
 LOG_WHAT_YOU_SAY=$(bashio::config 'log_what_you_say')
@@ -76,42 +76,42 @@ export LOG_WHAT_YOU_SAY
 export ENABLE_RECORDING
 export LOG_LEVEL
 
-# The *_custom escape hatches (🗣️/🌐) are optional WITHOUT defaults —
+# The *_custom escape hatches (⚡ Realtime) are optional WITHOUT defaults —
 # bashio::config prints "null" for unset optionals, and config.py's
 # _resolve_choice would treat that literal string as a real custom value.
 # Only export when actually set.
-if bashio::config.has_value 'openai_model_custom'; then
-    OPENAI_MODEL_CUSTOM=$(bashio::config 'openai_model_custom')
+if bashio::config.has_value 'realtime.model_custom'; then
+    OPENAI_MODEL_CUSTOM=$(bashio::config 'realtime.model_custom')
     export OPENAI_MODEL_CUSTOM
 fi
-if bashio::config.has_value 'openai_voice_custom'; then
-    OPENAI_VOICE_CUSTOM=$(bashio::config 'openai_voice_custom')
+if bashio::config.has_value 'realtime.voice_custom'; then
+    OPENAI_VOICE_CUSTOM=$(bashio::config 'realtime.voice_custom')
     export OPENAI_VOICE_CUSTOM
 fi
-if bashio::config.has_value 'web_search_model_custom'; then
-    WEB_SEARCH_MODEL_CUSTOM=$(bashio::config 'web_search_model_custom')
+if bashio::config.has_value 'realtime.web_search_model_custom'; then
+    WEB_SEARCH_MODEL_CUSTOM=$(bashio::config 'realtime.web_search_model_custom')
     export WEB_SEARCH_MODEL_CUSTOM
 fi
 
-# Legacy server_vad escape hatch (⚙️ Advanced, optional WITHOUT defaults).
+# Legacy server_vad escape hatch (⚡ Realtime, optional WITHOUT defaults).
 # bashio::config prints the string "null" for unset optional keys, which
 # config.py would read as an invalid value — so only export when actually set.
 # Unset = config.py's hardwired defaults (semantic_vad; 0.5/300/800 if server_vad
 # is ever selected).
-if bashio::config.has_value 'turn_detection_type'; then
-    TURN_DETECTION_TYPE=$(bashio::config 'turn_detection_type')
+if bashio::config.has_value 'realtime.turn_detection_type'; then
+    TURN_DETECTION_TYPE=$(bashio::config 'realtime.turn_detection_type')
     export TURN_DETECTION_TYPE
 fi
-if bashio::config.has_value 'vad_threshold'; then
-    VAD_THRESHOLD=$(bashio::config 'vad_threshold')
+if bashio::config.has_value 'realtime.vad_threshold'; then
+    VAD_THRESHOLD=$(bashio::config 'realtime.vad_threshold')
     export VAD_THRESHOLD
 fi
-if bashio::config.has_value 'vad_prefix_padding_ms'; then
-    VAD_PREFIX_PADDING_MS=$(bashio::config 'vad_prefix_padding_ms')
+if bashio::config.has_value 'realtime.vad_prefix_padding_ms'; then
+    VAD_PREFIX_PADDING_MS=$(bashio::config 'realtime.vad_prefix_padding_ms')
     export VAD_PREFIX_PADDING_MS
 fi
-if bashio::config.has_value 'vad_silence_duration_ms'; then
-    VAD_SILENCE_DURATION_MS=$(bashio::config 'vad_silence_duration_ms')
+if bashio::config.has_value 'realtime.vad_silence_duration_ms'; then
+    VAD_SILENCE_DURATION_MS=$(bashio::config 'realtime.vad_silence_duration_ms')
     export VAD_SILENCE_DURATION_MS
 fi
 

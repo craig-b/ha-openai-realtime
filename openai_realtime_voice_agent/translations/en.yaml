@@ -31,43 +31,103 @@ configuration:
       editing use the ⋮ menu at the top of this tab → "Edit in YAML", which
       gives you a full text editor.
 
-  # --- 🗣️ Model & voice ---
-  openai_model:
-    name: "🗣️ Model & voice · Model"
+  # --- ⚡ Realtime ---
+  realtime:
+    name: "⚡ Realtime settings"
     description: >-
-      The OpenAI model that listens and talks. gpt-realtime-2 (default) is the
-      newest and smartest. gpt-realtime-mini is noticeably cheaper but less
-      capable. Want a model that's not listed? Pick "custom", then enable
-      "Show unused optional configuration options" at the bottom of this page
-      to reveal the custom field.
-  openai_model_custom:
-    name: "🗣️ Model & voice · Model (custom)"
-    description: >-
-      Only used when Model is set to "custom". Any valid OpenAI Realtime
-      model id. (Hidden by default — this is an expert escape hatch.)
-  openai_voice:
-    name: "🗣️ Model & voice · Voice"
-    description: >-
-      The voice it speaks with. marin and cedar are the newest and sound the
-      most natural. A running conversation keeps its voice — restart the
-      add-on after changing this. For an unlisted voice pick "custom" and
-      enable "Show unused optional configuration options" at the bottom.
-  openai_voice_custom:
-    name: "🗣️ Model & voice · Voice (custom)"
-    description: >-
-      Only used when Voice is set to "custom". Any valid OpenAI voice name.
-      (Hidden by default.)
-  openai_speed:
-    name: "🗣️ Model & voice · Speaking speed"
-    description: >-
-      1.0 = normal. Lower is slower and clearer (down to 0.25), higher is
-      faster (up to 1.5). Changes only the pace, not the words.
-  max_output_tokens:
-    name: "🗣️ Model & voice · Maximum answer length"
-    description: >-
-      Caps how long an answer may get, in tokens (≈ 0.75 words each).
-      0 = no cap. Set e.g. 1024 if it sometimes rambles on; too low cuts
-      answers off mid-sentence.
+      Settings for the Realtime engine: OpenAI's gpt-realtime models, which
+      listen, think and speak in one model.
+    fields:
+      model:
+        name: "Model"
+        description: >-
+          The OpenAI model that listens and talks. gpt-realtime-2 (default) is the
+          newest and smartest. gpt-realtime-mini is noticeably cheaper but less
+          capable. Want a model that's not listed? Pick "custom" and fill in
+          Model (custom) below.
+      model_custom:
+        name: "Model (custom)"
+        description: >-
+          Only used when Model is set to "custom". Any valid OpenAI Realtime
+          model id.
+      voice:
+        name: "Voice"
+        description: >-
+          The voice it speaks with. marin and cedar are the newest and sound the
+          most natural. A running conversation keeps its voice — restart the
+          add-on after changing this. For an unlisted voice pick "custom" and
+          fill in Voice (custom) below.
+      voice_custom:
+        name: "Voice (custom)"
+        description: >-
+          Only used when Voice is set to "custom". Any valid OpenAI voice name.
+      speed:
+        name: "Speaking speed"
+        description: >-
+          1.0 = normal. Lower is slower and clearer (down to 0.25), higher is
+          faster (up to 1.5). Changes only the pace, not the words.
+      max_output_tokens:
+        name: "Maximum answer length"
+        description: >-
+          Caps how long an answer may get, in tokens (≈ 0.75 words each).
+          0 = no cap. Set e.g. 1024 if it sometimes rambles on; too low cuts
+          answers off mid-sentence.
+      vad_eagerness:
+        name: "Turn-taking speed"
+        description: >-
+          How quickly the assistant decides you've finished talking. "low"
+          (default) waits patiently — best if you pause mid-sentence to think.
+          "high" answers faster but may cut you off. "auto" lets OpenAI decide.
+      noise_reduction:
+        name: "Microphone noise reduction"
+        description: >-
+          Extra filtering of your voice before it reaches OpenAI. "off" is
+          usually fine — the device already filters. Try "near_field" if you
+          talk close to the device, "far_field" for across the room, when it
+          mishears you in a noisy environment.
+      web_search_model:
+        name: "Search model"
+        description: >-
+          The model that does the lookup and summarises the answer. gpt-5.5
+          (default) gives the best answers; mini/nano models are cheaper but miss
+          more. For an unlisted model pick "custom" and fill in Search model
+          (custom) below.
+      web_search_model_custom:
+        name: "Search model (custom)"
+        description: >-
+          Only used when Search model is set to "custom". Any model that supports
+          OpenAI's web_search tool.
+      max_context_tokens:
+        name: "Conversation memory size (tokens)"
+        description: >-
+          How big a conversation may grow, in tokens, before OpenAI forgets its
+          oldest half in one go. Every answer re-bills the whole conversation, so
+          more = better memory but higher cost, and long chats can hit OpenAI rate
+          limits. 8000 is a good balance; 0 = as much as the model allows. Too
+          high a value for the model makes the conversation fail to start.
+      turn_detection_type:
+        name: "Turn detection (legacy)"
+        description: >-
+          How the end of your question is detected. Normally leave this UNSET:
+          the assistant then understands when your sentence is finished
+          (semantic_vad). "server_vad" is the old silence-timer method, tuned by
+          the three fields below — kept only as an escape hatch.
+      vad_threshold:
+        name: "server_vad: loudness threshold"
+        description: >-
+          Only with server_vad. How loud something must be to count as speech
+          (0–1, default 0.5). Higher = fewer false triggers from background
+          noise.
+      vad_prefix_padding_ms:
+        name: "server_vad: lead-in (ms)"
+        description: >-
+          Only with server_vad. Audio kept from just before speech was detected,
+          so your first word isn't clipped (default 300).
+      vad_silence_duration_ms:
+        name: "server_vad: silence to end turn (ms)"
+        description: >-
+          Only with server_vad. How long a silence ends your question (default
+          800). Raise it if you get cut off while pausing.
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds:
@@ -93,12 +153,6 @@ configuration:
       leak in and be mistaken for a question. 700 (default) is safe. Lower it
       for a snappier wake, raise it if saying the wake word sometimes triggers
       an answer to nothing.
-  vad_eagerness:
-    name: "💬 Conversation · Turn-taking speed"
-    description: >-
-      How quickly the assistant decides you've finished talking. "low"
-      (default) waits patiently — best if you pause mid-sentence to think.
-      "high" answers faster but may cut you off. "auto" lets OpenAI decide.
   phase_idle_debounce_ms:
     name: "💬 Conversation · End-of-answer hold (ms)"
     description: >-
@@ -115,18 +169,6 @@ configuration:
       Lets the assistant look things up online: weather, news, opening hours,
       recent events. Each lookup is one extra OpenAI call on your key (a few
       cents) and adds a couple of seconds. On by default.
-  web_search_model:
-    name: "🌐 Web search · Search model"
-    description: >-
-      The model that does the lookup and summarises the answer. gpt-5.5
-      (default) gives the best answers; mini/nano models are cheaper but miss
-      more. For an unlisted model pick "custom" and enable "Show unused
-      optional configuration options" at the bottom.
-  web_search_model_custom:
-    name: "🌐 Web search · Search model (custom)"
-    description: >-
-      Only used when Search model is set to "custom". Any model that supports
-      OpenAI's web_search tool. (Hidden by default.)
 
   # --- 🎚️ Audio ---
   playback_prebuffer_ms:
@@ -136,13 +178,6 @@ configuration:
       bigger buffer absorbs brief Wi-Fi hiccups (the occasional crackle), but
       every answer starts this much later. 150 is a good balance; raise to
       250–300 if you still hear crackle, 0 = play immediately.
-  noise_reduction:
-    name: "🎚️ Audio · Microphone noise reduction"
-    description: >-
-      Extra filtering of your voice before it reaches OpenAI. "off" is
-      usually fine — the device already filters. Try "near_field" if you
-      talk close to the device, "far_field" for across the room, when it
-      mishears you in a noisy environment.
 
   # --- 🏠 Home Assistant ---
   ha_mcp_url:
@@ -181,37 +216,6 @@ configuration:
       within this time continues the conversation; after it, the OpenAI
       session closes and the next wake starts afresh. 300 (5 min) is a good
       default; 0 = close as soon as the device stops listening.
-  max_context_tokens:
-    name: "⚙️ Advanced · Conversation memory size (tokens)"
-    description: >-
-      How big a conversation may grow, in tokens, before OpenAI forgets its
-      oldest half in one go. Every answer re-bills the whole conversation, so
-      more = better memory but higher cost, and long chats can hit OpenAI rate
-      limits. 8000 is a good balance; 0 = as much as the model allows. Too
-      high a value for the model makes the conversation fail to start.
-  turn_detection_type:
-    name: "⚙️ Advanced · Turn detection (legacy)"
-    description: >-
-      How the end of your question is detected. Normally leave this UNSET:
-      the assistant then understands when your sentence is finished
-      (semantic_vad). "server_vad" is the old silence-timer method, tuned by
-      the three fields below — kept only as an escape hatch.
-  vad_threshold:
-    name: "⚙️ Advanced · server_vad: loudness threshold"
-    description: >-
-      Only with server_vad. How loud something must be to count as speech
-      (0–1, default 0.5). Higher = fewer false triggers from background
-      noise.
-  vad_prefix_padding_ms:
-    name: "⚙️ Advanced · server_vad: lead-in (ms)"
-    description: >-
-      Only with server_vad. Audio kept from just before speech was detected,
-      so your first word isn't clipped (default 300).
-  vad_silence_duration_ms:
-    name: "⚙️ Advanced · server_vad: silence to end turn (ms)"
-    description: >-
-      Only with server_vad. How long a silence ends your question (default
-      800). Raise it if you get cut off while pausing.
 
   # --- 🔍 Debug ---
   log_what_you_say:

@@ -32,44 +32,106 @@ configuration:
       bovenaan dit tabblad → "Bewerken als YAML": dan krijg je een volwaardige
       teksteditor.
 
-  # --- 🗣️ Model & stem ---
-  openai_model:
-    name: "🗣️ Model & stem · Model"
+  # --- ⚡ Realtime ---
+  realtime:
+    name: "⚡ Realtime-instellingen"
     description: >-
-      Het OpenAI-model dat luistert en praat. gpt-realtime-2 (standaard) is
-      het nieuwste en slimste. gpt-realtime-mini is merkbaar goedkoper maar
-      minder slim. Wil je een model dat er niet tussen staat? Kies "custom"
-      en zet onderaan deze pagina "Toon ongebruikte optionele
-      configuratie-opties" aan om het custom-veld zichtbaar te maken.
-  openai_model_custom:
-    name: "🗣️ Model & stem · Model (custom)"
-    description: >-
-      Alleen gebruikt als Model op "custom" staat. Elk geldig OpenAI
-      Realtime-model-id. (Standaard verborgen — dit is een expert-optie.)
-  openai_voice:
-    name: "🗣️ Model & stem · Stem"
-    description: >-
-      De stem waarmee hij praat. marin en cedar zijn de nieuwste en klinken
-      het natuurlijkst. Een lopend gesprek houdt zijn stem — herstart de
-      add-on na het wijzigen. Voor een stem die er niet tussen staat: kies
-      "custom" en zet onderaan "Toon ongebruikte optionele
-      configuratie-opties" aan.
-  openai_voice_custom:
-    name: "🗣️ Model & stem · Stem (custom)"
-    description: >-
-      Alleen gebruikt als Stem op "custom" staat. Elke geldige
-      OpenAI-stemnaam. (Standaard verborgen.)
-  openai_speed:
-    name: "🗣️ Model & stem · Spreektempo"
-    description: >-
-      1.0 = normaal. Lager is langzamer en duidelijker (minimaal 0.25), hoger
-      is sneller (maximaal 1.5). Verandert alleen het tempo, niet de woorden.
-  max_output_tokens:
-    name: "🗣️ Model & stem · Maximale antwoordlengte"
-    description: >-
-      Begrenst hoe lang een antwoord mag worden, in tokens (≈ 0,75 woord per
-      stuk). 0 = geen limiet. Zet bijv. 1024 als hij soms blijft doorpraten;
-      te laag kapt antwoorden midden in een zin af.
+      Instellingen voor de Realtime-engine: OpenAI's gpt-realtime-modellen,
+      die in één model luisteren, denken en spreken.
+    fields:
+      model:
+        name: "Model"
+        description: >-
+          Het OpenAI-model dat luistert en praat. gpt-realtime-2 (standaard) is
+          het nieuwste en slimste. gpt-realtime-mini is merkbaar goedkoper maar
+          minder slim. Wil je een model dat er niet tussen staat? Kies "custom"
+          en vul hieronder Model (custom) in.
+      model_custom:
+        name: "Model (custom)"
+        description: >-
+          Alleen gebruikt als Model op "custom" staat. Elk geldig OpenAI
+          Realtime-model-id.
+      voice:
+        name: "Stem"
+        description: >-
+          De stem waarmee hij praat. marin en cedar zijn de nieuwste en klinken
+          het natuurlijkst. Een lopend gesprek houdt zijn stem — herstart de
+          add-on na het wijzigen. Voor een stem die er niet tussen staat: kies
+          "custom" en vul hieronder Stem (custom) in.
+      voice_custom:
+        name: "Stem (custom)"
+        description: >-
+          Alleen gebruikt als Stem op "custom" staat. Elke geldige
+          OpenAI-stemnaam.
+      speed:
+        name: "Spreektempo"
+        description: >-
+          1.0 = normaal. Lager is langzamer en duidelijker (minimaal 0.25), hoger
+          is sneller (maximaal 1.5). Verandert alleen het tempo, niet de woorden.
+      max_output_tokens:
+        name: "Maximale antwoordlengte"
+        description: >-
+          Begrenst hoe lang een antwoord mag worden, in tokens (≈ 0,75 woord per
+          stuk). 0 = geen limiet. Zet bijv. 1024 als hij soms blijft doorpraten;
+          te laag kapt antwoorden midden in een zin af.
+      vad_eagerness:
+        name: "Beurtwissel-snelheid"
+        description: >-
+          Hoe snel de assistent beslist dat je uitgesproken bent. "low"
+          (standaard) wacht geduldig — het fijnst als je midden in een zin even
+          nadenkt. "high" antwoordt sneller maar kan je afkappen. "auto" laat
+          OpenAI kiezen.
+      noise_reduction:
+        name: "Microfoon-ruisonderdrukking"
+        description: >-
+          Extra filtering van je stem voordat die naar OpenAI gaat. "off" is
+          meestal prima — het apparaat filtert zelf al. Probeer "near_field" als
+          je dichtbij praat, "far_field" voor door de kamer heen, wanneer hij je
+          in een rumoerige omgeving slecht verstaat.
+      web_search_model:
+        name: "Zoekmodel"
+        description: >-
+          Het model dat de zoekopdracht uitvoert en het antwoord samenvat.
+          gpt-5.5 (standaard) geeft de beste antwoorden; mini/nano-modellen zijn
+          goedkoper maar missen meer. Voor een ander model: kies "custom" en vul
+          hieronder Zoekmodel (custom) in.
+      web_search_model_custom:
+        name: "Zoekmodel (custom)"
+        description: >-
+          Alleen gebruikt als Zoekmodel op "custom" staat. Elk model dat OpenAI's
+          web_search-tool ondersteunt.
+      max_context_tokens:
+        name: "Gespreksgeheugen (tokens)"
+        description: >-
+          Hoe groot een gesprek mag worden, in tokens, voordat OpenAI in één keer
+          de oudste helft vergeet. Elk antwoord rekent het hele gesprek opnieuw
+          af, dus meer = beter geheugen maar hogere kosten, en lange gesprekken
+          kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
+          zoveel als het model toelaat. Een te hoge waarde voor het model laat
+          het gesprek niet starten.
+      turn_detection_type:
+        name: "Beurtdetectie (legacy)"
+        description: >-
+          Hoe het einde van je vraag wordt herkend. Normaal NIET instellen: de
+          assistent begrijpt dan zelf wanneer je zin af is (semantic_vad).
+          "server_vad" is de oude stiltetimer-methode, afgesteld met de drie
+          velden hieronder — alleen bewaard als noodluik.
+      vad_threshold:
+        name: "server_vad: geluidsdrempel"
+        description: >-
+          Alleen bij server_vad. Hoe hard iets moet klinken om als spraak te
+          tellen (0–1, standaard 0.5). Hoger = minder valse triggers door
+          achtergrondgeluid.
+      vad_prefix_padding_ms:
+        name: "server_vad: aanloop (ms)"
+        description: >-
+          Alleen bij server_vad. Audio van vlak vóór de spraakdetectie die wordt
+          meegenomen, zodat je eerste woord niet wegvalt (standaard 300).
+      vad_silence_duration_ms:
+        name: "server_vad: stilte = einde vraag (ms)"
+        description: >-
+          Alleen bij server_vad. Hoe lang een stilte je vraag beëindigt
+          (standaard 800). Verhoog als je wordt afgekapt bij een pauze.
 
   # --- 💬 Gesprek ---
   follow_up_listen_seconds:
@@ -96,13 +158,6 @@ configuration:
       zelf niet naar binnen lekt en als vraag wordt opgevat. 700 (standaard)
       is veilig. Lager voor een vlottere wake; verhoog als het uitspreken van
       het wake-woord soms een antwoord op niets uitlokt.
-  vad_eagerness:
-    name: "💬 Gesprek · Beurtwissel-snelheid"
-    description: >-
-      Hoe snel de assistent beslist dat je uitgesproken bent. "low"
-      (standaard) wacht geduldig — het fijnst als je midden in een zin even
-      nadenkt. "high" antwoordt sneller maar kan je afkappen. "auto" laat
-      OpenAI kiezen.
   phase_idle_debounce_ms:
     name: "💬 Gesprek · Einde-antwoord-marge (ms)"
     description: >-
@@ -119,18 +174,6 @@ configuration:
       Laat de assistent dingen online opzoeken: weer, nieuws, openingstijden,
       actualiteiten. Elke zoekactie is één extra OpenAI-aanroep op jouw
       sleutel (een paar cent) en duurt een paar seconden extra. Standaard aan.
-  web_search_model:
-    name: "🌐 Websearch · Zoekmodel"
-    description: >-
-      Het model dat de zoekopdracht uitvoert en het antwoord samenvat.
-      gpt-5.5 (standaard) geeft de beste antwoorden; mini/nano-modellen zijn
-      goedkoper maar missen meer. Voor een ander model: kies "custom" en zet
-      onderaan "Toon ongebruikte optionele configuratie-opties" aan.
-  web_search_model_custom:
-    name: "🌐 Websearch · Zoekmodel (custom)"
-    description: >-
-      Alleen gebruikt als Zoekmodel op "custom" staat. Elk model dat OpenAI's
-      web_search-tool ondersteunt. (Standaard verborgen.)
 
   # --- 🎚️ Audio ---
   playback_prebuffer_ms:
@@ -141,13 +184,6 @@ configuration:
       incidentele krakje), maar elk antwoord begint zoveel later. 150 is een
       goede balans; verhoog naar 250–300 bij blijvend kraken, 0 = direct
       afspelen.
-  noise_reduction:
-    name: "🎚️ Audio · Microfoon-ruisonderdrukking"
-    description: >-
-      Extra filtering van je stem voordat die naar OpenAI gaat. "off" is
-      meestal prima — het apparaat filtert zelf al. Probeer "near_field" als
-      je dichtbij praat, "far_field" voor door de kamer heen, wanneer hij je
-      in een rumoerige omgeving slecht verstaat.
 
   # --- 🏠 Home Assistant ---
   ha_mcp_url:
@@ -187,38 +223,6 @@ configuration:
       assistent binnen deze tijd, dan gaat het gesprek verder; daarna sluit de
       OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
       goede standaard; 0 = sluiten zodra het apparaat stopt met luisteren.
-  max_context_tokens:
-    name: "⚙️ Geavanceerd · Gespreksgeheugen (tokens)"
-    description: >-
-      Hoe groot een gesprek mag worden, in tokens, voordat OpenAI in één keer
-      de oudste helft vergeet. Elk antwoord rekent het hele gesprek opnieuw
-      af, dus meer = beter geheugen maar hogere kosten, en lange gesprekken
-      kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
-      zoveel als het model toelaat. Een te hoge waarde voor het model laat
-      het gesprek niet starten.
-  turn_detection_type:
-    name: "⚙️ Geavanceerd · Beurtdetectie (legacy)"
-    description: >-
-      Hoe het einde van je vraag wordt herkend. Normaal NIET instellen: de
-      assistent begrijpt dan zelf wanneer je zin af is (semantic_vad).
-      "server_vad" is de oude stiltetimer-methode, afgesteld met de drie
-      velden hieronder — alleen bewaard als noodluik.
-  vad_threshold:
-    name: "⚙️ Geavanceerd · server_vad: geluidsdrempel"
-    description: >-
-      Alleen bij server_vad. Hoe hard iets moet klinken om als spraak te
-      tellen (0–1, standaard 0.5). Hoger = minder valse triggers door
-      achtergrondgeluid.
-  vad_prefix_padding_ms:
-    name: "⚙️ Geavanceerd · server_vad: aanloop (ms)"
-    description: >-
-      Alleen bij server_vad. Audio van vlak vóór de spraakdetectie die wordt
-      meegenomen, zodat je eerste woord niet wegvalt (standaard 300).
-  vad_silence_duration_ms:
-    name: "⚙️ Geavanceerd · server_vad: stilte = einde vraag (ms)"
-    description: >-
-      Alleen bij server_vad. Hoe lang een stilte je vraag beëindigt
-      (standaard 800). Verhoog als je wordt afgekapt bij een pauze.
 
   # --- 🔍 Debug ---
   log_what_you_say:

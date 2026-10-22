@@ -112,6 +112,9 @@ class Settings:
     enable_disconnect_tool: bool
     ha_mcp_url: str
     ha_token: str
+    # The Supervisor's API, and the add-on's token for it; empty outside Home Assistant.
+    supervisor_url: str
+    supervisor_token: str
     # Empty = offer every Home Assistant tool.
     mcp_tool_allowlist: list[str]
     websocket_host: str
@@ -161,6 +164,8 @@ class Settings:
             enable_disconnect_tool=_bool("ENABLE_DISCONNECT_TOOL", False),
             ha_mcp_url=_str("HA_MCP_URL") or "http://supervisor/core/api/mcp",
             ha_token=_str("LONGLIVED_TOKEN") or _str("SUPERVISOR_TOKEN"),
+            supervisor_url=_str("SUPERVISOR_URL", "http://supervisor"),
+            supervisor_token=_str("SUPERVISOR_TOKEN"),
             mcp_tool_allowlist=[t.strip() for t in _str("MCP_TOOL_ALLOWLIST").split(",") if t.strip()],
             websocket_host=_str("WEBSOCKET_HOST", "0.0.0.0"),
             websocket_port=_int("WEBSOCKET_PORT", 8080),

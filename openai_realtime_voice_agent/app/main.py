@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 
 from app.agent import Agent, SessionSetup
 from app.config import Settings, device_secret_problem
+from app.migrate import migrate_saved_options
 from app.tools import (
     DISCONNECT_DEFINITION,
     WEB_SEARCH_DEFINITION,
@@ -44,6 +45,8 @@ class Application:
 
     # How long a session waits for Home Assistant before using the last read.
     HOME_ASSISTANT_TIMEOUT_S = 3.0
+    # How long to wait for the Supervisor to restart the add-on after moving its settings.
+    RESTART_WAIT_S = 60.0
 
     def __init__(self) -> None:
         self.settings = Settings.from_env()
@@ -113,6 +116,9 @@ class Application:
 
     async def run(self) -> None:
         s = self.settings
+        if s.supervisor_token and await migrate_saved_options(s.supervisor_url, s.supervisor_token):
+            await asyncio.sleep(self.RESTART_WAIT_S)
+            logger.error("❌ The add-on wasn't restarted after moving its settings: restart it to use them")
         if not s.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         if problem := device_secret_problem(s.device_secret):

@@ -74,24 +74,25 @@ that's what lets the voice turn your lights, switches, scenes and climate on and
 ### 1.4 Recommended starting settings
 
 Set these on the **Configuration** tab (each option has inline help text). This is a
-known-good starting point — you can fine-tune later:
+known-good starting point — you can fine-tune later. `realtime → …` options are in
+the **⚡ Realtime settings** panel:
 
 | Option | Value |
 |---|---|
-| `openai_model` | `gpt-realtime-2` |
-| `openai_voice` | `marin` (or `cedar`) |
-| `openai_speed` | `1.0` |
-| `max_output_tokens` | `0` (unlimited) |
-| `noise_reduction` | `off` |
-| `vad_eagerness` | `low` |
+| `realtime → model` | `gpt-realtime-2` |
+| `realtime → voice` | `marin` (or `cedar`) |
+| `realtime → speed` | `1.0` |
+| `realtime → max_output_tokens` | `0` (unlimited) |
+| `realtime → noise_reduction` | `off` |
+| `realtime → vad_eagerness` | `low` |
 | `follow_up_listen_seconds` | `8` |
 | `follow_up_open_delay_ms` | `700` |
 | `wake_open_delay_ms` | `700` |
 | `playback_prebuffer_ms` | `150` |
-| `max_context_tokens` | `8000` |
+| `realtime → max_context_tokens` | `8000` |
 | `mcp_tool_allowlist` | **blank** (use all of the official server's tools — it's already a small set) |
 | `enable_web_search` | `true` (online lookups on by default; set `false` to disable) |
-| `web_search_model` | `gpt-5.5` (best quality; mini/nano are cheaper) |
+| `realtime → web_search_model` | `gpt-5.5` (best quality; mini/nano are cheaper) |
 | `instructions` | the English default (to change language, see Part 5) |
 
 ### 1.5 Start it
