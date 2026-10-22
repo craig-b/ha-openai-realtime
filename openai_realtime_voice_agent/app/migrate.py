@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 # Old top-level option -> (section, option in it) where it lives now.
 MOVED = {
+    "instructions": ("realtime", "instructions"),
+    "session_reuse_timeout_seconds": ("realtime", "session_reuse_timeout_seconds"),
     "openai_model": ("realtime", "model"),
     "openai_model_custom": ("realtime", "model_custom"),
     "openai_voice": ("realtime", "voice"),

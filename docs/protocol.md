@@ -193,7 +193,7 @@ The add-on keeps one OpenAI Realtime session per conversation.
   conversation. Once it passes `max_context_tokens` (default 8000), OpenAI
   drops its oldest items until half that remains, in one go, so the cached
   start of the conversation changes rarely.
-- **Closing:** `session_reuse_timeout_seconds` (default 300) after the
+- **Closing:** `realtime → session_reuse_timeout_seconds` (default 300) after the
   conversation on the device ends, with nothing running in the meantime (no
   reply playing, no response or tool). The conversation on the device runs
   from a `wake` (or mic audio) until a `flush`, an `interrupt`, a disconnect,
@@ -235,7 +235,7 @@ it when the gate opens: it contains the wake chime.
 | Add-on | Thinking watchdog | 15 s (paused while a tool runs) | Forced `idle` |
 | Add-on | Post-interrupt cancel window | 1.5 s | See `interrupt` |
 | Add-on | Session open timeout | 10 s | Gives up opening; sends `error` |
-| Add-on | Conversation idle timeout | `session_reuse_timeout_seconds` (300 s) | Closes the OpenAI session |
+| Add-on | Conversation idle timeout | `realtime → session_reuse_timeout_seconds` (300 s) | Closes the OpenAI session |
 
 ## Typical sequences
 

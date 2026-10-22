@@ -41,27 +41,13 @@ map:
 # section).
 # NB the add-on UI renders every string option as a SINGLE-LINE input — there
 # is no multiline/textarea support in the frontend (verified in
-# supervisor-app-config.ts), so long text like `instructions` is best edited
+# supervisor-app-config.ts), so long text like the instructions is best edited
 # via the Configuration tab's ⋮ → "Edit in YAML".
 # ----------------------------------------------------------------------------
 options:
   # --- 🔑 Basics ---
   openai_api_key: ""
   device_secret: ""
-  instructions: >-
-    You are the cheerful, friendly voice assistant of Home Assistant and you
-    control the smart home. LANGUAGE: Speak and understand only English, with a
-    natural, neutral accent. Never switch language, not even for stray foreign
-    words or an accent; do not infer the language from accent or a single word.
-    STYLE: Your replies are read aloud, so keep them short and natural. Do not
-    read out entity IDs, lists, or technical names; use ordinary names ("the
-    bedroom lamp"). Call your tools silently — say nothing like "Okay, let me
-    check" or "one moment" beforehand; just do it and then give one complete
-    answer. Do not start every answer with "Okay"; vary your confirmation
-    naturally, e.g. "The bedroom lamp is on now" or "Done, the light is off".
-    BEHAVIOR: Carry out requested actions immediately with your tools and never
-    guess. If you are unsure which device, room, or action is meant, ask a short
-    clarifying question first. If something fails, briefly say what went wrong.
 
   # --- ⚡ Realtime settings: a section of its own (a collapsible panel) ---
   # The *_custom fields and the legacy server_vad fields (turn_detection_type,
@@ -69,6 +55,20 @@ options:
   # anyway (its "Show unused optional" filter only covers top-level options);
   # their help says when they apply. semantic_vad is config.py's default.
   realtime:
+    instructions: >-
+      You are the cheerful, friendly voice assistant of Home Assistant and you
+      control the smart home. LANGUAGE: Speak and understand only English, with a
+      natural, neutral accent. Never switch language, not even for stray foreign
+      words or an accent; do not infer the language from accent or a single word.
+      STYLE: Your replies are read aloud, so keep them short and natural. Do not
+      read out entity IDs, lists, or technical names; use ordinary names ("the
+      bedroom lamp"). Call your tools silently — say nothing like "Okay, let me
+      check" or "one moment" beforehand; just do it and then give one complete
+      answer. Do not start every answer with "Okay"; vary your confirmation
+      naturally, e.g. "The bedroom lamp is on now" or "Done, the light is off".
+      BEHAVIOR: Carry out requested actions immediately with your tools and never
+      guess. If you are unsure which device, room, or action is meant, ask a short
+      clarifying question first. If something fails, briefly say what went wrong.
     model: "gpt-realtime-2.1"
     voice: "marin"
     speed: 1.0
@@ -78,6 +78,7 @@ options:
     noise_reduction: "off"
     web_search_model: "gpt-5.5"
     max_context_tokens: 8000
+    session_reuse_timeout_seconds: 300
 
   # --- 💬 Conversation ---
   follow_up_listen_seconds: 8
@@ -110,7 +111,6 @@ options:
 
   # --- ⚙️ Advanced ---
   websocket_port: 8080
-  session_reuse_timeout_seconds: 300
 
   # --- 🔍 Debug ---
   log_what_you_say: false
@@ -122,9 +122,9 @@ schema:
   # --- 🔑 Basics ---
   openai_api_key: password
   device_secret: password
-  instructions: str
   # --- ⚡ Realtime settings ---
   realtime:
+    instructions: str
     model: "list(gpt-realtime-2.1|gpt-realtime-2.1-mini|gpt-realtime-2|gpt-realtime-1.5|custom)"
     model_custom: str?
     voice: "list(marin|cedar|alloy|ash|ballad|coral|echo|sage|shimmer|verse|custom)"
@@ -137,6 +137,7 @@ schema:
     web_search_model: "list(gpt-5-nano|gpt-5.4-nano|gpt-5-mini|gpt-5.4-mini|gpt-5|gpt-5.4|gpt-5.5|custom)"
     web_search_model_custom: str?
     max_context_tokens: int(0,128000)
+    session_reuse_timeout_seconds: int(0,3600)
     # Legacy server_vad escape hatch.
     turn_detection_type: "list(semantic_vad|server_vad)?"
     vad_threshold: "float(0,1)?"
@@ -157,7 +158,6 @@ schema:
   mcp_tool_allowlist: str
   # --- ⚙️ Advanced ---
   websocket_port: int(1024,65535)
-  session_reuse_timeout_seconds: int(0,3600)
   # --- 🔍 Debug ---
   log_what_you_say: bool
   transcription_language: str?

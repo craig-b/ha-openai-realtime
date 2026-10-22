@@ -4,9 +4,10 @@ set -e
 # --- 🔑 Basics ---
 OPENAI_API_KEY=$(bashio::config 'openai_api_key')
 DEVICE_SECRET=$(bashio::config 'device_secret')
-INSTRUCTIONS=$(bashio::config 'instructions')
 
 # --- ⚡ Realtime (the `realtime` section) ---
+INSTRUCTIONS=$(bashio::config 'realtime.instructions')
+SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'realtime.session_reuse_timeout_seconds')
 OPENAI_MODEL=$(bashio::config 'realtime.model')
 OPENAI_VOICE=$(bashio::config 'realtime.voice')
 OPENAI_SPEED=$(bashio::config 'realtime.speed')
@@ -36,7 +37,6 @@ MCP_TOOL_ALLOWLIST=$(bashio::config 'mcp_tool_allowlist')
 
 # --- ⚙️ Advanced ---
 WEBSOCKET_PORT=$(bashio::config 'websocket_port')
-SESSION_REUSE_TIMEOUT_SECONDS=$(bashio::config 'session_reuse_timeout_seconds')
 
 # --- 🔍 Debug ---
 LOG_WHAT_YOU_SAY=$(bashio::config 'log_what_you_say')

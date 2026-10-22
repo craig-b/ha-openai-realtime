@@ -19,18 +19,6 @@ configuration:
       bijvoorbeeld de uitvoer van `openssl rand -hex 32`, en zet dezelfde
       waarde als va_secret in je ESPHome-secrets.yaml. Zonder geheim start de
       add-on niet.
-  instructions:
-    name: "🔑 Basis · Persoonlijkheid (systeemprompt)"
-    description: >-
-      Instructies in gewone taal die de assistent vormen: karakter, taal en
-      huisregels. Schrijf het alsof je een persoon instrueert. Twee tips die
-      er op een spraakapparaat toe doen: leg de taal vast ("Spreek en versta
-      uitsluitend Nederlands. Wissel nooit van taal.") en zeg dat hij zijn
-      gereedschap stil moet gebruiken in plaats van "momentje" te zeggen.
-      BEWERK-TIP: dit veld is hier één regel (een beperking van de Home
-      Assistant-interface) — gebruik voor comfortabel bewerken het ⋮-menu
-      bovenaan dit tabblad → "Bewerken als YAML": dan krijg je een volwaardige
-      teksteditor.
 
   # --- ⚡ Realtime ---
   realtime:
@@ -39,6 +27,18 @@ configuration:
       Instellingen voor de Realtime-engine: OpenAI's gpt-realtime-modellen,
       die in één model luisteren, denken en spreken.
     fields:
+      instructions:
+        name: "Persoonlijkheid (systeemprompt)"
+        description: >-
+          Instructies in gewone taal die de assistent vormen: karakter, taal en
+          huisregels. Schrijf het alsof je een persoon instrueert. Twee tips die
+          er op een spraakapparaat toe doen: leg de taal vast ("Spreek en versta
+          uitsluitend Nederlands. Wissel nooit van taal.") en zeg dat hij zijn
+          gereedschap stil moet gebruiken in plaats van "momentje" te zeggen.
+          BEWERK-TIP: dit veld is hier één regel (een beperking van de Home
+          Assistant-interface) — gebruik voor comfortabel bewerken het ⋮-menu
+          bovenaan dit tabblad → "Bewerken als YAML": dan krijg je een volwaardige
+          teksteditor.
       model:
         name: "Model"
         description: >-
@@ -118,6 +118,14 @@ configuration:
           kunnen tegen OpenAI-limieten aanlopen. 8000 is een goede balans; 0 =
           zoveel als het model toelaat. Een te hoge waarde voor het model laat
           het gesprek niet starten.
+      session_reuse_timeout_seconds:
+        name: "Gesprek blijft open (seconden)"
+        description: >-
+          Hoe lang een gesprek openblijft nadat je bent gestopt met praten tegen
+          het apparaat (na het vervolgvenster, of een "stop"). Wek je de
+          assistent binnen deze tijd, dan gaat het gesprek verder; daarna sluit de
+          OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
+          goede standaard; 0 = sluiten zodra het apparaat stopt met luisteren.
       turn_detection_type:
         name: "Beurtdetectie (legacy)"
         description: >-
@@ -224,14 +232,6 @@ configuration:
       De poort waarop de Voice PE verbindt. Moet overeenkomen met de va_url in
       de apparaat-firmware (standaard 8080). Alleen wijzigen bij een
       poortconflict — en pas dan ook de firmware-stub aan.
-  session_reuse_timeout_seconds:
-    name: "⚙️ Geavanceerd · Gesprek blijft open (seconden)"
-    description: >-
-      Hoe lang een gesprek openblijft nadat je bent gestopt met praten tegen
-      het apparaat (na het vervolgvenster, of een "stop"). Wek je de
-      assistent binnen deze tijd, dan gaat het gesprek verder; daarna sluit de
-      OpenAI-sessie en begint de volgende keer opnieuw. 300 (5 min) is een
-      goede standaard; 0 = sluiten zodra het apparaat stopt met luisteren.
 
   # --- 🔍 Debug ---
   log_what_you_say:

@@ -19,17 +19,6 @@ configuration:
       at least 16 characters with no spaces, e.g. the output of
       `openssl rand -hex 32`, and put the same value in your ESPHome
       secrets.yaml as va_secret. The add-on doesn't start without one.
-  instructions:
-    name: "🔑 Basics · Assistant personality (system prompt)"
-    description: >-
-      Plain-text instructions that shape the assistant: its personality, its
-      language, and your house rules. Write it like you'd brief a person. Two
-      tips that matter on a voice device: lock the language ("Speak and
-      understand only Dutch. Never switch language.") and tell it to use its
-      tools silently instead of saying "one moment". EDITING TIP: this field
-      is a single line here (a Home Assistant UI limitation) — for comfortable
-      editing use the ⋮ menu at the top of this tab → "Edit in YAML", which
-      gives you a full text editor.
 
   # --- ⚡ Realtime ---
   realtime:
@@ -38,6 +27,17 @@ configuration:
       Settings for the Realtime engine: OpenAI's gpt-realtime models, which
       listen, think and speak in one model.
     fields:
+      instructions:
+        name: "Assistant personality (system prompt)"
+        description: >-
+          Plain-text instructions that shape the assistant: its personality, its
+          language, and your house rules. Write it like you'd brief a person. Two
+          tips that matter on a voice device: lock the language ("Speak and
+          understand only Dutch. Never switch language.") and tell it to use its
+          tools silently instead of saying "one moment". EDITING TIP: this field
+          is a single line here (a Home Assistant UI limitation) — for comfortable
+          editing use the ⋮ menu at the top of this tab → "Edit in YAML", which
+          gives you a full text editor.
       model:
         name: "Model"
         description: >-
@@ -114,6 +114,14 @@ configuration:
           more = better memory but higher cost, and long chats can hit OpenAI rate
           limits. 8000 is a good balance; 0 = as much as the model allows. Too
           high a value for the model makes the conversation fail to start.
+      session_reuse_timeout_seconds:
+        name: "Conversation idle timeout (seconds)"
+        description: >-
+          How long a conversation stays open once you've stopped talking to the
+          device (after its follow-up window, or a "stop"). Waking the assistant
+          within this time continues the conversation; after it, the OpenAI
+          session closes and the next wake starts afresh. 300 (5 min) is a good
+          default; 0 = close as soon as the device stops listening.
       turn_detection_type:
         name: "Turn detection (legacy)"
         description: >-
@@ -217,14 +225,6 @@ configuration:
       The port the Voice PE connects to. Must match the va_url in the device
       firmware (default 8080). Only change this on a port clash —
       and update the device firmware stub to match.
-  session_reuse_timeout_seconds:
-    name: "⚙️ Advanced · Conversation idle timeout (seconds)"
-    description: >-
-      How long a conversation stays open once you've stopped talking to the
-      device (after its follow-up window, or a "stop"). Waking the assistant
-      within this time continues the conversation; after it, the OpenAI
-      session closes and the next wake starts afresh. 300 (5 min) is a good
-      default; 0 = close as soon as the device stops listening.
 
   # --- 🔍 Debug ---
   log_what_you_say:
