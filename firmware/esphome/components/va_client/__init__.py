@@ -63,9 +63,11 @@ def certificate(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VaClient),
-        cv.Required(CONF_URL): encrypted_url,
-        cv.Required(CONF_SECRET): device_secret,
-        cv.Required(CONF_CERTIFICATE): certificate,
+        # The link to the add-on, compiled in: optional, as Home Assistant sets
+        # it at runtime (the set_link action), and a link it sets wins.
+        cv.Inclusive(CONF_URL, "link"): encrypted_url,
+        cv.Inclusive(CONF_SECRET, "link"): device_secret,
+        cv.Inclusive(CONF_CERTIFICATE, "link"): certificate,
         cv.Required(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
         cv.Optional(CONF_MIC_CHANNEL, default=0): cv.int_range(min=0, max=1),
         cv.Optional(CONF_BARGE_IN, default=True): cv.boolean,
@@ -99,9 +101,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    cg.add(var.set_url(config[CONF_URL]))
-    cg.add(var.set_secret(config[CONF_SECRET]))
-    cg.add(var.set_certificate(config[CONF_CERTIFICATE]))
+    if CONF_URL in config:
+        cg.add(var.set_url(config[CONF_URL]))
+        cg.add(var.set_secret(config[CONF_SECRET]))
+        cg.add(var.set_certificate(config[CONF_CERTIFICATE]))
     cg.add(var.set_mic_channel(config[CONF_MIC_CHANNEL]))
     cg.add(var.set_barge_in(config[CONF_BARGE_IN]))
 

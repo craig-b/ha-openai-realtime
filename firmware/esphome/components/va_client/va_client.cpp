@@ -3,6 +3,10 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
+
+#include <mbedtls/md.h>
+#include <mbedtls/sha256.h>
 #include "esphome/components/audio/audio.h"
 
 #include <algorithm>
@@ -92,7 +96,119 @@ void VaClient::setup() {
     this->speaker_->start();
   }
 
+  // A link Home Assistant has set wins over one compiled into the config.
+  this->link_pref_ = global_preferences->make_preference<LinkSettings>(fnv1_hash("va_client_link"));
+  LinkSettings stored{};
+  if (this->link_pref_.load(&stored) && stored.url[0] != '\0') {
+    this->url_ = stored.url;
+    this->secret_ = stored.secret;
+    this->certificate_ = stored.certificate;
+    ESP_LOGCONFIG(TAG, "Linked to the add-on at %s (set by Home Assistant)", this->url_.c_str());
+  }
+  if (!this->is_linked()) {
+    ESP_LOGW(TAG, "Not linked to the add-on yet: waiting for Home Assistant to set the link");
+    return;
+  }
   this->connect_();
+}
+
+static bool valid_link(const std::string &url, const std::string &secret, const std::string &certificate) {
+  if (url.rfind("wss://", 0) != 0 || url.size() >= sizeof(LinkSettings::url)) {
+    ESP_LOGE(TAG, "Link refused: the address must start with wss:// and be under %u characters",
+             (unsigned) sizeof(LinkSettings::url));
+    return false;
+  }
+  if (secret.size() < 16 || secret.size() >= sizeof(LinkSettings::secret)) {
+    ESP_LOGE(TAG, "Link refused: the secret must be 16 to %u characters", (unsigned) sizeof(LinkSettings::secret) - 1);
+    return false;
+  }
+  for (char ch : secret) {
+    if (ch < '!' || ch > '~') {
+      ESP_LOGE(TAG, "Link refused: the secret may only contain visible ASCII characters, no spaces");
+      return false;
+    }
+  }
+  if (certificate.rfind("-----BEGIN CERTIFICATE-----", 0) != 0 ||
+      certificate.find("-----END CERTIFICATE-----") == std::string::npos ||
+      certificate.size() >= sizeof(LinkSettings::certificate)) {
+    ESP_LOGE(TAG, "Link refused: the certificate must be the add-on's, in PEM form");
+    return false;
+  }
+  return true;
+}
+
+std::string VaClient::set_link(const std::string &url, const std::string &secret, const std::string &certificate,
+                               const std::string &proof) {
+  if (!valid_link(url, secret, certificate))
+    return "the link isn't valid: a wss:// address, a secret of 16 to 128 visible characters, a PEM certificate";
+  // The certificate as mbedTLS takes it: one trailing newline.
+  std::string pem = certificate.substr(0, certificate.find_last_not_of("\r\n") + 1) + "\n";
+  if (this->is_linked()) {
+    std::string link = url + "\n" + secret + "\n" + pem;
+    uint8_t mac[32];
+    mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
+                    reinterpret_cast<const unsigned char *>(this->secret_.data()), this->secret_.size(),
+                    reinterpret_cast<const unsigned char *>(link.data()), link.size(), mac);
+    char expected[65];
+    format_hex_to(expected, mac, sizeof(mac));
+    // Compared in constant time, so the time taken says nothing about it.
+    uint8_t diff = proof.size() == 64 ? 0 : 1;
+    for (size_t k = 0; k < 64; k++)
+      diff |= static_cast<uint8_t>(expected[k] ^ (k < proof.size() ? proof[k] : 0));
+    if (diff != 0) {
+      ESP_LOGW(TAG, "Link refused: its proof isn't keyed by the secret this device has");
+      return "the proof doesn't match the secret this device has (a factory reset unlinks it)";
+    }
+  }
+  if (url == this->url_ && secret == this->secret_ && pem == this->certificate_) {
+    ESP_LOGD(TAG, "Link unchanged");
+    return "";
+  }
+  LinkSettings stored{};
+  std::strncpy(stored.url, url.c_str(), sizeof(stored.url) - 1);
+  std::strncpy(stored.secret, secret.c_str(), sizeof(stored.secret) - 1);
+  std::strncpy(stored.certificate, pem.c_str(), sizeof(stored.certificate) - 1);
+  if (!this->link_pref_.save(&stored) || !global_preferences->sync()) {
+    ESP_LOGE(TAG, "Could not store the link in flash");
+    return "the device couldn't store the link";
+  }
+  this->url_ = url;
+  this->secret_ = secret;
+  this->certificate_ = pem;
+  this->refused_ = false;
+  ESP_LOGI(TAG, "Linked to the add-on at %s; connecting", this->url_.c_str());
+  // Drop the connection made with the old link, if any, and connect anew.
+  this->cancel_timeout("va_reconnect");
+  this->reconnect_pending_ = false;
+  if (this->ws_handle_ != nullptr) {
+    esp_websocket_client_destroy(static_cast<esp_websocket_client_handle_t>(this->ws_handle_));
+    this->ws_handle_ = nullptr;
+    this->ws_connected_ = false;
+    this->set_phase_("idle");
+  }
+  this->reconnect_delay_ms_ = 1000;
+  this->connect_();
+  return "";
+}
+
+std::string VaClient::link_fingerprint() const {
+  if (!this->is_linked())
+    return "not linked";
+  // The first 8 bytes of SHA-256 over the address and the certificate, in hex:
+  // Home Assistant computes the same to compare.
+  std::string link = this->url_ + "\n" + this->certificate_;
+  uint8_t digest[32];
+  mbedtls_sha256(reinterpret_cast<const unsigned char *>(link.data()), link.size(), digest, 0);
+  char hex[17];
+  return format_hex_to(hex, digest, 8);
+}
+
+std::string VaClient::link_state() const {
+  if (!this->is_linked())
+    return "not linked";
+  if (this->ws_connected_)
+    return "connected";
+  return this->refused_ ? "refused" : "connecting";
 }
 
 void VaClient::loop() {
@@ -284,6 +400,7 @@ void VaClient::connect_() {
 
   esp_websocket_client_config_t cfg = {};
   cfg.uri = this->url_.c_str();
+  this->headers_ = "Authorization: Bearer " + this->secret_ + "\r\n";
   cfg.headers = this->headers_.c_str();
   cfg.cert_pem = this->certificate_.c_str();
   // The certificate is trusted itself, not for a host name: the add-on is
@@ -359,6 +476,7 @@ void VaClient::on_ws_event(int32_t event_id, void *event_data) {
     case WEBSOCKET_EVENT_CONNECTED: {
       ESP_LOGI(TAG, "WS connected");
       this->ws_connected_ = true;
+      this->refused_ = false;
       this->reconnect_delay_ms_ = 1000;  // reset backoff on a clean open
       // Don't reset the failure counter / fired flag yet — a flap-and-die
       // link would spam chimes. Only re-arm after the connection has held
@@ -412,7 +530,8 @@ void VaClient::on_ws_event(int32_t event_id, void *event_data) {
     case WEBSOCKET_EVENT_ERROR: {
       if (event_id == WEBSOCKET_EVENT_ERROR && data != nullptr &&
           data->error_handle.esp_ws_handshake_status_code == 401) {
-        ESP_LOGE(TAG, "The add-on refused the connection: va_secret doesn't match its device_secret");
+        ESP_LOGE(TAG, "The add-on refused the connection: the device's secret isn't its device_secret");
+        this->refused_ = true;
       }
       if (this->ws_connected_) {
         ESP_LOGW(TAG, "WS disconnected (event %d)", (int) event_id);

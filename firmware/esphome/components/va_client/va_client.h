@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/speaker/speaker.h"
 
@@ -19,13 +20,44 @@ class OnPhaseTrigger;
 class OnRepeatedFailureTrigger;
 class OnFollowupOpenedTrigger;
 
+// The link to the add-on, as kept in flash: set by Home Assistant (set_link),
+// so one firmware image serves every install.
+struct LinkSettings {
+  char url[256];
+  char secret[129];
+  char certificate[2049];
+};
+
 class VaClient : public Component {
  public:
+  // The link compiled into the config, if any (a self-built firmware); a link
+  // Home Assistant has set since (set_link) takes its place.
   void set_url(const std::string &url) { url_ = url; }
   // The add-on's device secret, presented on every connect.
-  void set_secret(const std::string &secret) { headers_ = "Authorization: Bearer " + secret + "\r\n"; }
+  void set_secret(const std::string &secret) { secret_ = secret; }
   // The add-on's own certificate (PEM), the only one trusted.
   void set_certificate(const std::string &certificate) { certificate_ = certificate; }
+  // Link to the add-on: keep these in flash and connect with them, unless
+  // they're what it already has. Returns why not, or "" if it did.
+  //
+  // Anything in Home Assistant can call the action that calls this, so once
+  // the device is linked a new link must come with `proof`: an HMAC-SHA256 of
+  // it (`url\nsecret\ncertificate`, hex), keyed by the secret the device has,
+  // which only the add-on's integration knows. An unlinked device takes its
+  // first link without (trust on first use: adopting the device in Home
+  // Assistant and linking it follow each other, and only a factory reset,
+  // at the device, unlinks it). The new link must also be valid: a wss://
+  // address, a secret of 16 to 128 visible characters, a PEM certificate.
+  std::string set_link(const std::string &url, const std::string &secret, const std::string &certificate,
+                       const std::string &proof);
+  bool is_linked() const { return !this->url_.empty(); }
+  // A short hash of the link's address and certificate (not the secret, as
+  // every Home Assistant user sees it), so Home Assistant can tell whether the
+  // device has the link it means to set.
+  std::string link_fingerprint() const;
+  // "not linked", "connecting", "connected", or "refused" (the add-on turned
+  // its secret down), so Home Assistant can tell a wrong secret.
+  std::string link_state() const;
   void set_microphone(microphone::Microphone *m) { mic_ = m; }
   void set_mic_channel(uint8_t c) { mic_channel_ = c; }
   void set_speaker(speaker::Speaker *s) { speaker_ = s; }
@@ -119,8 +151,12 @@ class VaClient : public Component {
   void begin_unasked_reply_(uint32_t listen_ms);
 
   std::string url_;
+  std::string secret_;
+  // The add-on turned the device's secret down (HTTP 401); cleared on connecting.
+  bool refused_{false};
   std::string headers_;
   std::string certificate_;
+  ESPPreferenceObject link_pref_;
   uint8_t mic_channel_{0};
 
   microphone::Microphone *mic_{nullptr};

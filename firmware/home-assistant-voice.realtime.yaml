@@ -184,12 +184,33 @@ ota:
 api:
   encryption:
     key: ${api_key}
+  actions:
+    # Home Assistant links the device to the add-on: its address, the device
+    # secret and the add-on's certificate, kept in flash. The add-on's
+    # integration calls this when "Add-on link" or "Add-on connection" says
+    # the device needs it. Once linked, a new link needs `proof` (va_client's
+    # set_link says how), so nothing else in Home Assistant can redirect the
+    # device. Answers whether it was taken, and if not, why.
+    - action: set_addon_link
+      variables:
+        url: string
+        secret: string
+        certificate: string
+        proof: string
+      then:
+        - lambda: 'id(addon_link_error) = id(va).set_link(url, secret, certificate, proof);'
+        - api.respond:
+            success: !lambda 'return id(addon_link_error).empty();'
+            error_message: !lambda 'return id(addon_link_error);'
+        - component.update: addon_link
+        - component.update: addon_connection
   # va-direct: start micro_wake_word HERE (mirrors stock home-assistant-voice.yaml
   # and the fjfricke reference) instead of on_boot. Starting mWW at on_boot+1s
   # raced the XMOS voice-kit coming up, so mWW could begin reading a mic that
   # wasn't streaming yet and never recover — the wake word silently never fired.
   # on_client_connected runs once HA + WiFi + the audio path are fully up.
   on_client_connected:
+    - component.update: addon_link
     - micro_wake_word.start:
     # Keep "stop" disabled in the resting/idle state; on_phase arms it only while
     # the assistant is replying. Explicit here so the boot state is deterministic
@@ -210,6 +231,25 @@ text_sensor:
     device:
       name: "Device info"
       entity_category: diagnostic
+  # Which link to the add-on the device has (a hash of its address and the
+  # add-on's certificate, not the secret), so the integration can tell whether
+  # to set it; "not linked" until it has one.
+  - platform: template
+    name: "Add-on link"
+    id: addon_link
+    update_interval: never
+    entity_category: diagnostic
+    icon: "mdi:link-variant"
+    lambda: 'return id(va).link_fingerprint();'
+  # Whether the add-on takes the device: "connected", "connecting", "refused"
+  # (a wrong secret) or "not linked".
+  - platform: template
+    name: "Add-on connection"
+    id: addon_connection
+    update_interval: 5s
+    entity_category: diagnostic
+    icon: "mdi:lan-connect"
+    lambda: 'return id(va).link_state();'
   - platform: template
     name: "Voice phase"
     id: voice_phase_text
@@ -258,6 +298,10 @@ psram:
   ignore_not_found: false  # The VPE has PSRAM, so this is safe. Allows configuring WiFi driver to use more resources (done automatically by the speaker media player)
 
 globals:
+  # Why set_addon_link last turned a link down ("" if it took it), for its answer.
+  - id: addon_link_error
+    type: std::string
+    restore_value: false
   # Global index for our LEDs. So that switching between different animation does not lead to unwanted effects.
   - id: global_led_animation_index
     type: int
