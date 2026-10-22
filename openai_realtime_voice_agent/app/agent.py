@@ -20,7 +20,7 @@ session. At a wake once a session that has an age limit nears it, the add-on
 rolls over to a new one, so a turn isn't cut off by the limit; the new session
 starts afresh, as one after a lost connection does.
 
-The model can also speak unasked, when an automation asks (app/automations.py):
+The model can also speak unasked, when an automation asks (app/event_bus.py):
 an announcement, or the start of a conversation. That waits until the device
 is free, and then goes like a reply, opening a session if none is open.
 

@@ -43,7 +43,7 @@ DONE = "openai_realtime_voice_agent_done"
 _REQUESTS = ((ANNOUNCE, "message", "announce"), (START_CONVERSATION, "prompt", "start_conversation"))
 
 
-class AutomationRequests:
+class EventBus:
     # Waits between attempts to connect, the last repeating.
     RETRY_S = (1.0, 2.0, 5.0, 10.0, 30.0)
     OPEN_TIMEOUT_S = 10.0

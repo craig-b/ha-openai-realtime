@@ -9,7 +9,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.agent import Agent
-from app.automations import AutomationRequests
+from app.event_bus import EventBus
 from app.realtime import RealtimeSession, takes_reasoning
 from app.session import Home, SessionSetup
 from app.config import Settings, device_secret_problem
@@ -171,10 +171,10 @@ class Application:
         if not s.ha_token:
             await self.agent.run()
             return
-        requests = AutomationRequests(
+        bus = EventBus(
             self._home_assistant_api_url(), s.ha_token, self.agent.announce, self.agent.start_conversation
         )
-        listening = asyncio.create_task(requests.run(), name="automation_requests")
+        listening = asyncio.create_task(bus.run(), name="event_bus")
         try:
             await self.agent.run()
         finally:

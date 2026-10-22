@@ -257,7 +257,7 @@ GPT-Live to stop speaking.
 ## Speaking unasked
 
 Home Assistant's automations ask for it by firing an event, which the add-on
-subscribes to over Home Assistant's WebSocket API (`app/automations.py`):
+subscribes to over Home Assistant's WebSocket API (`app/event_bus.py`):
 
 | Event | Data | What the model is told |
 |---|---|---|

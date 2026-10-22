@@ -1,11 +1,11 @@
-"""Automations ask the device to speak, by firing events on Home Assistant's bus (app/automations.py)."""
+"""Automations ask the device to speak, by firing events on Home Assistant's bus (app/event_bus.py)."""
 
 import asyncio
 
 import pytest_asyncio
 
 from app.agent import Agent
-from app.automations import ANNOUNCE, DONE, START_CONVERSATION
+from app.event_bus import ANNOUNCE, DONE, START_CONVERSATION
 from tests.fakes import pcm_tone, wait_until
 from tests.test_tools import FakeHomeAssistant, home_assistant  # noqa: F401 (fixture)
 
