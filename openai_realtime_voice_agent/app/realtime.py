@@ -132,7 +132,7 @@ class RealtimeSession:
         config = {
             "type": "realtime",
             "instructions": with_home(s.instructions, setup.home),
-            "audio": {"input": audio_input, "output": {"voice": s.voice, "speed": s.speed}},
+            "audio": {"input": audio_input, "output": {"voice": voice(s.voice), "speed": s.speed}},
             "tools": setup.tools.definitions,
         }
         if s.max_output_tokens is not None:
@@ -313,6 +313,11 @@ class RealtimeSession:
             await self._events.session_lost(self, f"{code}: {error.get('message', '')}")
         else:
             self._events.error(f"{code}: {error.get('message', '')}")
+
+
+def voice(name: str) -> str | dict:
+    """A built-in voice by name; a custom voice (OpenAI's id, voice_…) by id."""
+    return {"id": name} if name.startswith("voice_") else name
 
 
 def takes_reasoning(model: str) -> bool:

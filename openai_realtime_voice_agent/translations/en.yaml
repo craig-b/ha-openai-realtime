@@ -71,7 +71,8 @@ configuration:
       voice_custom:
         name: "Voice (custom)"
         description: >-
-          Only used when Voice is set to "custom". Any valid OpenAI voice name.
+          Only used when Voice is set to "custom". Any OpenAI voice name, or the
+          id of a custom voice you've made with OpenAI (voice_…).
       speed:
         name: "Speaking speed"
         description: >-

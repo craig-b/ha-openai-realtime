@@ -73,8 +73,8 @@ configuration:
       voice_custom:
         name: "Stem (custom)"
         description: >-
-          Alleen gebruikt als Stem op "custom" staat. Elke geldige
-          OpenAI-stemnaam.
+          Alleen gebruikt als Stem op "custom" staat. Elke OpenAI-stemnaam, of het
+          id van een eigen stem die je bij OpenAI hebt gemaakt (voice_…).
       speed:
         name: "Spreektempo"
         description: >-

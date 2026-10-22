@@ -69,6 +69,11 @@ async def test_transcription_can_expect_several_languages(openai, start_addon, o
     assert conn.session["audio"]["input"]["transcription"] == {"model": "gpt-live-transcribe", "languages": ["en", "nl"]}
 
 
+async def test_a_custom_voice_is_sent_by_its_id(openai, start_addon, open_session):
+    _, conn = await open_session(await start_addon(OPENAI_VOICE="custom", OPENAI_VOICE_CUSTOM="voice_1234"))
+    assert conn.session["audio"]["output"]["voice"] == {"id": "voice_1234"}
+
+
 async def test_web_search_adds_its_tool(openai, start_addon, open_session):
     _, conn = await open_session(await start_addon(ENABLE_WEB_SEARCH="true"))
     assert [t["name"] for t in conn.session["tools"]] == ["web_search"]
