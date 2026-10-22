@@ -114,14 +114,32 @@ class ReplyAudio:
 
 class SessionRecording:
     """One OpenAI session's audio, as two WAV files: the mic audio sent to
-    OpenAI, and the reply audio sent to the device."""
+    OpenAI, and the reply audio sent to the device.
+
+    Recordings older than KEEP_DAYS are deleted as each new one starts: they
+    are for troubleshooting, and hold what was said in the home.
+    """
+
+    KEEP_DAYS = 7
 
     def __init__(self, directory: str):
         os.makedirs(directory, exist_ok=True)
+        self._delete_old(directory)
         stem = os.path.join(directory, datetime.now().strftime("%Y%m%d-%H%M%S"))
         self._mic = self._open(f"{stem}-mic.wav")
         self._reply = self._open(f"{stem}-reply.wav")
         logger.info(f"🎙️ recording this session to {stem}-{{mic,reply}}.wav")
+
+    @classmethod
+    def _delete_old(cls, directory: str) -> None:
+        cutoff = time.time() - cls.KEEP_DAYS * 24 * 3600
+        for name in os.listdir(directory):
+            path = os.path.join(directory, name)
+            if name.endswith(".wav") and os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                try:
+                    os.remove(path)
+                except OSError as e:
+                    logger.warning(f"⚠️ Could not delete old recording {name}: {e!r}")
 
     @staticmethod
     def _open(path: str) -> wave.Wave_write:

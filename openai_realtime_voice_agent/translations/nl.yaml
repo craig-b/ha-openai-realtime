@@ -371,8 +371,8 @@ configuration:
     description: >-
       Slaat de microfoon- en speakeraudio van elk gesprek op als WAV-bestanden
       in de map van de add-on in de addon_configs-share (Samba of File
-      editor), onder recordings. Alleen voor probleemanalyse: de bestanden
-      worden niet voor je verwijderd. Normaal uit laten.
+      editor), onder recordings. Alleen voor probleemanalyse: opnames worden na
+      7 dagen verwijderd. Normaal uit laten.
   log_level:
     name: "🔍 Debug · Log-detail"
     description: >-

@@ -456,6 +456,21 @@ async def test_recording_writes_each_sessions_audio(openai, start_addon, open_se
         assert 0.45 * 24000 <= wav.getnframes() <= 0.5 * 24000
 
 
+async def test_recordings_older_than_a_week_are_deleted(openai, start_addon, open_session, tmp_path):
+    import os
+    import time as clock
+
+    recordings = tmp_path / "recordings"
+    recordings.mkdir()
+    old, recent = recordings / "20260101-000000-mic.wav", recordings / "keep-mic.wav"
+    old.write_bytes(b"")
+    recent.write_bytes(b"")
+    week_ago = clock.time() - 8 * 24 * 3600
+    os.utime(old, (week_ago, week_ago))
+    await open_session(await start_addon(ENABLE_RECORDING="true", RECORDING_DIR=str(recordings)))
+    assert not old.exists() and recent.exists()
+
+
 async def test_no_recording_unless_enabled(openai, start_addon, open_session, tmp_path):
     recordings = tmp_path / "recordings"
     device, conn = await open_session(await start_addon(RECORDING_DIR=str(recordings)))

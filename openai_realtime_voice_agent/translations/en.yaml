@@ -357,8 +357,8 @@ configuration:
     description: >-
       Saves each conversation's microphone and speaker audio as WAV files in
       the add-on's folder of the addon_configs share (Samba or File editor),
-      under recordings. For troubleshooting only: the files are not deleted
-      for you. Leave off normally.
+      under recordings. For troubleshooting only: recordings are deleted after
+      7 days. Leave off normally.
   log_level:
     name: "🔍 Debug · Log detail"
     description: >-
