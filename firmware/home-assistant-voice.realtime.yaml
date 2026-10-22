@@ -72,7 +72,7 @@ esphome:
   project:
     name: "craig-b.voice-pe-openai-realtime"
     version: "1.5.0"
-  min_version: 2026.5.0
+  min_version: 2026.6.0
   on_boot:
     priority: 375
     then:
@@ -376,6 +376,15 @@ switch:
     entity_category: config
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
+  # Disable physical controls switch
+  - platform: template
+    id: disable_buttons
+    name: Disable physical controls
+    icon: "mdi:button-pointer"
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    disabled_by_default: true
   # Internal switch to track when a timer is ringing on the device.
   - platform: template
     id: timer_ringing
@@ -436,9 +445,17 @@ binary_sensor:
       number: GPIO0
       inverted: true
     on_press:
-      - script.execute: control_leds
+      - if:
+          condition:
+            switch.is_off: disable_buttons
+          then:
+            - script.execute: control_leds
     on_release:
-      - script.execute: control_leds
+      - if:
+          condition:
+            switch.is_off: disable_buttons
+          then:
+            - script.execute: control_leds
       # If a factory reset is requested, factory reset on release
       - if:
           condition:
@@ -459,7 +476,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
               then:
                 - if:
                     condition:
@@ -527,7 +544,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
               then:
                 - script.execute:
                     id: play_sound
@@ -548,7 +565,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
               then:
                 - script.execute:
                     id: play_sound
@@ -564,7 +581,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
               then:
                 - script.execute:
                     id: play_sound
@@ -734,7 +751,12 @@ light:
   - platform: esp32_rmt_led_strip
     id: leds_internal
     pin: GPIO21
-    chipset: WS2812
+    bit0_high: 300ns
+    bit0_low: 975ns
+    bit1_high: 650ns
+    bit1_low: 650ns
+    reset_low: 300us
+    reset_high: 0us
     max_refresh_rate: 15ms
     num_leds: 12
     rgb_order: GRB
@@ -1184,7 +1206,9 @@ sensor:
       - lambda: id(dial_touched) = true;
       - if:
           condition:
-            binary_sensor.is_off: center_button
+            and:
+              - binary_sensor.is_off: center_button
+              - switch.is_off: disable_buttons
           then:
             - script.execute:
                 id: control_volume
@@ -1198,7 +1222,9 @@ sensor:
       - lambda: id(dial_touched) = true;
       - if:
           condition:
-            binary_sensor.is_off: center_button
+            and:
+              - binary_sensor.is_off: center_button
+              - switch.is_off: disable_buttons
           then:
             - script.execute:
                 id: control_volume
