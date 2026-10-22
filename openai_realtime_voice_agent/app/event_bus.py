@@ -1,6 +1,7 @@
 """The add-on's link to Home Assistant's event bus.
 
-Automations ask the device to speak by firing an event:
+Automations, and the add-on's integration (custom_components/), ask the device
+to speak by firing an event:
 
     openai_realtime_voice_agent_announce             {"message": "The washing is done."}
     openai_realtime_voice_agent_start_conversation   {"prompt": "Ask whether to turn the heating up."}
@@ -21,11 +22,24 @@ apart) and how it went:
 "dropped" (the device wasn't free in time) or "failed". An automation can wait
 for it, matching its request_id.
 
+The add-on also fires `openai_realtime_voice_agent_state` whenever the
+conversation on the device changes, and when asked by
+`openai_realtime_voice_agent_query`:
+
+    {"state": "listening", "connected": true}
+
+`state` is an Assist satellite's: "idle", "listening", "processing" or
+"responding"; `connected` says whether the device is connected to the add-on.
+
 The add-on subscribes to the events over Home Assistant's WebSocket API, with
 the token it reads Home Assistant with: nothing to set up, no port to open, and
 only what can fire events in Home Assistant can ask. The subscription is kept
 open, and made again whenever the connection drops. It fires its own events
 through Home Assistant's REST API, one at a time and in order.
+
+When the integration is installed, the add-on offers it to Home Assistant
+through the Supervisor's discovery, so it shows up as discovered. It checks
+first, as Home Assistant logs an error for a discovery no integration takes.
 """
 import asyncio
 import json
@@ -38,13 +52,16 @@ from websockets.exceptions import ConnectionClosed
 
 logger = logging.getLogger(__name__)
 
+# The integration's domain, which is also the discovery's service name.
 INTEGRATION = "openai_realtime_voice_agent"
 
 ANNOUNCE = f"{INTEGRATION}_announce"
 START_CONVERSATION = f"{INTEGRATION}_start_conversation"
 DONE = f"{INTEGRATION}_done"
+STATE = f"{INTEGRATION}_state"
+QUERY = f"{INTEGRATION}_query"
 
-SUBSCRIBED = (ANNOUNCE, START_CONVERSATION)
+SUBSCRIBED = (ANNOUNCE, START_CONVERSATION, QUERY)
 
 # Results of a request to speak, in DONE.
 FAILED = "failed"
@@ -61,16 +78,23 @@ class EventBus:
         token: str,
         announce: Callable[[str], Awaitable[str]],
         start_conversation: Callable[[Optional[str], Optional[str]], Awaitable[str]],
+        supervisor_url: str = "",
+        supervisor_token: str = "",
     ):
         """`api_url` is Home Assistant's REST API, e.g. http://supervisor/core/api.
 
-        Each handler says the text, and returns how it went (`result` in DONE).
+        Each handler says the text, and returns how it went (`result` in
+        DONE). Without a Supervisor token there is no discovery.
         """
         self._api_url = api_url
         self.url = api_url.replace("http://", "ws://", 1).replace("https://", "wss://", 1) + "/websocket"
         self._token = token
         self._announce = announce
         self._start_conversation = start_conversation
+        self._supervisor_url = supervisor_url
+        self._supervisor_token = supervisor_token
+        self._discovered = False
+        self._state = {"state": "idle", "connected": False}
         self._outbox: asyncio.Queue[tuple[str, dict]] = asyncio.Queue()
         self._tasks: set[asyncio.Task] = set()
 
@@ -83,6 +107,15 @@ class EventBus:
             sender.cancel()
             for task in self._tasks:
                 task.cancel()
+
+    # --- the conversation's state ---------------------------------------------------------
+
+    def set_state(self, state: str, connected: bool) -> None:
+        """The conversation on the device, as an Assist satellite's state; fired if it changed."""
+        new = {"state": state, "connected": connected}
+        if new != self._state:
+            self._state = new
+            self.fire(STATE, new)
 
     # --- firing events ---------------------------------------------------------------------
 
@@ -117,6 +150,9 @@ class EventBus:
                     else:
                         logger.info(f"📣 Listening for automations' requests ({ANNOUNCE}, {START_CONVERSATION})")
                     failures = 0
+                    # Home Assistant may have restarted, missing what changed meanwhile.
+                    self.fire(STATE, self._state)
+                    await self._offer_integration(ws)
                     await self._listen(ws)
             except asyncio.CancelledError:
                 raise
@@ -149,6 +185,28 @@ class EventBus:
                 return message
             self._handle(message)
 
+    async def _offer_integration(self, ws) -> None:
+        """Offer the integration through discovery, once, if it's installed."""
+        if self._discovered or not self._supervisor_token:
+            return
+        result = await self._command(ws, len(SUBSCRIBED) + 1, {"type": "manifest/get", "integration": INTEGRATION})
+        if not result.get("success"):
+            logger.debug(f"The integration isn't installed: {result.get('error')}")
+            return
+        try:
+            async with httpx.AsyncClient(timeout=self.OPEN_TIMEOUT_S) as http:
+                response = await http.post(
+                    f"{self._supervisor_url}/discovery",
+                    json={"service": INTEGRATION, "config": {}},
+                    headers={"Authorization": f"Bearer {self._supervisor_token}"},
+                )
+                response.raise_for_status()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not offer the integration to Home Assistant: {e!r}")
+            return
+        self._discovered = True
+        logger.info("🧩 Offered the integration to Home Assistant, which shows it as discovered")
+
     async def _listen(self, ws) -> None:
         async for raw in ws:
             self._handle(json.loads(raw))
@@ -159,6 +217,9 @@ class EventBus:
             self._request(event.get("event_type", ""), event.get("data") or {})
 
     def _request(self, event_type: str, data: dict) -> None:
+        if event_type == QUERY:
+            self.fire(STATE, self._state)
+            return
         request_id = data.get("request_id")
         if event_type == ANNOUNCE:
             message = _text(data, "message")

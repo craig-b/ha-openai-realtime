@@ -282,6 +282,23 @@ subscribes to over Home Assistant's WebSocket API (`app/event_bus.py`):
   otherwise (no text, the session didn't open, the model didn't speak, the device
   disconnected).
 
+## Home Assistant's view of the device
+
+For the add-on's integration (`custom_components/`), which makes the device an
+Assist satellite:
+
+- **State:** the add-on fires `openai_realtime_voice_agent_state` with `state`, the
+  phase last sent to the device as an Assist satellite's state (`listening` →
+  `listening`, `thinking` → `processing`, `replying` → `responding`, `idle` →
+  `idle`), and `connected`, whether the device is connected. It fires it when
+  either changes, when it (re)connects to Home Assistant, and when
+  `openai_realtime_voice_agent_query` asks.
+- **Discovery:** when the integration is installed (Home Assistant's
+  `manifest/get` finds it), the add-on offers it through the Supervisor's
+  discovery (`openai_realtime_voice_agent`), once per run, so Home Assistant shows
+  it as discovered. Without the integration it offers nothing, as Home Assistant
+  logs an error for a discovery no integration takes.
+
 ## Mic gate
 
 The device forwards mic audio only while its gate is open:

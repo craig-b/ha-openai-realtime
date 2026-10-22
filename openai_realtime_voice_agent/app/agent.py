@@ -82,6 +82,8 @@ class Agent:
     STARTED_CONVERSATION_LISTEN_MS = 8000
     # How long a reply spoken unasked may take to play, once begun.
     SPEAK_FINISH_TIMEOUT_S = 300.0
+    # The phase sent to the device, as an Assist satellite's state.
+    SATELLITE_STATE = {"listening": "listening", "thinking": "processing", "replying": "responding", "idle": "idle"}
     # How a request to speak unasked went.
     SPOKEN = "spoken"
     STOPPED = "stopped"
@@ -144,6 +146,10 @@ class Agent:
         self._reply_began = asyncio.Event()
         # Resolves with how the reply spoken unasked ended, while one is under way.
         self._unasked_end: Optional[asyncio.Future] = None
+        # Told the conversation's state, as an Assist satellite's, and whether
+        # the device is connected: whenever either changes.
+        self.on_state: Callable[[str, bool], None] = lambda state, connected: None
+        self._satellite_state = "idle"
         self._open_task: Optional[asyncio.Task] = None
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
@@ -185,11 +191,14 @@ class Agent:
     # --- the device ----------------------------------------------------------------
 
     async def device_connected(self) -> None:
-        pass
+        self.on_state(self._satellite_state, True)
 
     async def device_disconnected(self) -> None:
         self._end_unasked(self.FAILED)
         self._end_engagement()
+        # The device goes idle when its connection drops.
+        self._satellite_state = "idle"
+        self.on_state(self._satellite_state, False)
 
     async def device_message(self, message_type: str) -> None:
         if message_type == "start":
@@ -266,6 +275,8 @@ class Agent:
     def _send_phase(self, value: str) -> None:
         logger.info(f"➡️ phase '{value}' to {'the device' if self.device.connected else 'no device'}")
         self.device.send_json({"type": "phase", "value": value})
+        self._satellite_state = self.SATELLITE_STATE[value]
+        self.on_state(self._satellite_state, self.device.connected)
 
     def _end_engagement(self) -> None:
         """The conversation on the device has ended; the idle timeout counts from now."""

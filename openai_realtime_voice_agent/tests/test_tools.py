@@ -31,6 +31,8 @@ class FakeHomeAssistant:
         self.subscriptions: list[tuple[WebSocket, int, str]] = []
         # (event type, data), for each event fired through the REST API.
         self.fired: list[tuple[str, dict]] = []
+        # Integrations installed, as manifest/get finds them.
+        self.installed: set[str] = set()
         self.server = None
         self.task = None
         self.port = None
@@ -71,6 +73,13 @@ class FakeHomeAssistant:
                 if message.get("type") == "subscribe_events":
                     self.subscriptions.append((ws, message["id"], message["event_type"]))
                     await ws.send_json({"id": message["id"], "type": "result", "success": True, "result": None})
+                elif message.get("type") == "manifest/get":
+                    if message["integration"] in self.installed:
+                        await ws.send_json({"id": message["id"], "type": "result", "success": True,
+                                            "result": {"domain": message["integration"]}})
+                    else:
+                        await ws.send_json({"id": message["id"], "type": "result", "success": False,
+                                            "error": {"code": "not_found", "message": "Integration not found"}})
         except WebSocketDisconnect:
             self.subscriptions = [s for s in self.subscriptions if s[0] is not ws]
 

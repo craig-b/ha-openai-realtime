@@ -172,8 +172,14 @@ class Application:
             await self.agent.run()
             return
         bus = EventBus(
-            self._home_assistant_api_url(), s.ha_token, self.agent.announce, self.agent.start_conversation
+            self._home_assistant_api_url(),
+            s.ha_token,
+            self.agent.announce,
+            self.agent.start_conversation,
+            supervisor_url=s.supervisor_url,
+            supervisor_token=s.supervisor_token,
         )
+        self.agent.on_state = bus.set_state
         listening = asyncio.create_task(bus.run(), name="event_bus")
         try:
             await self.agent.run()

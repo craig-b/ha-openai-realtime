@@ -5,8 +5,9 @@ import asyncio
 import pytest_asyncio
 
 from app.agent import Agent
-from app.event_bus import ANNOUNCE, DONE, START_CONVERSATION
+from app.event_bus import ANNOUNCE, DONE, INTEGRATION, QUERY, START_CONVERSATION, STATE
 from tests.fakes import pcm_tone, wait_until
+from tests.test_migrate import DEFAULTS, supervisor  # noqa: F401 (fixture)
 from tests.test_tools import FakeHomeAssistant, home_assistant  # noqa: F401 (fixture)
 
 
@@ -215,3 +216,58 @@ async def test_a_started_conversation_needs_an_opening_line_or_a_prompt(openai, 
     assert openai.connections == []
     await device.close()
 
+
+# --- the conversation's state -------------------------------------------------------------
+
+def states(home_assistant) -> list[dict]:
+    return [data for kind, data in home_assistant.fired if kind == STATE]
+
+
+async def test_the_state_follows_the_conversation(openai, home_assistant, ha_device, wake):  # noqa: F811
+    device = await ha_device()
+    await wait_until(lambda: {"state": "idle", "connected": True} in states(home_assistant), 5.0, "connected")
+    conn = await wake(device)
+    await conn.user_turn()
+    await device.wait_for_phase("thinking")
+    await conn.reply(pcm_tone(300, 24000))
+    await device.wait_for_phase("idle")
+    wanted = [{"state": s, "connected": True} for s in ("listening", "processing", "responding", "idle")]
+    await wait_until(lambda: states(home_assistant)[-4:] == wanted, 5.0, lambda: f"states {states(home_assistant)}")
+    await device.close()
+    await wait_until(
+        lambda: states(home_assistant)[-1] == {"state": "idle", "connected": False}, 5.0, "disconnected")
+
+
+async def test_a_query_is_answered_with_the_state(openai, home_assistant, ha_device):  # noqa: F811
+    device = await ha_device()
+    await wait_until(lambda: states(home_assistant), 5.0, "a first state")
+    before = len(states(home_assistant))
+    await home_assistant.fire(QUERY, {})
+    await wait_until(lambda: len(states(home_assistant)) > before, 5.0, "the state again")
+    assert states(home_assistant)[-1] == {"state": "idle", "connected": True}
+    await device.close()
+
+
+# --- discovery ----------------------------------------------------------------------------
+
+async def start_with_supervisor(start_addon, home_assistant, supervisor):  # noqa: F811
+    fake = await supervisor(DEFAULTS)
+    await start_addon(
+        HA_MCP_URL=home_assistant.url, LONGLIVED_TOKEN="ha-token",
+        SUPERVISOR_URL=fake.url, SUPERVISOR_TOKEN="supervisor-token",
+    )
+    await wait_until(lambda: home_assistant.subscribed(QUERY), 5.0, "the subscriptions")
+    return fake
+
+
+async def test_the_installed_integration_is_offered(openai, home_assistant, supervisor, start_addon):  # noqa: F811
+    home_assistant.installed.add(INTEGRATION)
+    fake = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    await wait_until(lambda: fake.discoveries, 5.0, "a discovery")
+    assert fake.discoveries == [{"service": INTEGRATION, "config": {}}]
+
+
+async def test_no_integration_no_discovery(openai, home_assistant, supervisor, start_addon):  # noqa: F811
+    fake = await start_with_supervisor(start_addon, home_assistant, supervisor)
+    await asyncio.sleep(0.5)
+    assert fake.discoveries == []

@@ -16,6 +16,10 @@ host_network: true
 # Gives the add-on SUPERVISOR_TOKEN so it can reach Home Assistant (used as a
 # fallback auth token for the MCP server when longlived_token is left blank).
 homeassistant_api: true
+# Offered to Home Assistant once its integration (custom_components/) is
+# installed, so it shows up as discovered (app/event_bus.py).
+discovery:
+  - openai_realtime_voice_agent
 # /config inside the add-on is its own folder in Home Assistant's
 # addon_configs share; enable_recording writes its recordings there.
 map:

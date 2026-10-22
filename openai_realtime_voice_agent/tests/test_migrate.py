@@ -32,11 +32,14 @@ class FakeSupervisor:
         self.options = options
         self.saved: list[dict] = []
         self.restarts = 0
+        # The discoveries the add-on posted.
+        self.discoveries: list[dict] = []
         self.port = None
         self.app = Starlette(routes=[
             Route("/addons/self/info", self._info),
             Route("/addons/self/options", self._save, methods=["POST"]),
             Route("/addons/self/restart", self._restart, methods=["POST"]),
+            Route("/discovery", self._discover, methods=["POST"]),
         ])
 
     async def _info(self, request: Request):
@@ -46,6 +49,11 @@ class FakeSupervisor:
     async def _save(self, request: Request):
         self.saved.append((await request.json())["options"])
         return JSONResponse({"result": "ok", "data": {}})
+
+    async def _discover(self, request: Request):
+        assert request.headers["Authorization"] == "Bearer supervisor-token"
+        self.discoveries.append(await request.json())
+        return JSONResponse({"result": "ok", "data": {"uuid": "0" * 32}})
 
     async def _restart(self, request: Request):
         self.restarts += 1
