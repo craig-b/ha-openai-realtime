@@ -119,6 +119,9 @@ WEB_SEARCH_DEFINITION = {
 def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) -> Handler:
     """The Realtime API has no web search: run one through the Responses API.
 
+    What it returns is for the model, which answers the user in their own
+    language.
+
     `location` is the home's approximate location, for local answers. A
     spoken answer wants a quick lookup: little reasoning, little search
     context (the gpt-6 models reason at medium unless told).
@@ -132,7 +135,7 @@ def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) ->
         query = str(arguments.get("query", "")).strip()
         logger.info(f"🔎 web_search: {query!r} (model={model})")
         if not query:
-            return "Geen zoekopdracht ontvangen."
+            return "No search query was given."
         try:
             response = await client.responses.create(
                 model=model,
@@ -146,10 +149,10 @@ def web_search(client: AsyncOpenAI, model: str, location: dict | None = None) ->
             )
         except Exception as e:
             logger.error(f"❌ web_search failed: {e!r}")
-            return "Het zoeken op internet lukte even niet."
+            return "The web search failed; say you couldn't look it up just now."
         answer = (response.output_text or "").strip()
         logger.info(f"🔎 web_search answer: {answer[:200]}")
-        return answer or "Ik kon hier online niets over vinden."
+        return answer or "The web search found nothing about this."
 
     return search
 
