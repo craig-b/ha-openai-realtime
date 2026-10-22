@@ -341,6 +341,7 @@ class FakeRealtimeServer:
                     if self.refuse_live_with:
                         await conn.send({"type": "error", "error": self.refuse_live_with})
                     else:
+                        conn.started_at = time.monotonic()
                         await conn.send({"type": "session.started", "session": {"id": _id("live"), **event["session"]}})
                 elif event.get("type") == "session.close":
                     await conn.send({"type": "session.closed", "reason": "close_requested", "usage": {"seconds": 12.0}})
@@ -375,7 +376,7 @@ class FakeLiveConnection(FakeRealtimeConnection):
     def __init__(self, websocket, authorization: str):
         super().__init__(websocket, "/v1/live/sessions")
         self.authorization = authorization
-        self.ms = 0
+        self.started_at = time.monotonic()
 
     @property
     def session(self) -> dict:
@@ -385,12 +386,18 @@ class FakeLiveConnection(FakeRealtimeConnection):
     def appended_audio(self) -> bytes:
         return b"".join(base64.b64decode(e["audio"]) for e in self.of_type("session.input_audio.append"))
 
-    async def heard(self, text: str) -> None:
-        """GPT-Live hears the user say `text`."""
+    @property
+    def ms(self) -> int:
+        """Now, on the session's timeline: milliseconds since it started."""
+        return int((time.monotonic() - self.started_at) * 1000)
+
+    async def heard(self, text: str, start_ms: Optional[int] = None) -> None:
+        """GPT-Live hears the user say `text`: now, or at `start_ms` (transcribed late)."""
+        ms = self.ms if start_ms is None else start_ms
         for word in text.split(" "):
             await self.send({"type": "session.input_transcript.delta", "delta": word + " ",
-                             "start_ms": self.ms, "end_ms": self.ms + 200})
-            self.ms += 200
+                             "start_ms": ms, "end_ms": ms + 200})
+            ms += 200
 
     async def says(self, text: str, audio: bytes) -> None:
         """GPT-Live speaks: its words, and the audio of them, in 100 ms chunks."""

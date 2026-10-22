@@ -213,3 +213,24 @@ async def test_backend_work_that_goes_silent_doesnt_keep_the_session_open(openai
     await conn.backend({"type": "response.created", "response": {"id": "resp_1"}})  # it never completes
     await device.send({"type": "flush"})  # the conversation on the device ends
     await conn.wait_for("session.close", timeout=4.0)
+
+
+async def test_late_words_from_before_a_reply_dont_cut_it(openai, live):
+    device, conn = live
+    said_at = conn.ms
+    await conn.heard("thanks that's all")
+    await conn.says("Happy to help.", pcm_tone(600, 24000))
+    await device.wait_for_phase("replying")
+    await conn.heard("anyway", start_ms=said_at)  # said before the reply, transcribed only now
+    await asyncio.sleep(0.3)
+    assert device.phases[-1] == "replying"
+
+
+async def test_words_said_over_a_reply_cut_it(openai, live):
+    device, conn = live
+    await conn.heard("tell me a story")
+    await conn.says("Once upon a time", pcm_tone(600, 24000))
+    await device.wait_for_phase("replying")
+    await asyncio.sleep(0.1)
+    await conn.heard("actually what time is it")
+    await device.wait_for_phase("listening", count=2)

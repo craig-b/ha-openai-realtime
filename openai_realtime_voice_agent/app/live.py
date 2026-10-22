@@ -60,6 +60,7 @@ class LiveSession:
         self._reader: Optional[asyncio.Task] = None
         self._closing = False
         self._started = asyncio.Event()
+        self._started_at = 0.0
         self._closed = asyncio.Event()
         # Why GPT-Live refused the session's settings, if it did while it started.
         self._refused: Optional[str] = None
@@ -71,6 +72,7 @@ class LiveSession:
         self._user_speaking = False
         self._user_text = ""
         self._speaking = False
+        self._speech_started_ms = 0.0
         self._silent_s = 0.0
         self._said_text = ""
         # After a device "stop": GPT-Live's voice is dropped until the device wakes again.
@@ -221,9 +223,10 @@ class LiveSession:
         if kind != "session.output_audio.delta":
             logger.debug(f"⬅️ {kind}")
         if kind == "session.started":
+            self._started_at = time.monotonic()
             self._started.set()
         elif kind == "session.input_transcript.delta":
-            self._heard(event.get("delta", ""))
+            self._heard(event.get("delta", ""), event.get("start_ms"))
         elif kind == "session.output_transcript.delta":
             self._said_text += event.get("delta", "")
         elif kind == "session.output_audio.delta":
@@ -243,8 +246,13 @@ class LiveSession:
             self._on_error(event.get("error") or {})
         return None
 
-    def _heard(self, delta: str) -> None:
+    def _heard(self, delta: str, start_ms: Optional[int]) -> None:
         """Words heard from the user."""
+        if self._speaking and start_ms is not None and start_ms < self._speech_started_ms:
+            # Said before the voice began, and only now transcribed: the end of
+            # what it is answering, not the user talking over it.
+            logger.debug(f"🗣️ late words from before the reply: {delta!r}")
+            return
         if not self._user_speaking:
             self._user_speaking = True
             self._muted = False
@@ -268,6 +276,8 @@ class LiveSession:
         if audible:
             if not self._speaking:
                 self._speaking = True
+                # On GPT-Live's timeline (milliseconds from session start), as its transcripts are.
+                self._speech_started_ms = (time.monotonic() - self._started_at) * 1000
                 self._user_finished()
             self._silent_s = 0.0
         elif not self._speaking:
