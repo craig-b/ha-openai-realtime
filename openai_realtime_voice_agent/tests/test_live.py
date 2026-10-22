@@ -171,3 +171,19 @@ async def test_gpt_live_ending_the_session_mid_reply_tells_the_device(openai, li
     await conn.websocket.close()
     await wait_until(lambda: device.errors, 3.0, "an error message")
     await device.wait_for_phase("idle")
+
+
+async def test_the_backend_can_end_the_conversation(openai, start_addon, fast_idle_check):
+    addon = await start_addon(ENGINE="live", ENABLE_END_CONVERSATION="true")
+    device = await addon.connect()
+    await device.send({"type": "wake"})
+    conn = await openai.live_connection()
+    assert [t["name"] for t in conn.session["delegation"]["responses"]["tools"]] == ["end_conversation"]
+    await conn.heard("thanks, that's all")
+    await conn.delegates()
+    await conn.function_call("end_conversation", {})
+    await wait_until(lambda: {"type": "end"} in device.messages, 3.0, "end sent to the device")
+    await conn.says("Goodbye!", pcm_tone(300, 24000))
+    await device.wait_for_phase("idle", timeout=4.0)
+    await conn.wait_for("session.close", timeout=3.0)
+    await device.close()

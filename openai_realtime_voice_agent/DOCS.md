@@ -95,6 +95,7 @@ automatically the first time the add-on starts, after which it restarts once.
 | `realtime → vad_eagerness` | `low` | waits longest before deciding you're done talking |
 | `playback_prebuffer_ms` | `150` | raise to ~250 if you hear crackle; 0 = play immediately |
 | `realtime → max_context_tokens` | `8000` | conversation size at which OpenAI forgets the oldest half; bounds per-reply token cost |
+| `enable_end_conversation` | `true` | after a clear goodbye the device stops listening, without a follow-up window |
 | `enable_web_search` | `true` | online lookups; set `false` to disable |
 | `realtime → web_search_model` | `gpt-5.5` | best-quality search model; mini/nano are cheaper |
 

@@ -247,6 +247,11 @@ class Agent:
                 time.monotonic() + self.PLAYBACK_DRAIN_FALLBACK_S + follow_up_s + self.FOLLOW_UP_MARGIN_S
             )
 
+    def end_conversation(self) -> None:
+        """The model ended the conversation: the device opens no follow-up window after this reply."""
+        self._stopped = True
+        self.device.send_json({"type": "end"})
+
     def _dangling_turn(self) -> None:
         if self._session is not None:
             self._session.dangling_turn()

@@ -103,11 +103,6 @@ class DeviceServer:
         if self._current is not None:
             self._current.outbox.put_nowait(pcm)
 
-    async def close_device(self) -> None:
-        """Close the device's connection; it reconnects by itself."""
-        if self._current is not None:
-            await self._current.close()
-
     def _close_in_background(self, connection: _Connection) -> None:
         task = asyncio.create_task(connection.close())
         self._closing.add(task)

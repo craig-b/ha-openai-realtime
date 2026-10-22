@@ -14,12 +14,12 @@ from app.session import SessionSetup
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
 from app.tools import (
-    DISCONNECT_DEFINITION,
+    END_CONVERSATION_DEFINITION,
     WEB_SEARCH_DEFINITION,
     Handler,
     HomeAssistantTools,
     Tools,
-    disconnect,
+    end_conversation,
     web_search,
 )
 
@@ -66,8 +66,8 @@ class Application:
     async def _tools(self) -> Tools:
         s = self.settings
         tools = Tools()
-        if s.enable_disconnect_tool:
-            tools.add(DISCONNECT_DEFINITION, disconnect(lambda: self.agent.device.close_device()))
+        if s.enable_end_conversation:
+            tools.add(END_CONVERSATION_DEFINITION, end_conversation(lambda: self.agent.end_conversation()))
         if s.enable_web_search and s.engine == "realtime":
             # GPT-Live's backend searches the web with OpenAI's own tool instead.
             tools.add(WEB_SEARCH_DEFINITION, web_search(self._client, s.web_search_model))

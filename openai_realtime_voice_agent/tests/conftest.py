@@ -81,6 +81,8 @@ def addon_env(monkeypatch, tmp_path):
         "WEBSOCKET_HOST": "127.0.0.1",
         "WEBSOCKET_PORT": str(port),
         "ENABLE_WEB_SEARCH": "false",
+        # Tests of the tool turn it on.
+        "ENABLE_END_CONVERSATION": "false",
         # Short debounce keeps tests fast; tests of the debounce itself set it.
         "PHASE_IDLE_DEBOUNCE_MS": "300",
     }

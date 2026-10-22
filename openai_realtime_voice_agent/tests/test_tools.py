@@ -278,3 +278,29 @@ async def test_a_slow_home_assistant_does_not_hold_the_session_up(openai, home_a
     assert asyncio.get_running_loop().time() - started < 2.0
     assert tool_names(second) == ["HassTurnOff", "HassTurnOn"]
     await device.close()
+
+
+# --- ending the conversation -------------------------------------------------------------
+
+async def test_the_model_can_end_the_conversation(openai, start_addon, wake, monkeypatch):
+    monkeypatch.setattr(Agent, "IDLE_CHECK_S", 0.05)
+    addon = await start_addon(ENABLE_END_CONVERSATION="true", SESSION_REUSE_TIMEOUT_SECONDS="0")
+    device = await addon.connect()
+    conn = await wake(device)
+    assert [t["name"] for t in conn.session["tools"]] == ["end_conversation"]
+    await conn.user_turn()
+    await conn.function_call("end_conversation", {})
+    await wait_until(lambda: {"type": "end"} in device.messages, 3.0, "end sent to the device")
+    await conn.wait_for("response.create")
+    await conn.reply(pcm_tone(320, 24000), transcript="Goodbye!")
+    await device.wait_for_phase("idle")
+    # No follow-up window: the conversation is over, and its session closes.
+    await asyncio.wait_for(conn.closed.wait(), 3.0)
+    await device.close()
+
+
+async def test_ending_the_conversation_can_be_turned_off(openai, start_addon, wake):
+    device = await (await start_addon(ENABLE_END_CONVERSATION="false")).connect()
+    conn = await wake(device)
+    assert conn.session["tools"] == []
+    await device.close()

@@ -115,8 +115,8 @@ class Settings:
     noise_reduction: str
     enable_web_search: bool
     web_search_model: str
-    # Off by default: the device owns its own session lifecycle.
-    enable_disconnect_tool: bool
+    # Whether the model may end the conversation, so the device stops listening.
+    enable_end_conversation: bool
     ha_mcp_url: str
     ha_token: str
     # The Supervisor's API, and the add-on's token for it; empty outside Home Assistant.
@@ -179,7 +179,7 @@ class Settings:
             noise_reduction=noise_reduction if noise_reduction in ("near_field", "far_field") else "",
             enable_web_search=_bool("ENABLE_WEB_SEARCH", True),
             web_search_model=_resolve_choice("WEB_SEARCH_MODEL", "WEB_SEARCH_MODEL_CUSTOM", "gpt-5.5"),
-            enable_disconnect_tool=_bool("ENABLE_DISCONNECT_TOOL", False),
+            enable_end_conversation=_bool("ENABLE_END_CONVERSATION", True),
             ha_mcp_url=_str("HA_MCP_URL") or "http://supervisor/core/api/mcp",
             ha_token=_str("LONGLIVED_TOKEN") or _str("SUPERVISOR_TOKEN"),
             supervisor_url=_str("SUPERVISOR_URL", "http://supervisor"),

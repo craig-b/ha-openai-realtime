@@ -487,6 +487,14 @@ void VaClient::handle_text_(const char *data, size_t len) {
     return;
   }
 
+  if (msg.find("\"type\":\"end\"") != std::string::npos) {
+    // The assistant ended the conversation: let its goodbye play, then go
+    // idle with the mic closed instead of opening a follow-up window.
+    ESP_LOGI(TAG, "end — no follow-up window after this reply");
+    this->end_requested_ = true;
+    return;
+  }
+
   if (msg.find("\"type\":\"request_follow_up\"") != std::string::npos) {
     // Server's model called the request_follow_up tool — it asked a
     // question and wants the user to answer without saying a wake word.
@@ -996,6 +1004,7 @@ void VaClient::start_session() {
   this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->suppress_followup_ = false;
+  this->end_requested_ = false;
   // A genuine new turn starts here — drop the post-stop `thinking` guard so
   // this turn's `thinking` shows normally. (Set last, AFTER the residual-reply
   // send_interrupt() above re-set it, so the wake always ends with it clear.)
@@ -1077,6 +1086,11 @@ void VaClient::open_followup_window_(uint32_t duration_ms) {
       }
       this->turn_t_wake_ = 0;  // mark turn as logged
     }
+  }
+  if (this->end_requested_) {
+    // The conversation was ended (`end`): no follow-up this time.
+    this->end_requested_ = false;
+    duration_ms = 0;
   }
   if (duration_ms == 0) {
     // Follow-up disabled for this call: turn-based behaviour like the

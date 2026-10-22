@@ -33,7 +33,6 @@ map:
 # env fallbacks so absent vars are fine:
 #   semantic_vad_create_response → true  (false: nothing answers a turn; the
 #     add-on only creates responses after tool calls)
-#   enable_disconnect_tool → false  (model could hang up mid-conversation)
 #   interrupt_response → false  (handsfree barge-in shelved: the speaker→mic
 #     echo leak made the VAD cut replies / squeal; firmware is barge_in:false)
 #   device_input_sample_rate → 16000  (the Voice PE firmware always sends 16k)
@@ -71,6 +70,8 @@ options:
       BEHAVIOR: Carry out requested actions immediately with your tools and never
       guess. If you are unsure which device, room, or action is meant, ask a short
       clarifying question first. If something fails, briefly say what went wrong.
+      ENDING: When the user has clearly finished (goodbye, good night, or thanks
+      with nothing more to ask), say a short goodbye and call end_conversation.
     model: "gpt-realtime-2.1"
     voice: "marin"
     speed: 1.0
@@ -94,7 +95,9 @@ options:
       lists. HANDING OFF: Hand every request to do something in the home, every
       question about the home's state, and every question that needs current
       information to your backend, and say what it found; never guess or make
-      up a result. Answer small talk yourself.
+      up a result. Answer small talk yourself. When the user has clearly
+      finished (goodbye, good night, or thanks with nothing more to ask), say a
+      short goodbye and hand the ending of the conversation to your backend.
     model: "gpt-live-1"
     voice: "marin"
     backend_model: "gpt-6-luna"
@@ -106,7 +109,8 @@ options:
       sentence instead of guessing. Search the web only for current
       information the home can't give, such as the weather, news or opening
       hours. Reply in one or two short sentences of plain spoken text: no
-      lists, markdown, links or entity IDs.
+      lists, markdown, links or entity IDs. When you're asked to end the
+      conversation because the user has finished, call end_conversation.
     reasoning_effort: "low"
     service_tier: "auto"
     # 0: a GPT-Live session bills every minute it is open.
@@ -127,6 +131,7 @@ options:
   # in `hello` so it's tunable like follow_up_open_delay_ms.
   wake_open_delay_ms: 700
   phase_idle_debounce_ms: 1500
+  enable_end_conversation: true
 
   # --- 🌐 Web search ---
   enable_web_search: true
@@ -193,6 +198,7 @@ schema:
   follow_up_open_delay_ms: int(0,5000)
   wake_open_delay_ms: int(0,5000)
   phase_idle_debounce_ms: int(0,10000)
+  enable_end_conversation: bool
   # --- 🌐 Web search ---
   enable_web_search: bool
   # --- 🎚️ Audio ---

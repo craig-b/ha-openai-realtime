@@ -169,6 +169,16 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 The device also applies `idle` locally on every disconnect.
 
+### `end`
+`{"type":"end"}`
+
+- **Sent:** when the model ends the conversation (its `end_conversation` tool,
+  `enable_end_conversation`), typically while its goodbye is still to play.
+- **Device:** the next follow-up window, after the reply has played, doesn't
+  open: the `idle` that ends the reply closes the mic instead. A `wake` clears it.
+- **Add-on:** the conversation on the device ends with that `idle`, as after an
+  `interrupt`, so the session closes after the engine's idle timeout.
+
 ### `error`
 `{"type":"error","message":"could not connect to OpenAI"}`
 

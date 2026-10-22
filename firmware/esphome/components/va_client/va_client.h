@@ -221,6 +221,9 @@ class VaClient : public Component {
   // doesn't trigger a follow-up mic window. The user explicitly asked us to
   // stop — they don't want the device sitting there listening.
   bool suppress_followup_{false};
+  // The backend ended the conversation (`end`): the next follow-up window,
+  // after the goodbye has played, doesn't open. Cleared by a new wake.
+  bool end_requested_{false};
   // Set by send_interrupt() ("stop" word / barge-in). OpenAI bursts the whole
   // reply faster than real-time, so by the time the user says "stop" the audio
   // is already buffered (backend + our PSRAM) and the backend keeps streaming

@@ -1,4 +1,4 @@
-"""The tools the model can call: Home Assistant's MCP tools, web search, disconnect."""
+"""The tools the model can call: Home Assistant's MCP tools, web search, ending the conversation."""
 import contextlib
 import logging
 from typing import AsyncIterator, Awaitable, Callable
@@ -144,33 +144,23 @@ def web_search(client: AsyncOpenAI, model: str) -> Handler:
     return search
 
 
-DISCONNECT_DEFINITION = {
+END_CONVERSATION_DEFINITION = {
     "type": "function",
-    "name": "disconnect_client",
+    "name": "end_conversation",
     "description": (
-        "Disconnect the voice assistant session when the user says goodbye, farewell, stop, "
-        "or only thank you without additional questions and wants to end the conversation. "
-        "Use this when the user explicitly wants to end the conversation or says phrases like "
-        "'Auf Wiedersehen', 'Tschüss', 'Stop', 'Beenden', 'Ende', etc."
+        "End the conversation, so the device stops listening once your reply has played. "
+        "Call it only when the user has clearly finished: they say goodbye or good night, "
+        "or thank you or that's all with nothing more to ask. Say a short goodbye too. "
+        "Never call it in the middle of a conversation, or when the user might still answer."
     ),
-    "parameters": {
-        "type": "object",
-        "properties": {
-            "reason": {
-                "type": "string",
-                "description": "The reason for disconnecting (e.g., 'user_said_goodbye', 'user_requested_stop')",
-                "enum": ["user_requested_stop", "conversation_ended"],
-            }
-        },
-        "required": ["reason"],
-    },
+    "parameters": {"type": "object", "properties": {}, "required": []},
 }
 
 
-def disconnect(close_device: Callable[[], Awaitable[None]]) -> Handler:
+def end_conversation(end: Callable[[], None]) -> Handler:
     async def call(arguments: dict) -> str:
-        logger.info(f"🔌 disconnect_client: {arguments.get('reason', 'unknown')}")
-        await close_device()
-        return "Disconnected successfully"
+        logger.info("👋 end_conversation")
+        end()
+        return "The conversation ends once your reply has played; the device stops listening."
 
     return call

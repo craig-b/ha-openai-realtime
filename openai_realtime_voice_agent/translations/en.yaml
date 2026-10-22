@@ -254,6 +254,14 @@ configuration:
       during smart-home actions, so the LED and the "stop" word keep working
       through the whole answer. 1500 is a good default; raise it if the
       device flips to idle in the middle of long answers.
+  enable_end_conversation:
+    name: "💬 Conversation · Let the assistant end the conversation"
+    description: >-
+      When you're clearly done ("thanks, that's all", "goodbye", "good night"),
+      the assistant says goodbye and the device stops listening straight away,
+      instead of keeping its follow-up window open. Even in a noisy room, a
+      goodbye ends it. How readily it ends a conversation is set in its prompt
+      (Realtime: instructions; GPT-Live: backend instructions). On by default.
 
   # --- 🌐 Web search ---
   enable_web_search:
