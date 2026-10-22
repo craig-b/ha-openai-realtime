@@ -2,6 +2,17 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.10.0
+
+Update the add-on, the integration in HACS (then restart Home Assistant), and the
+firmware (ESPHome Device Builder → Update). If the integration is set up already,
+nothing changes for it: this is for setting it up.
+
+- **The integration shows up as discovered under your Voice PE's name,** and adding
+  it only asks you to confirm: the Voice PE now tells the add-on which device it is
+  (its MAC address, by which Home Assistant knows it), and the add-on passes that
+  on. With older firmware you pick the Voice PE, as before. *(firmware)*
+
 ## 0.9.2
 
 Update the add-on. The integration and the firmware are unchanged.
