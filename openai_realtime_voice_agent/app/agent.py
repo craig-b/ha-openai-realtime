@@ -569,7 +569,11 @@ class Agent:
             logger.warning(f"⚠️ benign realtime error ignored: {code}")
             return
         logger.error(f"❌ OpenAI error: {error}")
-        await self._session_lost(f"{code}: {error.get('message', '')}")
+        if code == "session_expired":
+            await self._session_lost(f"{code}: {error.get('message', '')}")
+        elif self.phases.current == "thinking":
+            # Errors leave the session usable, but this turn may get no reply.
+            self._unstick(f"{code}: {error.get('message', '')}")
 
     async def _trim_conversation(self) -> None:
         """Delete the oldest whole turns until at most `max_context_messages` items remain."""

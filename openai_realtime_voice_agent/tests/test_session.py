@@ -248,9 +248,21 @@ async def test_benign_errors_keep_the_session(openai, device, session, code):
     await device.wait_for_phase("replying")
 
 
-async def test_other_errors_end_the_session(openai, device, session):
+async def test_other_errors_keep_the_session(openai, device, session):
     await session.error("server_error", "The server had an error.", error_type="server_error")
-    await asyncio.wait_for(session.closed.wait(), 2.0)
+    await asyncio.sleep(0.3)
+    assert not session.closed.is_set()
+    await session.user_turn()
+    await session.reply(pcm_tone(320, 24000))
+    await device.wait_for_phase("replying")
+
+
+async def test_an_error_mid_turn_returns_the_device_to_idle(openai, device, session):
+    await session.user_turn()
+    await device.wait_for_phase("thinking")
+    await session.error("invalid_value", "Invalid value.")
+    await device.wait_for_phase("idle")
+    assert not session.closed.is_set()
 
 
 # --- carrying a conversation into a new session -----------------------------------------

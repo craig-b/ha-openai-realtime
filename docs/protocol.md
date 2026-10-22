@@ -128,8 +128,10 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   waits out the debounce so the device doesn't flap between `replying` and
   `idle` mid-answer.
 - **Forced `idle`:** if `thinking` sees no model activity for 15 s, and no tool
-  call is running, the add-on sends `idle`. It also forces `idle` when it
-  recovers from a rate limit or reconnects to OpenAI. After a forced `idle`,
+  call is running, the add-on sends `idle`. It also forces `idle` when a
+  response fails (a rate limit), when OpenAI reports an error during
+  `thinking`, and when a session fails to open or is lost mid-turn. An OpenAI
+  error leaves the session open. After a forced `idle`,
   `thinking` is suppressed until real user or model speech follows.
 - The add-on drops a phase equal to the last one it sent, except `listening`,
   which is always sent: the device lifts its post-`interrupt` audio drop on it.
