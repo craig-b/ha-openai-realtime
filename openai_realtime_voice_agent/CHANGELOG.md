@@ -2,6 +2,32 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.12.0
+
+Update the add-on, and the integration in HACS (then restart Home Assistant). The
+firmware update to 1.7.0 comes to Home Assistant as an update for the Voice PE.
+
+- **"Stop" works while the assistant is busy.** While it runs a tool (a web
+  search, a Home Assistant action), saying "stop" now stops it, as it already did
+  during a reply and in the listening window after one. While you're still
+  asking, "stop" is still ignored, as a misfire on your own words. The add-on
+  tells the device when the model starts working on your question. *(add-on,
+  firmware)*
+- **A stop cancels the tools still running,** and the assistant doesn't answer
+  their results. Before, a web search you had stopped could be answered after
+  you woke the Voice PE again.
+- **The first link is checked too.** On a first install the add-on can't name
+  the Voice PE, so Home Assistant asks you to pick it. That step now also shows
+  the add-on and the link's fingerprint to check against the add-on's log, as
+  confirming a link does. *(integration)*
+- **The add-on refuses a `device_secret` over 128 characters** at start, which
+  the integration couldn't give the device.
+- **Renamed to OpenAI Realtime Voice Agent,** as the integration is. Your
+  settings stay.
+- **The docs match the system,** from the first install to the device protocol.
+- **The firmware no longer handles `request_follow_up`,** which the add-on never
+  sent. *(firmware)*
+
 ## 0.11.1
 
 Update the add-on, and the integration in HACS (then restart Home Assistant). The
