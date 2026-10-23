@@ -274,6 +274,8 @@ async def test_the_integration_is_offered_for_the_device(openai, home_assistant,
     assert link["port"] == addon.port
     assert link["secret"] == addon.secret
     assert link["certificate"] == (addon.tls_dir / "certificate.pem").read_text()
+    # The key its fingerprint is made with: in the offer, never the log.
+    assert link["fingerprint_key"] == (addon.tls_dir / "fingerprint.key").read_text()
     await device.close()
 
 

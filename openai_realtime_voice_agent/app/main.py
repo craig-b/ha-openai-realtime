@@ -15,7 +15,7 @@ from app.realtime import RealtimeSession, takes_reasoning
 from app.session import Home, SessionSetup
 from app.config import Settings, device_secret_problem
 from app.migrate import migrate_saved_options
-from app.tls import CERTIFICATE_FILE, link_fingerprint
+from app.tls import CERTIFICATE_FILE, fingerprint_key, link_fingerprint
 from app.tools import (
     END_CONVERSATION_DEFINITION,
     WEB_SEARCH_DEFINITION,
@@ -177,10 +177,11 @@ class Application:
             "port": s.websocket_port,
             "secret": s.device_secret,
             "certificate": (Path(s.tls_dir) / CERTIFICATE_FILE).read_text(),
+            "fingerprint_key": fingerprint_key(s.tls_dir),
         }
         logger.info(
             f"🔗 The link offered to Home Assistant for the device has the fingerprint "
-            f"{link_fingerprint(link['port'], link['certificate'])}: Home Assistant shows the same when it asks you to confirm it"
+            f"{link_fingerprint(**link)}: Home Assistant shows the same when it asks you to confirm it"
         )
         bus = EventBus(
             self._home_assistant_api_url(),

@@ -8,8 +8,10 @@ device re-flashed.
 """
 import datetime
 import hashlib
+import hmac
 import logging
 import os
+import secrets
 import ssl
 from pathlib import Path
 
@@ -22,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 CERTIFICATE_FILE = "certificate.pem"
 KEY_FILE = "key.pem"
+# The key the link's fingerprint is made with (link_fingerprint).
+FINGERPRINT_KEY_FILE = "fingerprint.key"
 # RFC 5280 4.1.2.5: the notAfter of a certificate with no well-defined expiry.
 NO_EXPIRY = datetime.datetime(9999, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc)
 
@@ -42,13 +46,27 @@ def server_context(directory: str) -> ssl.SSLContext:
     return context
 
 
-def link_fingerprint(port: int, certificate: str) -> str:
-    """A fingerprint of the link the add-on offers: SHA-256 over its port and
-    the certificate (DER), 32 hex digits in fours. The integration shows the
-    same when it asks the owner to confirm a link, so they can tell it's this
-    add-on's. Not the secret: the log is shared when people ask for help, and a
-    hash of a secret its owner chose can be guessed at offline."""
-    digest = hashlib.sha256(f"{port}\n".encode() + ssl.PEM_cert_to_DER_cert(certificate.strip())).hexdigest()
+def fingerprint_key(directory: str) -> str:
+    """The add-on's own random key for its link's fingerprint (hex), made first if there is none."""
+    path = Path(directory) / FINGERPRINT_KEY_FILE
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_hex(32))
+    return path.read_text().strip()
+
+
+def link_fingerprint(port: int, secret: str, certificate: str, fingerprint_key: str) -> str:
+    """A fingerprint of the link the add-on offers: HMAC-SHA256 of its port,
+    the secret and the certificate (DER), keyed by the add-on's fingerprint
+    key, 32 hex digits in fours. The integration shows the same when it asks
+    the owner to confirm a link, so they can tell it's this add-on's, secret
+    and all. The key goes in the offer and never the log: the log is shared
+    when people ask for help, and without the key the fingerprint says nothing
+    about a secret its owner chose, which a plain hash would let anyone guess at."""
+    message = f"{port}\n{secret}\n".encode() + ssl.PEM_cert_to_DER_cert(certificate.strip())
+    digest = hmac.new(bytes.fromhex(fingerprint_key), message, hashlib.sha256).hexdigest()
     return " ".join(digest[i : i + 4] for i in range(0, 32, 4)).upper()
 
 

@@ -307,7 +307,7 @@ Assist satellite:
   it waits up to 60 s for the device to connect, then offers without (firmware
   before 1.5.0 doesn't send `mac`), and the integration asks which device it is.
   The offer also carries what a device needs to connect, `{"link": {"port",
-  "secret", "certificate"}}`, which the integration sets on the device (its
+  "secret", "certificate", "fingerprint_key"}}`, which the integration sets on the device (its
   `set_addon_link` action) when the device's "Add-on link" sensor differs (the
   first 16 hex digits of SHA-256 over `url\ncertificate`; not the secret, as
   every Home Assistant user sees it) or its "Add-on connection" sensor says
@@ -327,9 +327,13 @@ Assist satellite:
   its Supervisor slug) the entry's link came from, and turns other add-ons'
   offers away; a new or changed link waits for the owner to confirm it, shown
   with the add-on's slug and the link's fingerprint, which the add-on logs at
-  every start: the first 32 hex digits of SHA-256 over `port\n` and the
-  certificate's DER bytes, in groups of four. Not the secret, as logs get
-  shared and a hash of a secret its owner chose can be guessed at offline. (Not the add-on's name: the add-on
+  every start: the first 32 hex digits of HMAC-SHA256 of `port\nsecret\n` and
+  the certificate's DER bytes, in groups of four, keyed by the add-on's own
+  random `fingerprint_key` (kept beside its certificate as `fingerprint.key`),
+  which the offer carries and the log never shows. So an offer with any part of
+  the link changed, the secret too, shows another fingerprint, while the log,
+  shared when people ask for help, says nothing a guess at the secret could be
+  checked against. (Not the add-on's name: the add-on
   chooses it.) Offers to a set-up entry don't wait on one another, and the
   add-on is checked again when the owner confirms. (An entry from 0.11.0, with no add-on recorded, records the one that
   offers the link it already has.)

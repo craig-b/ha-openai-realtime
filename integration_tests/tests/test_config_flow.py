@@ -2,6 +2,7 @@
 
 import datetime
 import hashlib
+import hmac
 import ssl
 
 from cryptography import x509
@@ -38,7 +39,8 @@ def make_certificate() -> str:
 
 
 CERTIFICATE = make_certificate()
-LINK = {"port": 8080, "secret": "0123456789abcdef0123", "certificate": CERTIFICATE}
+KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+LINK = {"port": 8080, "secret": "0123456789abcdef0123", "certificate": CERTIFICATE, "fingerprint_key": KEY}
 
 
 def offer(link=LINK, slug=DISCOVERY.slug, **config) -> HassioServiceInfo:
@@ -154,11 +156,17 @@ async def test_the_same_link_again_changes_nothing(hass: HomeAssistant, voice_pe
 
 
 async def test_an_entry_from_before_records_the_add_on_offering_its_link(hass: HomeAssistant, voice_pe: dr.DeviceEntry):
-    # Set up by 0.11.0, which didn't record the add-on: an offer of the very link it has records it.
-    entry = set_up_already(hass, voice_pe, link=LINK)
+    # Set up by 0.11.0, which recorded neither the add-on nor a fingerprint key: an offer of the very
+    # link it has, secret and all, records both, without asking.
+    entry = set_up_already(hass, voice_pe, link={k: v for k, v in LINK.items() if k != "fingerprint_key"})
     result = await init_hassio(hass, offer())
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_ADDON] == DISCOVERY.slug
+    assert entry.data["link"] == LINK
+
+
+async def test_a_changed_secret_shows_another_fingerprint(hass: HomeAssistant):
+    assert link_fingerprint({**LINK, "secret": "fedcba9876543210fedc"}) != link_fingerprint(LINK)
 
 
 async def test_an_entry_from_before_confirms_a_changed_link(hass: HomeAssistant, voice_pe: dr.DeviceEntry):
@@ -175,6 +183,8 @@ async def test_an_offer_out_of_shape_is_turned_away(hass: HomeAssistant, voice_p
         {**LINK, "secret": "short"},
         {**LINK, "secret": "has a space in it, see"},
         {**LINK, "certificate": "-----BEGIN CERTIFICATE-----\nnot base64\n-----END CERTIFICATE-----\n"},
+        {k: v for k, v in LINK.items() if k != "fingerprint_key"},
+        {**LINK, "fingerprint_key": "not hex"},
         "a string",
     ):
         result = await init_hassio(hass, offer(link, mac="02:00:00:A1:B2:C3"))
@@ -183,9 +193,9 @@ async def test_an_offer_out_of_shape_is_turned_away(hass: HomeAssistant, voice_p
 
 
 async def test_the_link_fingerprint_is_the_add_ons(hass: HomeAssistant):
-    # The add-on logs SHA-256 over "port\n" and the certificate's DER (app/tls.py).
+    # The add-on logs HMAC-SHA256 of "port\nsecret\n" and the certificate's DER, keyed by its fingerprint key (app/tls.py).
     der = ssl.PEM_cert_to_DER_cert(CERTIFICATE.strip())
-    digest = hashlib.sha256(b"8080\n" + der).hexdigest().upper()
+    digest = hmac.new(bytes.fromhex(KEY), b"8080\n0123456789abcdef0123\n" + der, hashlib.sha256).hexdigest().upper()
     assert link_fingerprint(LINK) == " ".join(digest[i : i + 4] for i in range(0, 32, 4))
 
 

@@ -15,6 +15,8 @@ slug and the link's fingerprint, which the add-on's log shows.
 """
 
 import hashlib
+import hmac
+import re
 import ssl
 from typing import Any
 
@@ -40,7 +42,18 @@ def valid_link(link: Any) -> dict[str, Any] | None:
         return None
     if not isinstance(certificate, str) or _der(certificate) is None:
         return None
-    return {"port": port, "secret": secret, "certificate": certificate}
+    key = link.get("fingerprint_key")
+    if not (isinstance(key, str) and re.fullmatch(r"[0-9a-f]{64}", key)):
+        return None
+    return {"port": port, "secret": secret, "certificate": certificate, "fingerprint_key": key}
+
+
+def same_link(offered: dict[str, Any], kept: Any) -> bool:
+    """The offer is the link the entry has: the same port, secret and certificate.
+
+    (Not the fingerprint key, which only the fingerprint is made with, and which
+    a link from 0.11.0 doesn't have.)"""
+    return isinstance(kept, dict) and all(offered[k] == kept.get(k) for k in ("port", "secret", "certificate"))
 
 
 def _der(certificate: str) -> bytes | None:
@@ -51,12 +64,13 @@ def _der(certificate: str) -> bytes | None:
 
 
 def link_fingerprint(link: dict[str, Any]) -> str:
-    """The link's fingerprint, as the add-on's log shows it: SHA-256 over its
-    port and the certificate (DER), 32 hex digits in fours. Not the secret,
-    which the add-on keeps out of its log; only the add-on the entry records
-    can offer one anyway."""
-    der = _der(link["certificate"]) or b""
-    digest = hashlib.sha256(f"{link['port']}\n".encode() + der).hexdigest()
+    """The link's fingerprint, as the add-on's log shows it: HMAC-SHA256 of its
+    port, the secret and the certificate (DER), keyed by the add-on's
+    fingerprint key, 32 hex digits in fours. An offer with any of them changed,
+    the secret too, shows another fingerprint than the add-on's log; and the
+    log, without the key, says nothing about the secret."""
+    message = f"{link['port']}\n{link['secret']}\n".encode() + (_der(link["certificate"]) or b"")
+    digest = hmac.new(bytes.fromhex(link["fingerprint_key"]), message, hashlib.sha256).hexdigest()
     return " ".join(digest[i : i + 4] for i in range(0, 32, 4)).upper()
 
 
@@ -129,11 +143,16 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._other_addon(entry):
             return self.async_abort(reason="other_addon")
         recorded = entry.data.get(CONF_ADDON)
-        if self._link is None or self._link == entry.data.get(CONF_LINK):
+        if self._link is None or same_link(self._link, entry.data.get(CONF_LINK)):
+            updates: dict[str, Any] = {}
+            if self._link is not None and self._link != entry.data.get(CONF_LINK):
+                updates[CONF_LINK] = self._link  # a link from 0.11.0 gets its fingerprint key
             if recorded is None and self._link is not None:
                 # An entry from before the add-on was recorded: an offer of the
                 # link it has, secret and all, comes from the add-on holding it.
-                self.hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_ADDON: self._addon})
+                updates[CONF_ADDON] = self._addon
+            if updates:
+                self.hass.config_entries.async_update_entry(entry, data={**entry.data, **updates})
             return self.async_abort(reason="already_configured")
         self._entry = entry
         self.context["title_placeholders"] = {"name": entry.title}
