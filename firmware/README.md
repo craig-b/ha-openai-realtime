@@ -1,4 +1,4 @@
-# Home Assistant Voice PE — OpenAI Realtime 2 fork
+# Home Assistant Voice PE — OpenAI Realtime fork
 
 > [!IMPORTANT]
 > **You need all three parts.** This folder is the **device firmware**; on its own it

@@ -1,4 +1,4 @@
-# Install guide — Home Assistant Voice PE + OpenAI Realtime 2
+# Install guide — Home Assistant Voice PE + OpenAI Realtime
 
 A complete, from-zero walkthrough for a newcomer. You'll set up three parts:
 
@@ -13,7 +13,7 @@ After that, updates come to Home Assistant like any other.
 ```
 Home Assistant Voice PE          Home Assistant (your box)             Cloud
 ┌──────────────────────────┐ encrypted WS ┌────────────────────────┐  WS  ┌─────────────┐
-│ custom firmware           │ ───────────▶│ OpenAI Realtime 2      │ ───▶ │ OpenAI       │
+│ custom firmware           │ ───────────▶│ OpenAI Realtime        │ ───▶ │ OpenAI       │
 │  (va_client thin client)  │ 16k mic up  │  Voice Agent add-on    │ 24k  │ gpt-realtime │
 │  wake word + XMOS DSP      │ ◀───────────│  (Python)              │ ◀─── │ or GPT-Live  │
 └──────────────────────────┘ 24k spkr dn  │          │ tools         │     └─────────────┘
@@ -44,7 +44,7 @@ up online** (weather, news, facts) — web search is on by default.
 1. In Home Assistant: **Settings → Add-ons → Add-on Store**.
 2. Top-right **⋮ → Repositories** → paste and add:
    `https://github.com/craig-b/ha-openai-realtime`
-3. Find **OpenAI Realtime 2 Voice Agent** in the store and click **Install**.
+3. Find **OpenAI Realtime Voice Agent** in the store and click **Install**.
    Home Assistant downloads its prebuilt image.
 
 ### 1.2 Add your OpenAI API key

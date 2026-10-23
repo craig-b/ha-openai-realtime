@@ -21,7 +21,7 @@ from custom_components.openai_realtime_voice_agent.config_flow import link_finge
 from custom_components.openai_realtime_voice_agent.const import CONF_ADDON, CONF_DEVICE_ID, DOMAIN
 
 DISCOVERY = HassioServiceInfo(
-    config={}, name="OpenAI Realtime 2 Voice Agent", slug="0a1b2c3d_openai_realtime_voice_agent", uuid="0" * 32
+    config={}, name="OpenAI Realtime Voice Agent", slug="0a1b2c3d_openai_realtime_voice_agent", uuid="0" * 32
 )
 
 

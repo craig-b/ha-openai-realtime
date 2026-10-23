@@ -1,11 +1,11 @@
 {
-  "name": "OpenAI Realtime 2 Voice Agent (Home Assistant Voice PE)",
+  "name": "OpenAI Realtime Voice Agent (Home Assistant Voice PE)",
   "url": "https://github.com/craig-b/ha-openai-realtime",
   "maintainer": "craig-b (a hard fork of Xander van Erven's, itself a fork of Felix Fricke's)",
   "addons": [
     {
       "slug": "openai_realtime_voice_agent",
-      "name": "OpenAI Realtime 2 Voice Agent",
+      "name": "OpenAI Realtime Voice Agent",
       "version": "0.11.1"
     }
   ]

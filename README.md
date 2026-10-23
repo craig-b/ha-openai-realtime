@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="openai_realtime_voice_agent/icon.png" alt="OpenAI Realtime 2 Voice Agent — a stylised Voice PE" width="160"/>
+  <img src="openai_realtime_voice_agent/icon.png" alt="OpenAI Realtime Voice Agent — a stylised Voice PE" width="160"/>
 </p>
 
-# OpenAI Realtime 2 Voice Agent (Home Assistant Voice PE)
+# OpenAI Realtime Voice Agent (Home Assistant Voice PE)
 
 > [!IMPORTANT]
 > **You need all three parts, and all live in this repo.** The stock Home Assistant
@@ -82,7 +82,7 @@ Thank you to Felix and Xander: this is built on their work.
 
 1. In Home Assistant, open **Settings → Add-ons → Add-on store → ⋮ → Repositories**
    and add `https://github.com/craig-b/ha-openai-realtime`.
-2. Install **OpenAI Realtime 2 Voice Agent**. Home Assistant downloads the image
+2. Install **OpenAI Realtime Voice Agent**. Home Assistant downloads the image
    that CI built and tested for its release (amd64 or aarch64).
 3. Configure the add-on — see
    [`openai_realtime_voice_agent/DOCS.md`](openai_realtime_voice_agent/DOCS.md).
