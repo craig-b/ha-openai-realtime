@@ -1,12 +1,13 @@
 """The certificate the device connection is encrypted with.
 
 The add-on makes its own on first start and keeps it. The firmware trusts
-exactly this certificate (`va_certificate`), not a certificate authority, so it
+exactly this certificate (from its link), not a certificate authority, so it
 names no host and never expires: the device reaches the add-on by whatever
 name or address it's given, and a certificate that expired would need every
 device re-flashed.
 """
 import datetime
+import hashlib
 import logging
 import os
 import ssl
@@ -31,14 +32,20 @@ def server_context(directory: str) -> ssl.SSLContext:
     certificate, key = folder / CERTIFICATE_FILE, folder / KEY_FILE
     if not (certificate.exists() and key.exists()):
         _make_certificate(certificate, key)
-    logger.info(
-        f"🔐 The device must trust this certificate (va_certificate in ESPHome's secrets.yaml; "
-        f"also in {certificate}):\n{certificate.read_text().strip()}"
-    )
+    pem = certificate.read_text().strip()
+    # The integration shows the same fingerprint when it asks the owner to
+    # confirm the link it's offered.
+    logger.info(f"🔐 The device connection's certificate has the SHA-256 fingerprint {fingerprint(pem)}")
+    logger.info(f"🔐 For a firmware you build yourself, its va_certificate (also in {certificate}):\n{pem}")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(certificate, key)
     return context
+
+
+def fingerprint(pem: str) -> str:
+    """The certificate's SHA-256 fingerprint, colon-separated hex, as browsers show it."""
+    return ":".join(f"{b:02X}" for b in hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).digest())
 
 
 def _make_certificate(certificate: Path, key: Path) -> None:

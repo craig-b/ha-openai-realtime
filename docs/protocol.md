@@ -321,7 +321,14 @@ Assist satellite:
   press or a restart), and its LEDs twinkle. The integration raises a repair
   issue asking for the press if the link waiting is its own, or warning not to
   press, and to restart the device, if it isn't. The offer goes from the
-  Supervisor to Home Assistant alone.
+  Supervisor to Home Assistant alone, but any add-on can make an offer for the
+  integration, and the integration signs the link it takes for the device. So
+  it takes a link only in the form the device takes, records which add-on (by
+  its Supervisor slug) the entry's link came from, and turns other add-ons'
+  offers away; a new or changed link waits for the owner to confirm it, shown
+  with the certificate's SHA-256 fingerprint, which the add-on logs at every
+  start. (An entry from 0.11.0, with no add-on recorded, records the one that
+  offers the link it already has.)
   Without the integration it offers nothing, as Home Assistant logs an error for
   a discovery no integration takes.
 

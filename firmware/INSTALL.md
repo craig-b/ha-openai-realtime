@@ -162,7 +162,9 @@ with nothing of yours in it: Home Assistant sets up the rest.
    address. **Add** it and confirm. Home Assistant gives the device its own
    encryption key as it adds it.
 2. The integration then shows up as discovered, under the Voice PE's name: the
-   add-on offers it. **Add** it and confirm.
+   add-on offers it. **Add** it. The confirmation names the add-on the offer comes
+   from and its certificate's SHA-256 fingerprint: check it matches the
+   `🔐 … fingerprint` line in the add-on's **Log**, then confirm.
 
 ### 3.3 Press the centre button
 

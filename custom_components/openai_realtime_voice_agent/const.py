@@ -7,6 +7,8 @@ CONF_DEVICE_ID = "device_id"
 # What the device needs to connect to the add-on, from its offer: its port, the
 # device secret and its certificate (link.py).
 CONF_LINK = "link"
+# The add-on the link came from (its Supervisor slug): only its offers update it.
+CONF_ADDON = "addon"
 # The add-on's address for the device, when the owner sets one (options).
 CONF_URL = "url"
 

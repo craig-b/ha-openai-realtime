@@ -3,6 +3,7 @@
 import stat
 
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 
 from app import tls
 
@@ -20,3 +21,10 @@ def test_only_the_owner_can_read_the_key(tmp_path):
     tls.server_context(str(tmp_path))
     mode = stat.S_IMODE((tmp_path / tls.KEY_FILE).stat().st_mode)
     assert mode == 0o600
+
+
+def test_the_fingerprint_is_the_certificates_sha256(tmp_path):
+    tls.server_context(str(tmp_path))
+    pem = (tmp_path / tls.CERTIFICATE_FILE).read_text()
+    cert = x509.load_pem_x509_certificate(pem.encode())
+    assert tls.fingerprint(pem) == ":".join(f"{b:02X}" for b in cert.fingerprint(hashes.SHA256()))

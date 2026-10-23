@@ -5,19 +5,51 @@ is installed, or added by hand. The add-on's offer names the device by its MAC
 address, by which the ESPHome integration knows it: then the owner only
 confirms. Otherwise (added by hand, firmware that doesn't say its MAC, a device
 Home Assistant doesn't know) the owner picks the Voice PE's ESPHome device.
+
+The offer also carries the link the integration signs for the device (link.py),
+so the integration takes it only from the add-on: any installed add-on can make
+an offer for this integration. The entry records which add-on its link came
+from and turns other add-ons' offers away, and a link the owner hasn't seen
+(a first one, or a changed one) waits for them to confirm it, with the add-on
+and its certificate's fingerprint, which the add-on's log shows.
 """
 
+import hashlib
+import ssl
 from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import SOURCE_IGNORE, ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.selector import DeviceSelector, DeviceSelectorConfig
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_DEVICE_ID, CONF_LINK, CONF_URL, DOMAIN
+from .const import CONF_ADDON, CONF_DEVICE_ID, CONF_LINK, CONF_URL, DOMAIN
+
+
+def valid_link(link: Any) -> dict[str, Any] | None:
+    """The offer's link if it has the form the device takes, else None."""
+    if not isinstance(link, dict):
+        return None
+    port, secret, certificate = link.get("port"), link.get("secret"), link.get("certificate")
+    if not (isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536):
+        return None
+    if not (isinstance(secret, str) and 16 <= len(secret) <= 128 and all("!" <= c <= "~" for c in secret)):
+        return None
+    if not isinstance(certificate, str) or certificate_fingerprint(certificate) is None:
+        return None
+    return {"port": port, "secret": secret, "certificate": certificate}
+
+
+def certificate_fingerprint(certificate: str) -> str | None:
+    """The certificate's SHA-256 fingerprint, as the add-on's log shows it; None if it isn't a PEM certificate."""
+    try:
+        der = ssl.PEM_cert_to_DER_cert(certificate.strip())
+    except ValueError:
+        return None
+    return ":".join(f"{b:02X}" for b in hashlib.sha256(der).digest())
 
 
 class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -26,11 +58,24 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         # The Voice PE the add-on's offer named, once found.
         self._voice_pe: dr.DeviceEntry | None = None
-        # The link to the add-on from its offer, for the device.
+        # The link to the add-on from its offer, for the device, and the add-on
+        # (its slug and name) that made the offer.
         self._link: dict[str, Any] | None = None
+        self._addon: str | None = None
+        self._addon_name: str = ""
+        # The entry a changed link is for, while the owner confirms it.
+        self._entry: ConfigEntry | None = None
 
     def _data(self, device_id: str) -> dict[str, Any]:
-        return {CONF_DEVICE_ID: device_id, **({CONF_LINK: self._link} if self._link else {})}
+        data: dict[str, Any] = {CONF_DEVICE_ID: device_id}
+        if self._link:
+            data |= {CONF_LINK: self._link, CONF_ADDON: self._addon}
+        return data
+
+    def _offer_placeholders(self) -> dict[str, str]:
+        """Who made the offer, and the certificate it brings, for the owner to check."""
+        fingerprint = certificate_fingerprint(self._link["certificate"]) if self._link else None
+        return {"addon": self._addon_name, "slug": self._addon or "", "fingerprint": fingerprint or "-"}
 
     @staticmethod
     @callback
@@ -41,13 +86,19 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
         """The add-on offered itself, naming its device if it could.
 
         Its offer carries the link a device needs; when the integration is set
-        up already, a new offer (the add-on restarted, with a new secret or
-        certificate, say) updates it, and the device is linked again.
+        up already, a new offer from the same add-on (with a new secret or
+        certificate, say) updates it once the owner confirms, and the device is
+        linked again.
         """
-        link = discovery_info.config.get(CONF_LINK)
-        self._link = link if isinstance(link, dict) else None
+        if CONF_LINK in discovery_info.config:
+            self._link = valid_link(discovery_info.config[CONF_LINK])
+            if self._link is None:
+                return self.async_abort(reason="invalid_offer")
+        self._addon, self._addon_name = discovery_info.slug, discovery_info.name
         await self.async_set_unique_id(DOMAIN)
-        self._abort_if_unique_id_configured(updates={CONF_LINK: self._link} if self._link else None)
+        entry = self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, DOMAIN)
+        if entry is not None:
+            return await self._async_offer_for(entry)
         mac = discovery_info.config.get("mac")
         if isinstance(mac, str) and mac:
             self._voice_pe = dr.async_get(self.hass).async_get_device(
@@ -59,6 +110,35 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
         self.context["title_placeholders"] = {"name": _name(self._voice_pe)}
         return await self.async_step_discovery_confirm()
 
+    async def _async_offer_for(self, entry: ConfigEntry) -> ConfigFlowResult:
+        """An offer when the integration is set up: the link it brings, if new, once the owner confirms."""
+        if entry.source == SOURCE_IGNORE:
+            return self.async_abort(reason="already_configured")
+        recorded = entry.data.get(CONF_ADDON)
+        if recorded is not None and recorded != self._addon:
+            return self.async_abort(reason="other_addon")
+        if self._link is None or self._link == entry.data.get(CONF_LINK):
+            if recorded is None and self._link is not None:
+                # An entry from before the add-on was recorded: an offer of the
+                # link it has, secret and all, comes from the add-on holding it.
+                self.hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_ADDON: self._addon})
+            return self.async_abort(reason="already_configured")
+        self._entry = entry
+        self.context["title_placeholders"] = {"name": entry.title}
+        return await self.async_step_confirm_link()
+
+    async def async_step_confirm_link(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Take the add-on's new link for the device, once the owner confirms."""
+        assert self._entry is not None and self._link is not None
+        if user_input is not None:
+            return self.async_update_reload_and_abort(
+                self._entry, data_updates={CONF_LINK: self._link, CONF_ADDON: self._addon}, reason="link_updated"
+            )
+        self._set_confirm_only()
+        return self.async_show_form(
+            step_id="confirm_link", description_placeholders={"name": self._entry.title, **self._offer_placeholders()}
+        )
+
     async def async_step_discovery_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Set up for the device the add-on named, once the owner confirms."""
         assert self._voice_pe is not None
@@ -66,7 +146,8 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title=_name(self._voice_pe), data=self._data(self._voice_pe.id))
         self._set_confirm_only()
         return self.async_show_form(
-            step_id="discovery_confirm", description_placeholders={"name": _name(self._voice_pe)}
+            step_id="discovery_confirm",
+            description_placeholders={"name": _name(self._voice_pe), **self._offer_placeholders()},
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
