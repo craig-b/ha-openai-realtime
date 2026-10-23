@@ -92,7 +92,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 ### `interrupt`
 `{"type":"interrupt"}`
 
-- **Sent:** on the "stop" word; the centre button pressed in any non-idle
+- **Sent:** on the "stop" word, once reply audio has played this turn or after
+  `working` (before then it is taken for a misfire on the user's own question,
+  and ignored); the centre button pressed in any non-idle
   phase; the mute switch turned on while the device is waiting for or listening
   to a command; at session start if a previous reply is still playing or being
   generated; and when the no-speech watchdog fires (see [Timers](#timers)).
@@ -188,6 +190,10 @@ The device also applies `idle` locally on every disconnect.
 - **Sent:** when the model starts work on the user's turn and none is running
   yet: a tool call starts, or, with GPT-Live, its backend starts a response. The
   model has taken the turn, so the user has finished speaking.
+- **Device:** arms the "stop" word (it isn't otherwise armed before reply
+  audio) and acts on it until the user speaks again (`listening`), the turn ends
+  (`idle`), a stop, or a wake. Ignored after an `interrupt` until the next wake,
+  like `thinking`.
 
 ### `end`
 `{"type":"end"}`

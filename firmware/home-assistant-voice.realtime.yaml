@@ -2123,6 +2123,19 @@ va_client:
           # real stops in the follow-up window are caught.
           - lambda: 'id(stop).set_probability_cutoff(102);'
           - script.execute: followup_window_watchdog
+  on_working:
+    # The model took the user's turn and runs a tool (a web search, a Home
+    # Assistant action): the user has finished asking, so arm "stop" for the
+    # wait, and keep the disarm watchdog from disarming it mid-wait. Nothing
+    # plays while a tool runs, unless a reply is already playing (a filler
+    # before the tool): then the replying cutoff stays.
+    - micro_wake_word.enable_model: stop
+    - if:
+        condition:
+          lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
+        then:
+          - lambda: 'id(stop).set_probability_cutoff(102);'
+    - script.stop: followup_window_watchdog
   on_repeated_failure:
     # Backend has been unreachable for N reconnect attempts in a row.
     # Play the error chime once so the user knows something's wrong —
@@ -2210,11 +2223,12 @@ micro_wake_word:
               else:
                 # The "stop" model is special — it's a cancel signal, not a
                 # session-start. It acts ONLY when there is something to stop:
-                # while a reply is audibly playing, or in the follow-up
-                # window after a reply (turn_has_reply_audio()
-                # is true there). It is deliberately IGNORED while the user is
-                # still asking (listening) or the model is still thinking, before
-                # any reply audio — there is nothing to stop yet, and a false
+                # while a reply is audibly playing, in the follow-up window
+                # after a reply (turn_has_reply_audio() is true there), or while
+                # the assistant works on the turn (assistant_working(): a tool
+                # runs). It is deliberately IGNORED while the user is still
+                # asking (listening) or the model is still thinking, before any
+                # reply audio or tool — there is nothing to stop yet, and a false
                 # "stop" on the user's OWN speech used to corrupt that turn (it
                 # fired send_interrupt + suppressed the follow-up window; seen
                 # 2026-06-14 20:49, a 0.40 misfire on the start of a question).
@@ -2226,17 +2240,18 @@ micro_wake_word:
                     then:
                       # Cancel the playing reply (and the follow-up window after
                       # it). send_interrupt() flushes the audio queue and tells
-                      # the server to drop the response. Guarded by
-                      # turn_has_reply_audio(): only act if audible reply audio
-                      # has played this turn — otherwise this "stop" arrived
-                      # before any reply (during the question / thinking) and is
-                      # a misfire on the user's own speech, so ignore it and let
+                      # the server to drop the response, and the add-on cancels
+                      # any tool still running. Guarded by turn_has_reply_audio()
+                      # or assistant_working(): only act if audible reply audio
+                      # has played this turn or a tool is running — otherwise
+                      # this "stop" arrived while the user was still asking and
+                      # is a misfire on their own speech, so ignore it and let
                       # the turn finish clean. (Idle is also covered by the phase
                       # check; turn_has_reply_audio() stays true through the
                       # follow-up window, so a real barge-in there still works.)
                       - if:
                           condition:
-                            lambda: 'return id(voice_assistant_phase) != ${voice_assist_idle_phase_id} && id(va)->turn_has_reply_audio();'
+                            lambda: 'return id(voice_assistant_phase) != ${voice_assist_idle_phase_id} && (id(va)->turn_has_reply_audio() || id(va)->assistant_working());'
                           then:
                             - lambda: 'id(va)->send_interrupt();'
                             - speaker.stop:
@@ -2249,7 +2264,7 @@ micro_wake_word:
                             - micro_wake_word.disable_model: stop
                           else:
                             - logger.log:
-                                format: "ignoring 'stop' — no reply audio yet (phase=%d), nothing to stop"
+                                format: "ignoring 'stop' — no reply audio or tool yet (phase=%d), nothing to stop"
                                 args: ['id(voice_assistant_phase)']
                                 level: INFO
                     else:

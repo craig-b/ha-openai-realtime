@@ -18,6 +18,7 @@ namespace va_client {
 
 class OnPhaseTrigger;
 class OnRepeatedFailureTrigger;
+class OnWorkingTrigger;
 
 // The link to the add-on, as kept in flash: set by Home Assistant (set_link),
 // so one firmware image serves every install.
@@ -89,6 +90,7 @@ class VaClient : public Component {
   void add_on_repeated_failure_trigger(OnRepeatedFailureTrigger *t) {
     repeated_failure_triggers_.push_back(t);
   }
+  void add_on_working_trigger(OnWorkingTrigger *t) { working_triggers_.push_back(t); }
 
   bool is_connected() const { return ws_connected_; }
 
@@ -114,6 +116,10 @@ class VaClient : public Component {
   // would otherwise corrupt the turn (no follow-up window). Reply and
   // follow-up windows both have it set, so a real barge-in still works.
   bool turn_has_reply_audio() const { return this->turn_t_first_audio_out_ != 0; }
+  // True from the add-on's `working` (the model took the user's turn and runs
+  // a tool) until the user speaks again, the turn ends, or a stop. The user
+  // has finished asking then, so the yaml "stop" handler acts on it too.
+  bool assistant_working() const { return this->assistant_working_; }
 
   // Called from the static esp-idf event handler trampoline.
   void on_ws_event(int32_t event_id, void *event_data);
@@ -189,6 +195,7 @@ class VaClient : public Component {
   std::atomic<uint8_t> current_phase_{static_cast<uint8_t>(Phase::IDLE)};
   std::vector<OnPhaseTrigger *> phase_triggers_;
   std::vector<OnRepeatedFailureTrigger *> repeated_failure_triggers_;
+  std::vector<OnWorkingTrigger *> working_triggers_;
 
   // Counts consecutive failed reconnect attempts. Reset to 0 on a clean
   // WS_CONNECTED event. When it hits kRepeatedFailureThreshold we fire the
@@ -281,6 +288,7 @@ class VaClient : public Component {
   // search's replying->thinking has no stop so this stays false (don't break
   // the search animation), and a reply-drain emits no `thinking` (mic gated).
   bool post_stop_guard_{false};
+  bool assistant_working_{false};
   // Live duration (ms) of the post-reply follow-up window: how long the mic
   // stays open after the assistant finishes so the user can answer back
   // WITHOUT re-saying the wake word. Pushed from the backend add-on in the

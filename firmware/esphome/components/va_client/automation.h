@@ -20,5 +20,12 @@ class OnRepeatedFailureTrigger : public Trigger<> {
   }
 };
 
+// Fires on the add-on's `working`: the model has taken the user's turn and
+// runs a tool. yaml arms the "stop" wake word on it.
+class OnWorkingTrigger : public Trigger<> {
+ public:
+  explicit OnWorkingTrigger(VaClient *parent) { parent->add_on_working_trigger(this); }
+};
+
 }  // namespace va_client
 }  // namespace esphome

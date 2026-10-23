@@ -654,6 +654,25 @@ void VaClient::handle_text_(const char *data, size_t len) {
     return;
   }
 
+  if (msg.find("\"type\":\"working\"") != std::string::npos) {
+    // The model has taken the user's turn and is working on it (a tool call):
+    // the user has finished speaking, so a "stop" now is meant, not a misfire
+    // on their question. Ignored after a stop, like `thinking`: it belongs to
+    // the turn that was stopped.
+    if (this->post_stop_guard_) {
+      ESP_LOGI(TAG, "ignoring stale 'working' after stop (no wake since)");
+      return;
+    }
+    ESP_LOGI(TAG, "working — the assistant is working on the turn");
+    this->assistant_working_ = true;
+    this->defer([this]() {
+      for (auto *t : this->working_triggers_) {
+        t->trigger();
+      }
+    });
+    return;
+  }
+
   if (msg.find("\"type\":\"speak\"") != std::string::npos) {
     // An automation asked the add-on to speak: an announcement, or the start
     // of a conversation. "listen_ms":N is how long to listen after it.
@@ -932,6 +951,9 @@ void VaClient::set_phase_(const std::string &phase) {
   //                without re-triggering the wake word. Timer expiry closes
   //                the session.
   if (phase == "listening") {
+    // The user is speaking again: their turn, so "stop" is a misfire again
+    // until the assistant works on it or replies.
+    this->assistant_working_ = false;
     if (!this->streaming_) {
       ESP_LOGI(TAG, "phase=listening — mic streaming on");
       this->streaming_ = true;
@@ -981,6 +1003,7 @@ void VaClient::set_phase_(const std::string &phase) {
     this->waiting_for_speaker_stop_ = false;
     this->idle_emit_pending_ = false;  // new turn began, drop any held idle
   } else if (phase == "idle") {
+    this->assistant_working_ = false;
     // Turn boundary: reset the WS-gap reference so the silence between THIS
     // reply and the NEXT turn's reply (~7 s across a follow-up exchange, where
     // start_session() — the other reset point — is never called) isn't logged
@@ -1158,6 +1181,7 @@ void VaClient::start_session() {
   // this turn's `thinking` shows normally. (Set last, AFTER the residual-reply
   // send_interrupt() above re-set it, so the wake always ends with it clear.)
   this->post_stop_guard_ = false;
+  this->assistant_working_ = false;
   this->cancel_timeout("va_followup");
   this->cancel_timeout("va_followup_open");
   this->cancel_timeout("va_tts_tail");
@@ -1203,6 +1227,7 @@ void VaClient::begin_unasked_reply_(uint32_t listen_ms) {
   ESP_LOGI(TAG, "speak — the add-on speaks unasked, then listens for %u ms", (unsigned) listen_ms);
   this->suppress_incoming_audio_ = false;
   this->post_stop_guard_ = false;
+  this->assistant_working_ = false;
   this->suppress_followup_ = false;
   this->end_requested_ = false;
   this->unasked_reply_ = true;
@@ -1425,6 +1450,7 @@ void VaClient::send_interrupt() {
   // end-of-turn for the utterance we just cancelled, not a real new turn.
   // Cleared in start_session() (the next wake). See set_phase_.
   this->post_stop_guard_ = true;
+  this->assistant_working_ = false;
   this->cancel_timeout("va_followup_open");
   // Report how much already-buffered TTS we just dropped — i.e. how much of the
   // (burst-complete) reply the user did NOT hear. If stale audio ever bleeds into

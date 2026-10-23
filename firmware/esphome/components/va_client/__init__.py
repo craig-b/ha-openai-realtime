@@ -16,6 +16,7 @@ CONF_SPEAKER = "speaker"
 CONF_BARGE_IN = "barge_in"
 CONF_ON_PHASE = "on_phase"
 CONF_ON_REPEATED_FAILURE = "on_repeated_failure"
+CONF_ON_WORKING = "on_working"
 
 va_client_ns = cg.esphome_ns.namespace("va_client")
 VaClient = va_client_ns.class_("VaClient", cg.Component)
@@ -24,6 +25,9 @@ OnPhaseTrigger = va_client_ns.class_(
 )
 OnRepeatedFailureTrigger = va_client_ns.class_(
     "OnRepeatedFailureTrigger", automation.Trigger.template()
+)
+OnWorkingTrigger = va_client_ns.class_(
+    "OnWorkingTrigger", automation.Trigger.template()
 )
 
 
@@ -78,6 +82,11 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnRepeatedFailureTrigger),
             }
         ),
+        cv.Optional(CONF_ON_WORKING): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnWorkingTrigger),
+            }
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -110,5 +119,9 @@ async def to_code(config):
         await automation.build_automation(trigger, [(cg.std_string, "phase")], conf)
 
     for conf in config.get(CONF_ON_REPEATED_FAILURE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_WORKING, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
