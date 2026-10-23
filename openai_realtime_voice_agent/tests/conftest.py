@@ -3,10 +3,13 @@
 import asyncio
 import socket
 import ssl
+import time
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
+import websockets
+from websockets.exceptions import InvalidMessage, InvalidStatus
 
 from tests.fakes import FakeDevice, FakeRealtimeServer, wait_until
 
@@ -58,16 +61,21 @@ class Addon:
         return dev
 
     async def wait_listening(self, timeout: float = 10.0) -> None:
-        def accepting():
+        """Wait until a handshake is answered: the port accepts connections a moment before websockets can serve them."""
+        deadline = time.monotonic() + timeout
+        while True:
             if self.task.done():
                 self.task.result()  # surface a startup crash
             try:
-                with socket.create_connection(("127.0.0.1", self.port), timeout=0.2):
-                    return True
-            except OSError:
-                return False
-
-        await wait_until(accepting, timeout, f"add-on listening on port {self.port}")
+                async with websockets.connect(self.url, ssl=self.trusting_context(), open_timeout=0.5):
+                    return
+            except InvalidStatus:
+                return  # turned away without the secret: it is serving
+            except (OSError, InvalidMessage, TimeoutError):
+                pass  # not listening yet, or listening but not serving; no certificate yet
+            if time.monotonic() >= deadline:
+                raise AssertionError(f"timed out after {timeout}s waiting for add-on listening on port {self.port}")
+            await asyncio.sleep(0.01)
 
 
 @pytest.fixture
