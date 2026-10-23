@@ -16,11 +16,11 @@
       },
       "discovery_confirm": {
         "title": "The add-on's Voice PE",
-        "description": "Set up {name}, the Voice PE that runs the add-on's firmware, as an Assist satellite? Home Assistant's announce and start conversation actions will then reach the OpenAI assistant on it.\n\nThe offer comes from the add-on **{addon}** (`{slug}`), and links the Voice PE to it. Its certificate's SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nThe add-on's log shows its fingerprint at every start: set this up only if they match."
+        "description": "Set up {name}, the Voice PE that runs the add-on's firmware, as an Assist satellite? Home Assistant's announce and start conversation actions will then reach the OpenAI assistant on it.\n\nThis also links the Voice PE to the add-on that made the offer:\n\n- Add-on: `{slug}`\n- Link fingerprint: `{fingerprint}`\n\nThe add-on's log shows its link's fingerprint at every start: set this up only if they match."
       },
       "confirm_link": {
         "title": "A new link to the add-on",
-        "description": "The add-on **{addon}** (`{slug}`) offers {name} a new link: its secret, certificate or port changed. The certificate's SHA-256 fingerprint is:\n\n`{fingerprint}`\n\nThe add-on's log shows its fingerprint at every start. Confirm only if they match and you changed the add-on: the Voice PE then connects with the new link."
+        "description": "An add-on offers {name} a new link: its secret, certificate or port changed.\n\n- Add-on: `{slug}`\n- Link fingerprint: `{fingerprint}`\n\nThe add-on's log shows its link's fingerprint at every start. Confirm only if it matches and you changed the add-on: the Voice PE then connects with the new link."
       }
     },
     "flow_title": "{name}"

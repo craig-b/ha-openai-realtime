@@ -304,9 +304,9 @@ makes the Voice PE an Assist satellite (section 7).
    install **OpenAI Realtime Voice Agent** and restart Home Assistant.
 2. Under **Settings → Devices & services** it shows up as discovered, under your
    Voice PE's name: the add-on offers it once it's installed. **Add** it and
-   confirm. The confirmation shows which add-on the offer comes from and its
-   certificate's SHA-256 fingerprint; the add-on's log shows its fingerprint at
-   every start, so check they match. (With firmware before 1.5.0, which doesn't
+   confirm. The confirmation shows which add-on the offer comes from and the
+   link's fingerprint; the add-on's log shows its link's fingerprint at every
+   start (the `🔗` line), so check they match. (With firmware before 1.5.0, which doesn't
    tell the add-on which device it is, you pick the Voice PE instead.) Or add it
    from **Add integration** yourself.
 3. The first time, Home Assistant shows a repair asking you to press the Voice PE's

@@ -1,6 +1,8 @@
 """Setting the integration up: by hand, or from the add-on's discovery."""
 
 import datetime
+import hashlib
+import ssl
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -14,7 +16,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.openai_realtime_voice_agent.config_flow import certificate_fingerprint
+from custom_components.openai_realtime_voice_agent.config_flow import link_fingerprint
 from custom_components.openai_realtime_voice_agent.const import CONF_ADDON, CONF_DEVICE_ID, DOMAIN
 
 DISCOVERY = HassioServiceInfo(
@@ -115,9 +117,8 @@ async def test_the_add_ons_offer_brings_the_link_and_shows_its_certificate(
     result = await init_hassio(hass, offer(mac="02:00:00:A1:B2:C3"))
     assert result["description_placeholders"] == {
         "name": "Home Assistant Voice a1b2c3",
-        "addon": DISCOVERY.name,
         "slug": DISCOVERY.slug,
-        "fingerprint": certificate_fingerprint(CERTIFICATE),
+        "fingerprint": link_fingerprint(LINK),
     }
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["data"] == {CONF_DEVICE_ID: voice_pe.id, "link": LINK, CONF_ADDON: DISCOVERY.slug}
@@ -129,7 +130,7 @@ async def test_a_changed_link_waits_for_the_owner(hass: HomeAssistant, voice_pe:
     result = await init_hassio(hass, offer(new))
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm_link"
-    assert result["description_placeholders"]["fingerprint"] == certificate_fingerprint(CERTIFICATE)
+    assert result["description_placeholders"]["fingerprint"] == link_fingerprint(new)
     assert entry.data["link"] == LINK  # not until the owner confirms
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
     assert result["type"] is FlowResultType.ABORT
@@ -179,3 +180,24 @@ async def test_an_offer_out_of_shape_is_turned_away(hass: HomeAssistant, voice_p
         result = await init_hassio(hass, offer(link, mac="02:00:00:A1:B2:C3"))
         assert result["type"] is FlowResultType.ABORT
         assert result["reason"] == "invalid_offer"
+
+
+async def test_the_link_fingerprint_is_the_add_ons(hass: HomeAssistant):
+    # The add-on logs SHA-256 over "port\nsecret\n" and the certificate's DER (app/tls.py).
+    der = ssl.PEM_cert_to_DER_cert(CERTIFICATE.strip())
+    digest = hashlib.sha256(b"8080\n0123456789abcdef0123\n" + der).hexdigest().upper()
+    assert link_fingerprint(LINK) == " ".join(digest[i : i + 4] for i in range(0, 32, 4))
+
+
+async def test_a_waiting_offer_doesnt_turn_the_add_ons_away(hass: HomeAssistant, voice_pe: dr.DeviceEntry):
+    # An entry from 0.11.0: another add-on's changed link waits for the owner; the add-on's own offer still lands.
+    entry = set_up_already(hass, voice_pe, link=LINK)
+    waiting = await init_hassio(hass, offer({**LINK, "port": 8443}, slug="f0f0f0f0_other"))
+    assert waiting["step_id"] == "confirm_link"
+    result = await init_hassio(hass, offer())
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_ADDON] == DISCOVERY.slug
+    # The owner confirms the waiting one after all: it's no longer the entry's add-on's.
+    result = await hass.config_entries.flow.async_configure(waiting["flow_id"], {})
+    assert result["reason"] == "other_addon"
+    assert entry.data["link"] == LINK
