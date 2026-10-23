@@ -42,10 +42,11 @@ through the Supervisor's discovery, so it shows up as discovered. It checks
 first, as Home Assistant logs an error for a discovery no integration takes.
 The offer names the device by its MAC address (`{"mac": "..."}`), which the
 device sends when it connects, so the integration can set itself up for it
-without asking. It waits up to OFFER_WAIT_FOR_DEVICE_S for the device; firmware
-from before 1.5.0 doesn't send it, and is offered without. The offer also
-carries what the device needs to connect (`{"link": {"port", "secret",
-"certificate"}}`), which the integration sets on the device: the offer goes
+without asking. It waits up to OFFER_WAIT_FOR_DEVICE_S for the device, then
+offers without: a device that isn't linked yet can't connect, so on a first
+install the owner picks it. The offer also carries what the device needs to
+connect (`{"link": {"port", "secret", "certificate", "fingerprint_key"}}`), which
+the integration sets on the device: the offer goes
 from the Supervisor to Home Assistant alone, where the integration keeps it.
 """
 import asyncio
@@ -255,7 +256,7 @@ class EventBus:
             logger.warning(f"⚠️ Could not offer the integration to Home Assistant: {e!r}")
             return
         self._discovered = True
-        which = "for the device" if "mac" in config else "without naming the device (its firmware doesn't say its MAC)"
+        which = "for the device" if "mac" in config else "without naming the device (it hasn't connected)"
         logger.info(f"🧩 Offered the integration to Home Assistant {which}; it shows it as discovered")
 
     async def _listen(self, ws) -> None:
