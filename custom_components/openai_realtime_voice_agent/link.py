@@ -13,7 +13,12 @@ Anything in Home Assistant can call that action, so once the device is linked
 it takes a new link only with proof: an HMAC of the new link keyed by the
 secret it has. That is the secret the integration last set on it, which it
 remembers (in its own storage, not the entry, so that recording it doesn't
-reload the entry); a device not linked yet takes its first link without.
+reload the entry). A device not linked yet takes its first link without, once
+its centre button is pressed: until then its "Add-on connection" says "awaiting
+button", and nothing can replace the link waiting. The integration sends its
+link again to tell whether that's it: if the device takes it, a repair issue asks
+the owner to press the button; if not, one warns them not to, and to restart the
+device.
 """
 
 import hashlib
@@ -26,7 +31,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 
@@ -39,6 +44,9 @@ LINK_SENSOR_NAME = "Add-on link"
 CONNECTION_SENSOR_NAME = "Add-on connection"
 LINK_ACTION = "set_addon_link"
 REFUSED = "refused"
+AWAITING_BUTTON = "awaiting button"
+PRESS_BUTTON_ISSUE = "press_button"
+OTHER_LINK_ISSUE = "other_link_waiting"
 
 STORAGE_VERSION = 1
 
@@ -113,12 +121,18 @@ class Linker:
         if any(s is None or s.state in (STATE_UNAVAILABLE, STATE_UNKNOWN) for s in (link_state, connection_state)):
             return  # offline: linked when it comes back
         link = await self._async_link()
-        if link_state.state == fingerprint(link["url"], link["certificate"]) and connection_state.state != REFUSED:
-            return
+        awaiting = connection_state.state == AWAITING_BUTTON
+        if not awaiting:
+            self._raise_issue(None)
+            if link_state.state == fingerprint(link["url"], link["certificate"]) and connection_state.state != REFUSED:
+                return
         if not self._hass.services.has_service("esphome", self._action):
             return  # not connected to Home Assistant yet
-        # The secret the device has: the one last set on it, or else the
-        # add-on's (a firmware built with it compiled in).
+        # While a first link waits for the button, sending ours again is how to
+        # tell whether it's ours: the device takes it only if it's the same,
+        # secret and all (the fingerprint it shows leaves the secret out).
+        # The secret the device has: the one last set on it (or holds for its
+        # button), or else the add-on's (a firmware built with it compiled in).
         stored = await self._store.async_load() or {}
         device_secret = stored.get("secret", link["secret"])
         _LOGGER.info("Linking the Voice PE to the add-on at %s", link["url"])
@@ -131,11 +145,34 @@ class Linker:
             )
         except HomeAssistantError as e:
             _LOGGER.error("The Voice PE didn't take the link to the add-on: %s", e)
+            if awaiting:
+                self._raise_issue(OTHER_LINK_ISSUE)
             return
         await self._store.async_save({"secret": link["secret"]})
+        if awaiting:
+            self._raise_issue(PRESS_BUTTON_ISSUE)
+
+    @callback
+    def _raise_issue(self, raised: str | None) -> None:
+        """While a first link waits for the centre button: ask for the press if it's ours, warn if not."""
+        for issue in (PRESS_BUTTON_ISSUE, OTHER_LINK_ISSUE):
+            issue_id = f"{issue}_{self._entry.entry_id}"
+            if issue != raised:
+                ir.async_delete_issue(self._hass, DOMAIN, issue_id)
+                continue
+            ir.async_create_issue(
+                self._hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING if issue == PRESS_BUTTON_ISSUE else ir.IssueSeverity.ERROR,
+                translation_key=issue,
+                translation_placeholders={"name": self._entry.title},
+            )
 
     async def async_forget(self) -> None:
         await self._store.async_remove()
+        self._raise_issue(None)
 
     async def _async_link(self) -> dict[str, Any]:
         link = self._entry.data[CONF_LINK]

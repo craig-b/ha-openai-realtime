@@ -43,20 +43,29 @@ class VaClient : public Component {
   // Anything in Home Assistant can call the action that calls this, so once
   // the device is linked a new link must come with `proof`: an HMAC-SHA256 of
   // it (`url\nsecret\ncertificate`, hex), keyed by the secret the device has,
-  // which only the add-on's integration knows. An unlinked device takes its
-  // first link without (trust on first use: adopting the device in Home
-  // Assistant and linking it follow each other, and only a factory reset,
-  // at the device, unlinks it). The new link must also be valid: a wss://
-  // address, a secret of 16 to 128 visible characters, a PEM certificate.
+  // which only the add-on's integration knows. An unlinked device has no
+  // secret to key it, so it holds its first link until someone at the device
+  // presses its centre button (accept_pending_link); until then it refuses any
+  // other first link, so that the press accepts the link Home Assistant saw
+  // waiting. Only a factory reset, at the device, unlinks it. The
+  // new link must also be valid: a wss:// address, a secret of 16 to 128
+  // visible characters, a PEM certificate.
   std::string set_link(const std::string &url, const std::string &secret, const std::string &certificate,
                        const std::string &proof);
+  // A first link is waiting for the centre button.
+  bool link_awaiting_button() const { return !this->pending_url_.empty(); }
+  // The centre button was pressed: take the waiting first link. Returns
+  // whether there was one.
+  bool accept_pending_link();
   bool is_linked() const { return !this->url_.empty(); }
   // A short hash of the link's address and certificate (not the secret, as
   // every Home Assistant user sees it), so Home Assistant can tell whether the
-  // device has the link it means to set.
+  // device has the link it means to set; while a first link waits for the
+  // centre button, that link's.
   std::string link_fingerprint() const;
-  // "not linked", "connecting", "connected", or "refused" (the add-on turned
-  // its secret down), so Home Assistant can tell a wrong secret.
+  // "not linked", "awaiting button" (a first link is waiting for the centre
+  // button), "connecting", "connected", or "refused" (the add-on turned its
+  // secret down), so Home Assistant can tell a wrong secret.
   std::string link_state() const;
   void set_microphone(microphone::Microphone *m) { mic_ = m; }
   void set_mic_channel(uint8_t c) { mic_channel_ = c; }
@@ -154,6 +163,13 @@ class VaClient : public Component {
   std::string secret_;
   // The add-on turned the device's secret down (HTTP 401); cleared on connecting.
   bool refused_{false};
+  // The first link, waiting for the centre button (certificate as kept: one
+  // trailing newline).
+  std::string pending_url_;
+  std::string pending_secret_;
+  std::string pending_certificate_;
+  // Keeps a link in flash and connects with it.
+  std::string store_link_(const std::string &url, const std::string &secret, const std::string &pem);
   std::string headers_;
   std::string certificate_;
   ESPPreferenceObject link_pref_;

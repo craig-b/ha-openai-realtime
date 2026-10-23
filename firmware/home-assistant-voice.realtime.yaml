@@ -197,11 +197,12 @@ api:
     # set_link says how), so nothing else in Home Assistant can redirect the
     # device. Before the API has a key, anyone on the network can connect and
     # call this, so it takes no link until then: the first link comes only from
-    # whoever set the key, i.e. adopted the device. That is ESPHome's own model:
-    # between Wi-Fi setup and adding it to Home Assistant, anyone on the network
-    # can adopt it, and a device adopted by someone else won't add to Home
-    # Assistant until it's factory reset (which clears its link too). Answers
-    # whether it was taken, and if not, why.
+    # whoever set the key, i.e. adopted the device. Whoever adopts it first owns
+    # its API (ESPHome's own model), so the first link also waits for a press of
+    # the centre button, at the device: "Add-on connection" says "awaiting
+    # button", "Add-on link" shows the link waiting (no other can replace it),
+    # and the LEDs twinkle as for Bluetooth Wi-Fi setup. Answers whether
+    # it was taken (or is waiting for the button), and if not, why.
     - action: set_addon_link
       variables:
         url: string
@@ -220,6 +221,7 @@ api:
             error_message: !lambda 'return id(addon_link_error);'
         - component.update: addon_link
         - component.update: addon_connection
+        - script.execute: control_leds
   # va-direct: start micro_wake_word HERE (mirrors stock home-assistant-voice.yaml
   # and the fjfricke reference) instead of on_boot. Starting mWW at on_boot+1s
   # raced the XMOS voice-kit coming up, so mWW could begin reading a mic that
@@ -258,7 +260,8 @@ text_sensor:
     icon: "mdi:link-variant"
     lambda: 'return id(va).link_fingerprint();'
   # Whether the add-on takes the device: "connected", "connecting", "refused"
-  # (a wrong secret) or "not linked".
+  # (a wrong secret), "awaiting button" (a first link waits for the centre
+  # button) or "not linked".
   - platform: template
     name: "Add-on connection"
     id: addon_connection
@@ -328,6 +331,12 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'true'
+  # Whether the centre button's latest press took a first link to the add-on,
+  # so the press does nothing else.
+  - id: center_button_took_link
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   # Global variable storing the state of ImprovBLE. Used to draw different LED animations
   - id: improv_ble_in_progress
     type: bool
@@ -505,6 +514,20 @@ binary_sensor:
       number: GPIO0
       inverted: true
     on_press:
+      # A first link to the add-on waiting for this press takes it: the press
+      # does nothing else (center_button_took_link).
+      - lambda: id(center_button_took_link) = id(va)->accept_pending_link();
+      - if:
+          condition:
+            lambda: return id(center_button_took_link);
+          then:
+            - script.execute:
+                id: play_sound
+                priority: true
+                sound_file: "center_button_press_sound"
+            - component.update: addon_link
+            - component.update: addon_connection
+            - script.execute: control_leds
       - if:
           condition:
             switch.is_off: disable_buttons
@@ -536,7 +559,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state && !id(center_button_took_link);
               then:
                 - if:
                     condition:
@@ -604,7 +627,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state && !id(center_button_took_link);
               then:
                 - script.execute:
                     id: play_sound
@@ -625,7 +648,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state && !id(center_button_took_link);
               then:
                 - script.execute:
                     id: play_sound
@@ -641,7 +664,7 @@ binary_sensor:
         then:
           - if:
               condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state;
+                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed) && !id(disable_buttons).state && !id(center_button_took_link);
               then:
                 - script.execute:
                     id: play_sound
@@ -1324,7 +1347,9 @@ script:
           if (id(is_timer_active)){
             id(fetch_first_active_timer).execute();
           }
-          if (id(improv_ble_in_progress)) {
+          if (id(improv_ble_in_progress) || id(va)->link_awaiting_button()) {
+            // Both wait for the centre button: Wi-Fi over Bluetooth, and the
+            // first link to the add-on.
             id(control_leds_improv_ble_state).execute();
           } else if (id(init_in_progress)) {
             id(control_leds_init_state).execute();

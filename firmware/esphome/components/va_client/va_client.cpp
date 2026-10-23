@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 #include <esp_websocket_client.h>
 #include <esp_event.h>
@@ -160,6 +161,44 @@ std::string VaClient::set_link(const std::string &url, const std::string &secret
       return "the proof doesn't match the secret this device has (a factory reset unlinks it)";
     }
   }
+  if (!this->is_linked()) {
+    // The press accepts the link waiting when it comes, so nothing may swap
+    // another in: the first one waits until it's accepted or the device
+    // restarts. "Add-on link" shows it meanwhile, for Home Assistant to check.
+    if (this->link_awaiting_button()) {
+      if (url == this->pending_url_ && secret == this->pending_secret_ && pem == this->pending_certificate_)
+        return "";
+      ESP_LOGW(TAG, "Link refused: another first link is waiting for the centre button");
+      return "another first link is waiting for the centre button: don't press it; restart the device to clear it";
+    }
+    this->pending_url_ = url;
+    this->pending_secret_ = secret;
+    this->pending_certificate_ = pem;
+    ESP_LOGW(TAG, "First link to the add-on at %s: press the centre button to accept it", url.c_str());
+    return "";
+  }
+  return this->store_link_(url, secret, pem);
+}
+
+bool VaClient::accept_pending_link() {
+  if (!this->link_awaiting_button())
+    return false;
+  std::string url, secret, pem;
+  std::swap(url, this->pending_url_);
+  std::swap(secret, this->pending_secret_);
+  std::swap(pem, this->pending_certificate_);
+  ESP_LOGI(TAG, "The centre button accepted the link");
+  std::string error = this->store_link_(url, secret, pem);
+  if (!error.empty()) {
+    // Not kept: wait for the button again.
+    this->pending_url_ = url;
+    this->pending_secret_ = secret;
+    this->pending_certificate_ = pem;
+  }
+  return true;
+}
+
+std::string VaClient::store_link_(const std::string &url, const std::string &secret, const std::string &pem) {
   if (url == this->url_ && secret == this->secret_ && pem == this->certificate_) {
     ESP_LOGD(TAG, "Link unchanged");
     return "";
@@ -192,11 +231,14 @@ std::string VaClient::set_link(const std::string &url, const std::string &secret
 }
 
 std::string VaClient::link_fingerprint() const {
-  if (!this->is_linked())
+  // The link it has, or else the first link waiting for the centre button.
+  const std::string &url = this->is_linked() ? this->url_ : this->pending_url_;
+  const std::string &certificate = this->is_linked() ? this->certificate_ : this->pending_certificate_;
+  if (url.empty())
     return "not linked";
   // The first 8 bytes of SHA-256 over the address and the certificate, in hex:
   // Home Assistant computes the same to compare.
-  std::string link = this->url_ + "\n" + this->certificate_;
+  std::string link = url + "\n" + certificate;
   uint8_t digest[32];
   mbedtls_sha256(reinterpret_cast<const unsigned char *>(link.data()), link.size(), digest, 0);
   char hex[17];
@@ -205,7 +247,7 @@ std::string VaClient::link_fingerprint() const {
 
 std::string VaClient::link_state() const {
   if (!this->is_linked())
-    return "not linked";
+    return this->link_awaiting_button() ? "awaiting button" : "not linked";
   if (this->ws_connected_)
     return "connected";
   return this->refused_ ? "refused" : "connecting";

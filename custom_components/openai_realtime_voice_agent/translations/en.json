@@ -38,5 +38,15 @@
     "error": {
       "not_wss": "The address must start with wss://: the add-on only takes encrypted connections."
     }
+  },
+  "issues": {
+    "press_button": {
+      "title": "Press the centre button on {name}",
+      "description": "{name} is ready to link to the add-on, and waits for its centre button before it takes the link: its lights twinkle warm white. Press the button once. Pressing it is how the device knows someone at it agreed to the link."
+    },
+    "other_link_waiting": {
+      "title": "Don't press the centre button on {name}",
+      "description": "{name} is waiting for its centre button to accept a link that isn't this add-on's: something else in Home Assistant set it. Don't press the button. Restart the device (unplug it and plug it back in) to clear that link; it then gets the add-on's, and asks for the press here."
+    }
   }
 }

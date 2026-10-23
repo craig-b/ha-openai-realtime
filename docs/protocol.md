@@ -311,9 +311,15 @@ Assist satellite:
   every Home Assistant user sees it) or its "Add-on connection" sensor says
   `refused` (a wrong secret). Anything in Home Assistant can call that action,
   so a linked device takes a new link only with `proof`, the HMAC-SHA256 of
-  `url\nsecret\ncertificate` keyed by the secret it has; an unlinked one takes
-  its first link without. The offer goes from the Supervisor to Home Assistant
-  alone.
+  `url\nsecret\ncertificate` keyed by the secret it has. An unlinked one has
+  no secret to key it, so it takes no link before its API has a key (from the
+  Home Assistant that adopted it), and holds its first link until someone
+  presses its centre button: meanwhile "Add-on connection" says `awaiting
+  button`, "Add-on link" shows the link waiting (it refuses any other until the
+  press or a restart), and its LEDs twinkle. The integration raises a repair
+  issue asking for the press if the link waiting is its own, or warning not to
+  press, and to restart the device, if it isn't. The offer goes from the
+  Supervisor to Home Assistant alone.
   Without the integration it offers nothing, as Home Assistant logs an error for
   a discovery no integration takes.
 

@@ -8,7 +8,7 @@ import pytest
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.openai_realtime_voice_agent.const import CONF_DEVICE_ID, CONF_LINK, CONF_URL, DOMAIN
@@ -25,6 +25,7 @@ class FakeFirmware:
     def __init__(self, hass: HomeAssistant, voice_pe: dr.DeviceEntry, linked: dict | None = None):
         self.hass = hass
         self.link = linked  # {"url", "secret", "certificate"}, or None
+        self.pending: dict | None = None  # a first link, waiting for the centre button
         self.connection = "connected" if linked else "not linked"
         self.calls: list[dict] = []
         registry = er.async_get(hass)
@@ -42,7 +43,8 @@ class FakeFirmware:
         self.publish()
 
     def publish(self) -> None:
-        state = fingerprint(self.link["url"], self.link["certificate"]) if self.link else "not linked"
+        shown = self.link or self.pending  # the link it has, or the one waiting for the button
+        state = fingerprint(shown["url"], shown["certificate"]) if shown else "not linked"
         self.hass.states.async_set(self.link_sensor, state)
         self.hass.states.async_set(self.connection_sensor, self.connection)
 
@@ -57,9 +59,23 @@ class FakeFirmware:
             ).hexdigest()
             if call.data["proof"] != expected:
                 raise HomeAssistantError("the proof doesn't match the secret this device has")
+        else:
+            if self.pending is not None and self.pending != new:
+                raise HomeAssistantError("another first link is waiting for the centre button")
+            self.pending = new
+            self.connection = "awaiting button"
+            self.publish()
+            return
         self.link = new
         self.connection = "connected"
         self.publish()
+
+    def press(self) -> None:
+        """Someone presses the centre button."""
+        if self.pending is not None:
+            self.link, self.pending = self.pending, None
+            self.connection = "connected"
+            self.publish()
 
 
 @pytest.fixture(autouse=True)
@@ -79,12 +95,29 @@ async def set_up(hass: HomeAssistant, voice_pe: dr.DeviceEntry, link=LINK, optio
     return entry
 
 
-async def test_an_unlinked_device_is_linked(hass: HomeAssistant, voice_pe, addon):
+def press_button_issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEntry | None:
+    return ir.async_get(hass).async_get_issue(DOMAIN, f"press_button_{entry.entry_id}")
+
+
+def other_link_issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEntry | None:
+    return ir.async_get(hass).async_get_issue(DOMAIN, f"other_link_waiting_{entry.entry_id}")
+
+
+async def link_at_the_button(hass: HomeAssistant, firmware: FakeFirmware) -> None:
+    firmware.press()
+    await hass.async_block_till_done()
+
+
+async def test_an_unlinked_device_is_linked_once_its_button_is_pressed(hass: HomeAssistant, voice_pe, addon):
     firmware = FakeFirmware(hass, voice_pe)
-    await set_up(hass, voice_pe)
-    [call] = firmware.calls
+    entry = await set_up(hass, voice_pe)
+    call = firmware.calls[0]
     assert (call["url"], call["secret"], call["certificate"]) == (URL, LINK["secret"], CERTIFICATE)
+    assert firmware.link is None
+    assert press_button_issue(hass, entry) is not None
+    await link_at_the_button(hass, firmware)
     assert firmware.link["url"] == URL
+    assert press_button_issue(hass, entry) is None
 
 
 async def test_a_linked_device_is_left_alone(hass: HomeAssistant, voice_pe, addon):
@@ -95,7 +128,8 @@ async def test_a_linked_device_is_left_alone(hass: HomeAssistant, voice_pe, addo
 
 async def test_a_new_secret_reaches_the_device_with_proof_of_the_old(hass: HomeAssistant, voice_pe, addon):
     firmware = FakeFirmware(hass, voice_pe)
-    entry = await set_up(hass, voice_pe)  # links it with the first secret
+    entry = await set_up(hass, voice_pe)
+    await link_at_the_button(hass, firmware)  # with the first secret
     new_link = {**LINK, "secret": "fedcba9876543210fedc"}
     # The add-on restarted with a new secret and offered itself again; the device is refused meanwhile.
     hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_LINK: new_link})
@@ -119,6 +153,7 @@ async def test_a_device_with_another_secret_stays_as_it_is(hass: HomeAssistant, 
 async def test_the_owner_can_give_another_address(hass: HomeAssistant, voice_pe, addon):
     firmware = FakeFirmware(hass, voice_pe)
     await set_up(hass, voice_pe, options={CONF_URL: "wss://voice.example.com:8080/"})
+    await link_at_the_button(hass, firmware)
     assert firmware.link["url"] == "wss://voice.example.com:8080/"
 
 
@@ -136,4 +171,40 @@ async def test_an_offline_device_is_linked_when_it_comes_back(hass: HomeAssistan
     assert firmware.calls == []
     firmware.publish()  # back online, not linked
     await hass.async_block_till_done()
+    await link_at_the_button(hass, firmware)
     assert firmware.link["url"] == URL
+
+
+async def test_the_issue_goes_with_the_entry(hass: HomeAssistant, voice_pe, addon):
+    FakeFirmware(hass, voice_pe)
+    entry = await set_up(hass, voice_pe)
+    assert press_button_issue(hass, entry) is not None
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert press_button_issue(hass, entry) is None
+
+
+async def test_another_link_waiting_for_the_button_is_not_pressed_for(hass: HomeAssistant, voice_pe, addon, caplog):
+    # Something else set a first link before the integration did: it waits for the button, and stays.
+    firmware = FakeFirmware(hass, voice_pe)
+    firmware.pending = {"url": "wss://203.0.113.5:8080/", "secret": "someone-elses-secret", "certificate": CERTIFICATE}
+    firmware.connection = "awaiting button"
+    firmware.publish()
+    entry = await set_up(hass, voice_pe)
+    assert firmware.pending["url"] == "wss://203.0.113.5:8080/"
+    assert press_button_issue(hass, entry) is None
+    assert other_link_issue(hass, entry) is not None
+    assert "didn't take the link" in caplog.text
+
+
+async def test_a_waiting_link_with_our_address_but_another_secret_is_not_pressed_for(
+    hass: HomeAssistant, voice_pe, addon
+):
+    # Its fingerprint (address and certificate) matches ours; its secret doesn't.
+    firmware = FakeFirmware(hass, voice_pe)
+    firmware.pending = {"url": URL, "secret": "someone-elses-secret", "certificate": CERTIFICATE}
+    firmware.connection = "awaiting button"
+    firmware.publish()
+    entry = await set_up(hass, voice_pe)
+    assert press_button_issue(hass, entry) is None
+    assert other_link_issue(hass, entry) is not None
