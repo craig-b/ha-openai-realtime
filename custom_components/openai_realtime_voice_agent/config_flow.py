@@ -200,16 +200,15 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         if user_input is not None:
-            device = dr.async_get(self.hass).async_get(user_input[CONF_DEVICE_ID])
-            return self.async_create_entry(
-                title=_name(device) if device else "Voice PE", data=self._data(user_input[CONF_DEVICE_ID])
-            )
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_DEVICE_ID): DeviceSelector(DeviceSelectorConfig(integration="esphome"))}
-            ),
-        )
+            return self._create_entry_for(user_input[CONF_DEVICE_ID])
+        return self.async_show_form(step_id="user", data_schema=_PICK_VOICE_PE)
+
+    def _create_entry_for(self, device_id: str) -> ConfigFlowResult:
+        device = dr.async_get(self.hass).async_get(device_id)
+        return self.async_create_entry(title=_name(device) if device else "Voice PE", data=self._data(device_id))
+
+
+_PICK_VOICE_PE = vol.Schema({vol.Required(CONF_DEVICE_ID): DeviceSelector(DeviceSelectorConfig(integration="esphome"))})
 
 
 def _name(device: dr.DeviceEntry) -> str:
