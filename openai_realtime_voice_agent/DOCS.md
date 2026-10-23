@@ -1,9 +1,10 @@
 # OpenAI Realtime 2 Voice Agent — Documentation
 
 This add-on runs an OpenAI voice session — **`gpt-realtime-2.1`** by default, or
-**GPT-Live** (section 5) — and bridges it to Home Assistant control and web search. It is the backend half of a two-part project; the
-front half is custom **firmware for the Home Assistant Voice PE** device (see
-[Firmware](#firmware-home-assistant-voice-pe-only) below).
+**GPT-Live** (section 5) — and bridges it to Home Assistant control and web search. It is one of three parts: the
+others are custom **firmware for the Home Assistant Voice PE** device (see
+[Firmware](#firmware-home-assistant-voice-pe-only) below) and this add-on's
+integration (see [The integration](#the-integration)).
 
 ```
 Voice PE device  ──encrypted WebSocket──▶  this add-on  ──▶  OpenAI (Realtime or GPT-Live)
@@ -23,17 +24,20 @@ Voice PE device  ──encrypted WebSocket──▶  this add-on  ──▶  Ope
    Home Assistant downloads its prebuilt image, built and tested for each release.
 4. Open the add-on's **Configuration** tab to set it up (next sections).
 
+A first run also needs this add-on's integration, which links the Voice PE to the
+add-on: see [The integration](#the-integration).
+
 ## 2. Get an OpenAI API key and choose a device secret
 
 1. Go to <https://platform.openai.com/> → **API keys** → **Create new secret key**.
 2. Make sure **billing** is set up on your OpenAI account — `gpt-realtime-2.1` (audio)
    and web search are paid usage.
 3. Paste the key into the add-on's **`openai_api_key`** option.
-4. Set **`device_secret`** to a random string of at least 16 characters with no
-   spaces, e.g. the output of `openssl rand -hex 32`. Your Voice PE sends the same
-   value to connect; the add-on refuses any connection without it, so nothing else
-   on your network can use your OpenAI key or your home's controls through the
-   add-on. The add-on doesn't start until it's set.
+4. Set **`device_secret`** to a random string of 16 to 128 visible ASCII
+   characters with no spaces, e.g. the output of `openssl rand -hex 32`. Your
+   Voice PE sends the same value to connect; the add-on refuses any connection
+   without it, so nothing else on your network can use your OpenAI key or your
+   home's controls through the add-on. The add-on doesn't start until it's set.
 
 The connection to the device is also encrypted, so nobody on your network can
 listen to your microphone or read the secret. The add-on makes its own
@@ -42,7 +46,8 @@ certificate on first start, keeps it, and prints it in its log at every start.
 You don't copy either to the device: the add-on's integration does (see
 [The integration](#the-integration) below). The first time, the Voice PE asks for a
 press of its centre button before it takes them. If you change `device_secret`,
-the integration gives the device the new one.
+Home Assistant asks you to confirm the add-on's new link, and the integration then
+gives the device the new secret.
 
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
 > tier. `gpt-realtime-2.1` audio is token-heavy, so if you see *"Rate limit reached"*
@@ -64,6 +69,11 @@ The assistant controls your home through Home Assistant's **official MCP Server*
    **`longlived_token`** blank too, unless the log shows a 401/403 on
    `/core/api/mcp` (then paste a HA long-lived token there).
 
+`ha_mcp_url` also sets the Home Assistant API the add-on uses for everything else
+(the URL without its `/mcp`): the event bus (announcements, the satellite's state,
+the offer of the integration) and Home Assistant's configuration. So pointing it at
+another MCP server breaks those.
+
 You get a small fixed set of Assist tools (`HassTurnOn`, `HassTurnOff`,
 `HassLightSet`, `GetLiveContext`, `GetDateTime`, …). **`GetLiveContext`** is the
 "what's the current state?" tool — keep it; it's what answers *"is the light on?"*.
@@ -75,14 +85,14 @@ blank to expose all, or trim to just what you use, e.g.:
 ## 4. Recommended starting settings
 
 **The defaults are the recommended settings** — for a first run you only need the
-API key, the device secret, and the MCP integration (section 3). The
+API key, the device secret, the MCP integration (section 3) and this add-on's
+integration (see [The integration](#the-integration)). The
 Configuration tab is grouped: **🔑 Basics → ⚡ Realtime settings → 🎙️ GPT-Live settings → 💬 Conversation →
 🌐 Web search → 🎚️ Audio → 🏠 Home Assistant → ⚙️ Advanced → 🔍 Debug**, and every
 option has plain-language inline help. The **⚡ Realtime settings** are a panel of
 their own (`realtime → …` below): the model, its voice and everything else only the
 Realtime models use; the **🎙️ GPT-Live settings** are its counterpart for the GPT-Live
-engine (section 5). Settings saved before the panels existed are moved into them
-automatically the first time the add-on starts, after which it restarts once.
+engine (section 5).
 
 | Option | Default | Note |
 |---|---|---|
@@ -111,10 +121,7 @@ nothing you write can break them; your house rules win on personality, tone, lan
 and naming. Lock the language there, e.g. "Speak and understand only Dutch. Never
 switch language." The built-in rules are in
 [`app/prompts.py`](https://github.com/craig-b/ha-openai-realtime/blob/main/openai_realtime_voice_agent/app/prompts.py),
-and with `log_level: DEBUG` the log shows the whole prompt each session gets. A prompt
-saved by an earlier version is moved on the first start: if it was the shipped default
-it is dropped, and if you had edited it, it becomes your house rules, and the log asks
-you to trim it to what is yours.
+and with `log_level: DEBUG` the log shows the whole prompt each session gets.
 
 The legacy `server_vad` turn-detection fields are at the bottom of the ⚡ Realtime
 settings — leave them empty unless you have a specific reason.
@@ -169,7 +176,7 @@ a search tool of its own. For the Realtime engine:
 An automation can have the assistant speak, in its own voice, without anyone
 waking it. It fires an event (the **Event** action), which the add-on hears on
 Home Assistant's event bus; there is nothing to set up. It needs the add-on to
-read Home Assistant (the default, section 3) and firmware 1.4.0 or later.
+read Home Assistant (the default, section 3).
 
 **An announcement** is said word for word, and the device doesn't listen after it:
 
@@ -225,7 +232,7 @@ actions:
 ```
 
 `{{ wait.trigger.event.data.result }}` then says how it went; a started conversation
-counts as `spoken` once its first words have been said. What was said is part of the conversation, so you can
+counts as `spoken` once its opening has played. What was said is part of the conversation, so you can
 ask about it straight after. "Stop" interrupts it as it does any reply. The log
 shows each request as a `📣` line.
 
@@ -287,10 +294,11 @@ and end. View it on the add-on **Log** tab.
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
 
-**Using "stop":** say "stop" (or press the center button) to interrupt the assistant
-*while it's speaking* — during a reply, or during the short listening window right
-after one. It has no effect before the assistant has started answering (there's
-nothing to stop yet).
+**Using "stop":** say "stop" (or press the centre button) to stop the assistant:
+during a reply, in the short listening window right after one, and while a tool
+(a web search, a Home Assistant action) runs. While you're still asking, "stop" is
+ignored, as a misfire on your own words. A stop cancels the tools still running;
+their results go into the conversation, but the assistant doesn't answer them.
 
 ## The integration
 
@@ -302,13 +310,16 @@ makes the Voice PE an Assist satellite (section 7).
 1. In HACS → ⋮ → **Custom repositories**, add
    `https://github.com/craig-b/ha-openai-realtime` as an **Integration**, then
    install **OpenAI Realtime Voice Agent** and restart Home Assistant.
-2. Under **Settings → Devices & services** it shows up as discovered, under your
-   Voice PE's name: the add-on offers it once it's installed. **Add** it and
-   confirm. The confirmation shows which add-on the offer comes from and the
-   link's fingerprint; the add-on's log shows its link's fingerprint at every
-   start (the `🔗` line), so check they match. (With firmware before 1.5.0, which doesn't
-   tell the add-on which device it is, you pick the Voice PE instead.) Or add it
-   from **Add integration** yourself.
+2. Under **Settings → Devices & services** it shows up as discovered: the add-on
+   offers it once it finds it installed. On a first install the Voice PE can't
+   reach the add-on until it's linked, so the add-on can't say which device it is:
+   after about a minute it offers the integration without naming it, as **OpenAI
+   Realtime Voice Agent**, perhaps before the Voice PE is in Home Assistant. Add the Voice PE
+   first, then **Add** the integration and pick the Voice PE. Or add it from
+   **Add integration** yourself. When the add-on can name the device, the
+   integration shows up under its name and only asks you to confirm, showing which
+   add-on the offer comes from and the link's fingerprint; the add-on's log shows
+   its link's fingerprint at every start (the `🔗` line), so check they match.
 3. The first time, Home Assistant shows a repair asking you to press the Voice PE's
    **centre button**: the device takes its link only once someone at it agrees.
    Press it once. If the repair says *not* to press it, something else set a link on
@@ -321,7 +332,8 @@ the device gets the new link once you confirm it.
 
 It links the device to Home Assistant's own address on your network, which suits
 the add-on running on Home Assistant's host. If the device needs another address,
-set it in the integration's **Configure** dialog (`wss://`, with the add-on's port).
+set it in the integration's **Configure** dialog (`wss://`, with the add-on's port,
+such as `wss://192.0.2.10:8080/`); the device gets it at once.
 
 ## Firmware (Home Assistant Voice PE only)
 

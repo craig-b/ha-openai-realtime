@@ -16,9 +16,11 @@ configuration:
     description: >-
       A password your Voice PE must present to connect to this add-on, so
       nothing else on your network can talk to the assistant through it. Use
-      at least 16 characters with no spaces, e.g. the output of
-      `openssl rand -hex 32`, and put the same value in your ESPHome
-      secrets.yaml as va_secret. The add-on doesn't start without one.
+      16 to 128 visible characters with no spaces, e.g. the output of
+      `openssl rand -hex 32`. The integration gives it to the Voice PE; only a
+      firmware you build yourself needs it in its secrets as va_secret. A
+      change takes effect once you confirm the add-on's new link in Home
+      Assistant. The add-on doesn't start without one.
 
   engine:
     name: "🔑 Basics · Engine"
@@ -296,8 +298,11 @@ configuration:
     description: >-
       How the assistant controls your home. Leave EMPTY (recommended): it
       then uses Home Assistant's built-in "MCP Server" integration — install
-      that integration and expose your entities to Assist. Only fill in a URL
-      if you run the separate ha-mcp add-on instead.
+      that integration and expose your entities to Assist. A URL here also
+      sets the Home Assistant API the add-on uses (the URL without its /mcp)
+      for announcements, the satellite's state, the offer of the integration
+      and Home Assistant's configuration, so another MCP server, such as the
+      ha-mcp add-on, breaks those.
   longlived_token:
     name: "🏠 Home Assistant · Access token"
     description: >-
@@ -308,9 +313,8 @@ configuration:
     name: "🏠 Home Assistant · Tool allow-list"
     description: >-
       Comma-separated list of control tools the assistant may use; empty =
-      all of them. With the built-in MCP server you can leave this empty.
-      Mainly useful with the ha-mcp add-on (80+ tools) to keep conversations
-      fast and cheap.
+      all of them. With the built-in MCP server you can leave this empty, or
+      trim it to the tools you use to keep conversations fast and cheap.
   home_town:
     name: "🏠 Home Assistant · Town or city the home is in"
     description: >-
@@ -323,9 +327,9 @@ configuration:
   websocket_port:
     name: "⚙️ Advanced · Device port"
     description: >-
-      The port the Voice PE connects to. Must match the va_url in the device
-      firmware (default 8080). Only change this on a port clash —
-      and update the device firmware stub to match.
+      The port the Voice PE connects to (default 8080). Change it only on a
+      port clash: Home Assistant then asks you to confirm the add-on's new
+      link. A firmware you build yourself needs it in its va_url.
 
   # --- 🔍 Debug ---
   log_what_you_say:

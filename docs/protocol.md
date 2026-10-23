@@ -6,13 +6,18 @@ the code on both sides.
 
 ## Connection
 
-- One WebSocket over TLS. The device is the client, the add-on the server, at
-  `wss://<host>:8080/` (`websocket_port` in the add-on). The add-on makes its own
+- One WebSocket over TLS. The device is the client, the add-on the server, on
+  port 8080 (`websocket_port` in the add-on). The add-on makes its own
   self-signed certificate on first start and keeps it; the device trusts that
   certificate alone, whatever host name it connects by. The device has the
   address and the certificate from its link (see Discovery below; a firmware built
   with them has them as `va_client`'s `url` and `certificate`), and refuses an
-  address that isn't `wss://`.
+  address that isn't `wss://`. The add-on's offer carries only its port: the
+  integration makes the address `wss://<Home Assistant's local IP>:<port>/`, or
+  uses the one the owner set in its options.
+- A link the device takes has an address of at most 255 characters, a secret of
+  16 to 128 visible ASCII characters (no spaces), and a PEM certificate of at most
+  2048 characters.
 - The device authenticates with a shared secret, sent on the upgrade request as
   `Authorization: Bearer <secret>` (`device_secret` in the add-on; the device has
   it from its link, or as `va_client`'s `secret` in a firmware built with it). The add-on answers anything else with HTTP 401, before the
@@ -50,7 +55,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   is full, the excess is dropped. It scales samples by the media player volume
   before queueing.
 - After an `interrupt` the device drops all incoming audio until the next
-  `phase` = `listening` (see [interrupt](#interrupt)).
+  `phase` = `listening` or `speak` (see [interrupt](#interrupt)).
 
 ## Device → add-on messages
 
@@ -58,13 +63,12 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 `{"type":"start","mac":"AA:BB:CC:DD:EE:FF"}`
 
 - **Sent:** once per connection, immediately on connect. `mac` is the device's
-  MAC address (firmware 1.5.0 and later), by which Home Assistant's ESPHome
-  integration knows it.
-- **Add-on:** if an OpenAI session is open, clears its input audio buffer
-  (`input_audio_buffer.clear`; GPT-Live has none), so a reconnect mid-utterance
-  can't leave half a sentence behind. Opens no session. Passes `mac` on to the
-  integration's discovery (see [Home Assistant's view of the
-  device](#home-assistants-view-of-the-device)).
+  MAC address, by which Home Assistant's ESPHome integration knows it.
+- **Add-on:** clears the open session's input audio buffer
+  (`input_audio_buffer.clear`; GPT-Live has none), or the audio held while one
+  opens, so a reconnect mid-utterance can't leave half a sentence behind. Opens
+  no session. Passes `mac` on to the integration's discovery (see [Home
+  Assistant's view of the device](#home-assistants-view-of-the-device)).
 
 ### `wake`
 `{"type":"wake"}`
@@ -77,8 +81,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   [OpenAI session](#openai-session)). The clear also resets OpenAI's turn
   detection: a segment whose end never came, because the mic closed on it,
   would otherwise take the new question's audio and report only its end, with
-  no start. Also clears any pending post-stop response cancel. With GPT-Live, it lets GPT-Live's voice through again after an
-  `interrupt`.
+  no start. Also disarms the post-stop "cancel the next response" (not the
+  1.5 s window; see [interrupt](#interrupt)). With GPT-Live, it lets GPT-Live's
+  voice through again after an `interrupt`.
 
 ### `flush`
 `{"type":"flush"}`
@@ -98,18 +103,25 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   phase; the mute switch turned on while the device is waiting for or listening
   to a command; at session start if a previous reply is still playing or being
   generated; and when the no-speech watchdog fires (see [Timers](#timers)).
-- **Device, at the same moment:** flushes its playback queue, closes the mic
-  gate, cancels follow-up timers, drops all incoming audio until the next
-  `listening`, ignores `thinking` until the next wake, and suppresses the
-  follow-up window the next `idle` would open.
-- **Add-on:** drops the reply audio it has queued for the device, and any
-  more that arrives for the stopped response; clears the
+- **Device, at the same moment** (every source but the no-speech watchdog):
+  flushes its playback queue, closes the mic gate, cancels follow-up timers and
+  the no-speech watchdog, drops all incoming audio until the next `listening` or
+  `speak`, ignores `thinking` and `working` until the next wake or `speak`, and
+  suppresses the follow-up window the next `idle` would open. The no-speech
+  watchdog sends a bare `interrupt`: it only closes the mic gate and sets the LED
+  `idle`.
+- **Add-on:** reports `idle` to Home Assistant (see [Home Assistant's view of
+  the device](#home-assistants-view-of-the-device)) without sending a `phase`;
+  ends a request to speak unasked that is under way as `stopped`; drops the reply
+  audio it has queued for the device, and any more that arrives for the stopped
+  response; clears the
   session's input audio buffer (or the audio held while one opens); sends
   `response.cancel` if a response is active;
   then cancels the next assistant response to appear, whenever it appears, plus
   any appearing within 1.5 s. Real user speech disarms both; a `wake` disarms
   the first. With GPT-Live, which has no responses to cancel, it drops GPT-Live's
-  voice until the next `wake` and asks GPT-Live to stop speaking.
+  voice until the next `wake`, `speak` or words heard from the user, and asks
+  GPT-Live to stop speaking.
 - **Add-on, with either engine:** cancels the tools still running. The results
   of tool calls made before the stop, including the cancelled ones' (which say
   the user stopped them), go into the conversation without a request to answer
@@ -127,7 +139,7 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 | Field | Meaning | Add-on source (default, clamp) | Device default before `hello` | Device clamp |
 |---|---|---|---|---|
-| `follow_up_ms` | How long the mic stays open after a reply for an answer without the wake word. `0` = off | `follow_up_listen_seconds` × 1000 (8000) | 0 | ≤ 60000 |
+| `follow_up_ms` | How long the mic stays open after a reply for an answer without the wake word. `0` = off | `follow_up_listen_seconds` × 1000 (8000, 0–60 s) | 0 | ≤ 60000 |
 | `follow_up_open_delay_ms` | Delay after a reply's audio drains before that mic opens | `follow_up_open_delay_ms` (700, 0–5000) | 1500 | ≤ 5000 |
 | `wake_open_delay_ms` | Delay after the wake chime before the mic opens | `wake_open_delay_ms` (700, 0–5000) | 700 | ≤ 5000 |
 | `playback_prebuffer_ms` | Audio to accumulate before starting playback of a reply | `playback_prebuffer_ms` (150, 0–2000) | 0 | ≤ 2000 |
@@ -143,9 +155,9 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 | Value | Sent when |
 |---|---|
 | `listening` | OpenAI's turn detection heard the user start speaking |
-| `thinking` | OpenAI's turn detection heard the user stop; the model is working, including during tool calls |
+| `thinking` | OpenAI's turn detection heard the user stop, unless the last phase sent is `replying` (that end of turn is the tail of the question being answered); the model is working, including during tool calls |
 | `replying` | Reply audio started |
-| `idle` | Reply audio stopped and stayed stopped for `phase_idle_debounce_ms` (1500 ms); or a turn was declared dead (see below) |
+| `idle` | Reply audio stopped and stayed stopped for `phase_idle_debounce_ms` (1500 ms), with no tool (or GPT-Live backend work) running: if one is, `thinking` is sent instead; or a turn was declared dead (see below) |
 
 - Reply audio arrives in segments (per sentence, around tool calls); `idle`
   waits out the debounce so the device doesn't flap between `replying` and
@@ -153,8 +165,10 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 - **Forced `idle`:** if `thinking` sees no model activity for 15 s, and no tool
   call is running, the add-on sends `idle`. It also forces `idle` when a
   response fails (a rate limit), when OpenAI reports an error during
-  `thinking`, and when a session fails to open or is lost mid-turn. An OpenAI
-  error leaves the session open. After a forced `idle`,
+  `thinking`, and when a session fails to open or is lost mid-turn. A failed
+  response or an error forces `idle` at most once every 2 s. An OpenAI error
+  leaves the session open, except `session_expired`, which ends it (see
+  [OpenAI session](#openai-session)). After a forced `idle`,
   `thinking` is suppressed until real user or model speech follows.
 - The add-on drops a phase equal to the last one it sent, except `listening`,
   which is always sent: the device lifts its post-`interrupt` audio drop on it.
@@ -164,8 +178,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 | Value | Device behaviour |
 |---|---|
 | `listening` | Mic gate opens. Lifts the post-`interrupt` audio drop. Cancels the no-speech watchdog and any follow-up timeout. With barge-in on (`mic_while_replying`, off by default), also flushes any queued reply audio |
-| `thinking` | Mic stays open (turn detection can flap `listening`↔`thinking` while the user is still speaking). Cancels follow-up timers. Ignored entirely after an `interrupt` until the next wake |
-| `replying` | Mic gate closes (unless `mic_while_replying`). Cancels follow-up timers |
+| `thinking` | Mic stays open (turn detection can flap `listening`↔`thinking` while the user is still speaking). Cancels follow-up timers and the no-speech watchdog, and drops a deferred `idle`. Ignored entirely after an `interrupt` until the next wake or `speak` |
+| `replying` | Mic gate closes (unless `mic_while_replying`). Cancels follow-up timers and the no-speech watchdog, and drops a deferred `idle` |
 | `idle` | See below |
 
 **`idle` on the device** depends on the previous phase:
@@ -182,7 +196,8 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 - **Otherwise** (boot, reconnect, or from `listening`): no follow-up; if the mic
   gate is open, it closes.
 
-The device also applies `idle` locally on every disconnect.
+The device also applies `idle` locally on every connect and disconnect, on
+`error`, and when a new link replaces its connection.
 
 ### `working`
 `{"type":"working"}`
@@ -192,8 +207,8 @@ The device also applies `idle` locally on every disconnect.
   model has taken the turn, so the user has finished speaking.
 - **Device:** arms the "stop" word (it isn't otherwise armed before reply
   audio) and acts on it until the user speaks again (`listening`), the turn ends
-  (`idle`), a stop, or a wake. Ignored after an `interrupt` until the next wake,
-  like `thinking`.
+  (`idle`), a stop, a wake, or a `speak`. Ignored after an `interrupt` until the
+  next wake or `speak`, like `thinking`.
 
 ### `end`
 `{"type":"end"}`
@@ -201,7 +216,8 @@ The device also applies `idle` locally on every disconnect.
 - **Sent:** when the model ends the conversation (its `end_conversation` tool,
   `enable_end_conversation`), typically while its goodbye is still to play.
 - **Device:** the next follow-up window, after the reply has played, doesn't
-  open: the `idle` that ends the reply closes the mic instead. A `wake` clears it.
+  open: the `idle` that ends the reply closes the mic instead. A `wake` or a
+  `speak` clears it.
 - **Add-on:** the conversation on the device ends with that `idle`, as after an
   `interrupt`, so the session closes after the engine's idle timeout.
 
@@ -211,7 +227,8 @@ The device also applies `idle` locally on every disconnect.
 - **Sent:** when an automation asks the add-on to speak unasked (see
   [Speaking unasked](#speaking-unasked)), just before it asks the model to: for an
   announcement with `listen_ms` 0; to start a conversation with the follow-up
-  window's length (`follow_up_ms`, or 8000 when that is 0).
+  window's length (`follow_up_ms`, or 8000 when that is 0). The device takes
+  `listen_ms` up to 60000.
 - **Device:** the reply that follows is played though nobody woke it: whatever an
   earlier `interrupt` or `end` left behind is cleared (the incoming-audio drop, the
   stale-`thinking` guard, the suppressed follow-up). The mic stays closed. After
@@ -225,8 +242,9 @@ The device also applies `idle` locally on every disconnect.
 ### `error`
 `{"type":"error","message":"could not connect to OpenAI"}`
 
-- **Sent:** when an OpenAI session can't be opened (the connection fails,
-  OpenAI refuses its settings, or the session isn't configured within 10 s),
+- **Sent:** when an OpenAI session can't be opened (the connection fails or
+  takes over 10 s, OpenAI refuses its settings, or the session isn't configured
+  within 10 s after that),
   and when the open session's connection dies mid-turn. `message` is for logs;
   for refused settings it names the add-on setting to change.
 - **Device:** plays the error chime and goes `idle`.
@@ -265,12 +283,14 @@ as described [below](#with-gpt-live).
 With `engine: live` the session is a GPT-Live session, and the device protocol is
 unchanged. GPT-Live has no turns, and doesn't roll over. The phases follow what it reports:
 `listening` when it hears the user's first words, `thinking` when it hands work to
-its backend, `replying` while its voice is audible (silent audio isn't sent to the
-device), and `idle` once the voice has been silent for 0.6 s, after the usual
-debounce. The session closes when the conversation on the device ends
-(`live → session_reuse_timeout_seconds`, default 0), as open minutes are billed.
-A device `interrupt` drops GPT-Live's voice until the next `wake`, and asks
-GPT-Live to stop speaking.
+its backend, `replying` while its voice is audible (silence between replies isn't
+sent to the device; pauses within a reply, and its silent tail, are), and `idle`
+once the voice has been silent for 0.6 s, after the usual debounce. Backend work
+that says nothing for 30 s is taken to have ended. The session closes when the
+conversation on the device ends (`live → session_reuse_timeout_seconds`, default
+0), as open minutes are billed. A device `interrupt` drops GPT-Live's voice until
+the next `wake`, `speak` or words heard from the user, and asks GPT-Live to stop
+speaking.
 
 ## Speaking unasked
 
@@ -297,8 +317,8 @@ subscribes to over Home Assistant's WebSocket API (`app/event_bus.py`):
   null), `request` (`announce` or `start_conversation`) and `result`: `spoken`
   once the reply has played and the device has gone idle after it, `stopped` if an
   `interrupt` cut it off, `dropped` if the device wasn't free in time, `failed`
-  otherwise (no text, the session didn't open, the model didn't speak, the device
-  disconnected).
+  otherwise (no text, the session didn't open, the model didn't speak, the reply
+  didn't finish within 300 s, the device disconnected).
 
 ## Home Assistant's view of the device
 
@@ -308,24 +328,29 @@ Assist satellite:
 - **State:** the add-on fires `openai_realtime_voice_agent_state` with `state`, the
   phase last sent to the device as an Assist satellite's state (`listening` →
   `listening`, `thinking` → `processing`, `replying` → `responding`, `idle` →
-  `idle`), and `connected`, whether the device is connected. It fires it when
-  either changes, when it (re)connects to Home Assistant, and when
-  `openai_realtime_voice_agent_query` asks.
+  `idle`), and `connected`, whether the device is connected. On a `flush`, an
+  `interrupt` and a disconnect the state is `idle` though no `phase` is sent, as
+  the device goes idle by itself. It fires it when either changes, when it
+  (re)connects to Home Assistant, and when `openai_realtime_voice_agent_query`
+  asks.
 - **Discovery:** when the integration is installed (Home Assistant's
   `manifest/get` finds it), the add-on offers it through the Supervisor's
   discovery (`openai_realtime_voice_agent`), once per run, so Home Assistant shows
   it as discovered. The offer names the device, `{"mac": "..."}` from its
   `start`, so the integration finds its ESPHome device and only asks to confirm;
-  it waits up to 60 s for the device to connect, then offers without (firmware
-  before 1.5.0 doesn't send `mac`), and the integration asks which device it is.
+  it waits up to 60 s for the device to connect, then offers without, and the
+  integration asks which device it is. On a first install the device can't
+  connect until it's linked, so the offer comes without.
   The offer also carries what a device needs to connect, `{"link": {"port",
   "secret", "certificate", "fingerprint_key"}}`, which the integration sets on the device (its
   `set_addon_link` action) when the device's "Add-on link" sensor differs (the
-  first 16 hex digits of SHA-256 over `url\ncertificate`; not the secret, as
+  first 16 hex digits of SHA-256 over `url\ncertificate`, with the certificate
+  ending in exactly one newline; not the secret, as
   every Home Assistant user sees it) or its "Add-on connection" sensor says
   `refused` (a wrong secret). Anything in Home Assistant can call that action,
   so a linked device takes a new link only with `proof`, the HMAC-SHA256 of
-  `url\nsecret\ncertificate` keyed by the secret it has. An unlinked one has
+  `url\nsecret\ncertificate` (the certificate again ending in exactly one
+  newline) keyed by the secret it has. An unlinked one has
   no secret to key it, so it takes no link before its API has a key (from the
   Home Assistant that adopted it), and holds its first link until someone
   presses its centre button: meanwhile "Add-on connection" says `awaiting
@@ -347,8 +372,7 @@ Assist satellite:
   shared when people ask for help, says nothing a guess at the secret could be
   checked against. (Not the add-on's name: the add-on
   chooses it.) Offers to a set-up entry don't wait on one another, and the
-  add-on is checked again when the owner confirms. (An entry from 0.11.0, with no add-on recorded, records the one that
-  offers the link it already has.)
+  add-on is checked again when the owner confirms.
   Without the integration it offers nothing, as Home Assistant logs an error for
   a discovery no integration takes.
 
@@ -358,14 +382,17 @@ The device forwards mic audio only while its gate is open:
 
 | Opens | Closes |
 |---|---|
-| Session start (`start_session()`): the wake word, after `wake_open_delay_ms`; or the centre button, after its sound finishes plus a fixed 600 ms | `replying` (unless `mic_while_replying`) |
+| Session start (`start_session()`): the wake word, after the wake chime and `wake_open_delay_ms` when the wake sound is on, at once when it's off (during a reply, the wake word interrupts it first; while the add-on is unreachable, it plays the error chime and opens nothing); or the centre button, after its sound finishes plus a fixed 600 ms | `replying` (unless `mic_while_replying`) |
 | `listening` | `interrupt` |
 | A follow-up window opening | A follow-up window expiring (sends `flush`) |
+| | `speak` |
+| | `idle` ending a turn that opens no follow-up window (its length is 0, or after `end` or an `interrupt`) |
 | | `idle` arriving with the mic open and no turn just ended |
 | | No-speech watchdog |
 
-While the gate is closed the device keeps a rolling 600 ms pre-roll, and discards
-it when the gate opens: it contains the wake chime.
+While the gate is closed the device keeps a rolling 600 ms ring of mic audio, but
+never sends it: an open gate sends only what the mic hears from then on. A session
+start empties the ring.
 
 ## Timers
 
@@ -375,14 +402,19 @@ it when the gate opens: it contains the wake chime.
 | Device | Follow-up window | `follow_up_ms` | Expiry: close mic, send `flush`, LED `idle` |
 | Device | Playback drain fallback | 3 s | Proceed with held `idle` even if the speaker never reports drained |
 | Device | Reconnect backoff | 1, 2, 5, 10 s | See [Connection](#connection) |
-| Add-on | Idle debounce | 1500 ms | See `phase` |
+| Device | Stable connection | 30 s | A connection held this long re-arms the repeated-failure chime |
+| Add-on | Idle debounce | `phase_idle_debounce_ms` (1500 ms) | See `phase` |
 | Add-on | Thinking watchdog | 15 s (paused while a tool runs) | Forced `idle` |
 | Add-on | Post-interrupt cancel window | 1.5 s (Realtime) | See `interrupt` |
-| Add-on | Session open timeout | 10 s | Gives up opening; sends `error` |
+| Add-on | Session open timeout | 10 s to connect, then 10 s to be configured | Gives up opening; sends `error` |
+| Add-on | Home Assistant reads at session open | 3 s each | Its tools and its configuration; on a timeout the last ones read are used |
 | Add-on | Wait to speak unasked | 120 s | An automation's request is dropped if the device isn't free by then |
 | Add-on | Unasked reply start | 15 s | An automation's request is given up if the model hasn't begun speaking |
+| Add-on | Unasked reply finish | 300 s | An automation's request ends `failed` if its reply hasn't finished |
 | Add-on | Conversation idle timeout | `realtime → session_reuse_timeout_seconds` (300 s), `live → session_reuse_timeout_seconds` (0 s) | Closes the OpenAI session |
 | Add-on | GPT-Live end of speech | 0.6 s of silence | The reply ends (`idle` follows after the debounce) |
+| Add-on | GPT-Live backend silence | 30 s | Backend work with no news for this long is taken to have ended |
+| Add-on | Discovery wait | 60 s | The offer of the integration goes without naming the device |
 
 ## Typical sequences
 

@@ -15,10 +15,12 @@ configuration:
     description: >-
       Een wachtwoord dat je Voice PE moet tonen om met deze add-on te
       verbinden, zodat niets anders op je netwerk via de add-on met de
-      assistent kan praten. Gebruik minstens 16 tekens zonder spaties,
-      bijvoorbeeld de uitvoer van `openssl rand -hex 32`, en zet dezelfde
-      waarde als va_secret in je ESPHome-secrets.yaml. Zonder geheim start de
-      add-on niet.
+      assistent kan praten. Gebruik 16 tot 128 zichtbare tekens zonder
+      spaties, bijvoorbeeld de uitvoer van `openssl rand -hex 32`. De
+      integratie geeft het aan de Voice PE; alleen een firmware die je zelf
+      bouwt heeft het nodig in zijn secrets als va_secret. Een wijziging werkt
+      zodra je de nieuwe koppeling van de add-on in Home Assistant bevestigt.
+      Zonder geheim start de add-on niet.
 
   engine:
     name: "🔑 Basis · Engine"
@@ -305,8 +307,11 @@ configuration:
     description: >-
       Hoe de assistent je huis bestuurt. LEEG laten (aanbevolen): dan gebruikt
       hij Home Assistants ingebouwde "MCP Server"-integratie — installeer die
-      integratie en stel je entiteiten beschikbaar aan Assist. Vul alleen een
-      URL in als je de losse ha-mcp-add-on gebruikt.
+      integratie en stel je entiteiten beschikbaar aan Assist. Een URL hier
+      bepaalt ook de Home Assistant-API die de add-on gebruikt (de URL zonder
+      /mcp) voor aankondigingen, de status van de satelliet, het aanbod van de
+      integratie en de configuratie van Home Assistant, dus een andere
+      MCP-server, zoals de ha-mcp-add-on, maakt die kapot.
   longlived_token:
     name: "🏠 Home Assistant · Toegangstoken"
     description: >-
@@ -319,8 +324,8 @@ configuration:
     description: >-
       Kommagescheiden lijst van besturingstools die de assistent mag
       gebruiken; leeg = allemaal. Met de ingebouwde MCP-server kun je dit
-      leeg laten. Vooral nuttig met de ha-mcp-add-on (80+ tools) om gesprekken
-      snel en goedkoop te houden.
+      leeg laten, of inperken tot de tools die je gebruikt om gesprekken snel
+      en goedkoop te houden.
   home_town:
     name: "🏠 Home Assistant · Plaats waar het huis staat"
     description: >-
@@ -334,9 +339,10 @@ configuration:
   websocket_port:
     name: "⚙️ Geavanceerd · Apparaat-poort"
     description: >-
-      De poort waarop de Voice PE verbindt. Moet overeenkomen met de va_url in
-      de apparaat-firmware (standaard 8080). Alleen wijzigen bij een
-      poortconflict — en pas dan ook de firmware-stub aan.
+      De poort waarop de Voice PE verbindt (standaard 8080). Alleen wijzigen
+      bij een poortconflict: Home Assistant vraagt je dan de nieuwe koppeling
+      van de add-on te bevestigen. Een firmware die je zelf bouwt heeft hem
+      nodig in zijn va_url.
 
   # --- 🔍 Debug ---
   log_what_you_say:

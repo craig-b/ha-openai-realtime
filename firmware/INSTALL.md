@@ -52,10 +52,10 @@ up online** (weather, news, facts) — web search is on by default.
 1. Go to <https://platform.openai.com/> → **API keys** → **Create new secret key**,
    and make sure **billing** is enabled on the account.
 2. Open the add-on's **Configuration** tab and paste the key into **`openai_api_key`**.
-3. Set **`device_secret`** to a random string of at least 16 characters with no
-   spaces, e.g. the output of `openssl rand -hex 32`. The add-on refuses any
-   connection without it, and doesn't start until it's set. You don't need to keep
-   it: the integration gives it to the device (Part 2).
+3. Set **`device_secret`** to a random string of 16 to 128 visible ASCII
+   characters with no spaces, e.g. the output of `openssl rand -hex 32`. The
+   add-on refuses any connection without it, and doesn't start until it's set.
+   You don't need to keep it: the integration gives it to the device (Part 2).
 
 > New OpenAI accounts start on a low rate-limit tier. If you later see *"Rate limit
 > reached"* in the log, raise your usage tier on the OpenAI dashboard.
@@ -123,10 +123,11 @@ it on first start and keeps it, in `certificate.pem` in the `tls` folder of its
 ## Part 2 — The integration
 
 The integration links the Voice PE to the add-on: it gives the device the add-on's
-address, the device secret and the certificate, and gives them again whenever they
-change. It also makes the Voice PE an **Assist satellite**, so Home Assistant's
-announce and start conversation actions reach it (see the add-on's DOCS.md,
-section 7).
+address, the device secret and the certificate. When the add-on's secret,
+certificate or port changes, Home Assistant asks you to confirm the new link, and
+the device gets it once you do. It also makes the Voice PE an **Assist
+satellite**, so Home Assistant's announce and start conversation actions reach it
+(see the add-on's DOCS.md, section 7).
 
 1. In **HACS → ⋮ → Custom repositories**, add
    `https://github.com/craig-b/ha-openai-realtime` with the type **Integration**.
@@ -161,10 +162,11 @@ with nothing of yours in it: Home Assistant sets up the rest.
    discovered by **ESPHome**, as `home-assistant-voice-` and six characters of its
    address. **Add** it and confirm. Home Assistant gives the device its own
    encryption key as it adds it.
-2. The integration then shows up as discovered, under the Voice PE's name: the
-   add-on offers it. **Add** it. The confirmation names the add-on the offer comes
-   from and the link's fingerprint: check it matches the `🔗 … fingerprint` line
-   in the add-on's **Log**, then confirm.
+2. The integration shows up as discovered too, as **OpenAI Realtime Voice
+   Agent**: the add-on offers it about a minute after it finds the integration
+   installed. It may show before the Voice PE does; add the Voice PE first. Then
+   **Add** the integration, and pick the Voice PE when it asks which device runs
+   the add-on's firmware.
 
 ### 3.3 Press the centre button
 
@@ -198,7 +200,9 @@ prompt.
 2. Say **"alexa"** → a wake chime plays and the ring turns to **listening**.
 3. Ask for something you exposed, e.g. *"turn on the bedroom lamp"* → the ring shows
    **thinking** → it acts and replies.
-4. To interrupt a reply: say **"stop"** or press the **center button**.
+4. To stop it: say **"stop"** or press the **centre button**. "Stop" works during
+   a reply, in the listening window after one, and while a tool (a web search, a
+   Home Assistant action) runs; while you're still asking, it's ignored.
 
 **If something's off:**
 - **Add-on connection** on the Voice PE's device page says where it stands:
@@ -225,8 +229,10 @@ prompt.
 - **Integration:** HACS shows its update; install it and restart Home Assistant.
 
 Your Wi-Fi, the device's encryption key and its link to the add-on live on the
-device, and an update keeps them. When the add-on's secret, certificate or address
-changes, the integration gives the device the new ones.
+device, and an update keeps them. When the add-on's secret, certificate or port
+changes, Home Assistant shows the new link as discovered, and the integration gives
+it to the device once you confirm it. An address set in the integration's
+**Configure** dialog reaches the device at once.
 
 ---
 
@@ -257,16 +263,18 @@ firmware update.
    [`esphome-builder.dhcp.yaml`](esphome-builder.dhcp.yaml), or
    [`esphome-builder.static-ip.yaml`](esphome-builder.static-ip.yaml) for a fixed IP
    (with `static_ip`, `gateway`, `subnet`, `dns1`, `dns2` in your secrets). Set
-   `name` and `friendly_name`, keep the `packages:`, `ota:` and `dashboard_import:`
-   blocks, and delete the optional blocks you don't want: whatever you leave out is
-   set as with the prebuilt firmware.
+   `name` and `friendly_name` under `substitutions:`, keep the `esphome:`,
+   `packages:`, `ota:`, `update: !remove` and `dashboard_import:` blocks, and
+   delete the optional blocks you don't want: whatever you leave out is set as with
+   the prebuilt firmware.
 4. **Install → Plug into this computer** the first time onto a device running the
    prebuilt firmware, which takes no uploads from Builder. After that, Builder's
    **Install → Wirelessly** works, with your `ota_password`.
 
 A link in the build counts as the device's first link, so no button press is
 needed; the integration still gives it a new one when the add-on's secret,
-certificate or address changes.
+certificate or port changes (once you confirm it), or when you set another address
+in its **Configure** dialog.
 
 ---
 
@@ -309,7 +317,8 @@ certificate or address changes.
 
 ## Credits
 
-- Backend forked from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)** (Felix Fricke).
+- A hard fork of **[xandervanerven/ha-openai-realtime](https://github.com/xandervanerven/ha-openai-realtime)** and **[xandervanerven/home-assistant-voice-pe](https://github.com/xandervanerven/home-assistant-voice-pe)** (Xander van Erven); see [Where this comes from](../README.md#where-this-comes-from).
+- Backend originally from **[fjfricke/ha-openai-realtime](https://github.com/fjfricke/ha-openai-realtime)** (Felix Fricke).
 - Firmware thin-client design based on **[maxmaxme/home-assistant-voice-pe](https://github.com/maxmaxme/home-assistant-voice-pe)**, a fork of **[esphome/home-assistant-voice-pe](https://github.com/esphome/home-assistant-voice-pe)** (Nabu Casa / ESPHome).
 - Inspiration from **[marcinnowak79/home-assistant-voice-pe](https://github.com/marcinnowak79/home-assistant-voice-pe)** (gemini-live-proxy).
 - Built on the **OpenAI Realtime API** and the official **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)** integration.

@@ -3,7 +3,7 @@
     "abort": {
       "already_configured": "The add-on's Voice PE is set up already: the add-on serves one device.",
       "other_addon": "Another add-on offered a link to the Voice PE: only the add-on the integration was set up with can change it. If you moved to a new copy of the add-on, remove this integration and add it again.",
-      "invalid_offer": "The add-on's offer isn't in a form the Voice PE takes: a port, a secret of 16 to 128 visible characters, and a certificate.",
+      "invalid_offer": "The add-on's offer isn't in a form the Voice PE takes: a port, a secret of 16 to 128 visible characters, a certificate, and a fingerprint key.",
       "link_updated": "The Voice PE takes the add-on's new link."
     },
     "step": {
@@ -36,7 +36,7 @@
     "step": {
       "init": {
         "title": "The add-on's address",
-        "description": "Where the Voice PE finds the add-on. Leave empty for Home Assistant's own address on your network, which suits the add-on running on Home Assistant's host; set it if the device needs another, such as a name it resolves. It starts with wss:// and ends with the add-on's port.",
+        "description": "Where the Voice PE finds the add-on. Leave empty for Home Assistant's own address on your network, which suits the add-on running on Home Assistant's host; set it if the device needs another, such as a name it resolves. It starts with wss:// and has the add-on's port, such as wss://192.0.2.10:8080/.",
         "data": {
           "url": "Address"
         }

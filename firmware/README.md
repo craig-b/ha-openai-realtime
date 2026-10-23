@@ -10,10 +10,11 @@
 >
 > 📖 New here? The full **[INSTALL guide](INSTALL.md)** sets up all three, step by step.
 
-> **Customized fork** of `maxmaxme/home-assistant-voice-pe` (itself a fork of
-> `esphome/home-assistant-voice-pe`). The Voice PE runs as a **thin client**: it
-> streams microphone audio over an encrypted WebSocket, authenticated with a shared
-> secret, to a backend add-on, which runs an OpenAI voice session (`gpt-realtime-2.1`,
+> Part of a **hard fork** (see [Where this comes from](../README.md#where-this-comes-from)):
+> a `git subtree` of `esphome/home-assistant-voice-pe` at its release 26.9.0, with
+> a thin-client design based on `maxmaxme/home-assistant-voice-pe`'s fork of it.
+> The Voice PE runs as a **thin client**: it streams microphone audio over an
+> encrypted WebSocket, authenticated with a shared secret, to a backend add-on, which runs an OpenAI voice session (`gpt-realtime-2.1`,
 > or GPT-Live) and controls Home Assistant through the official
 > **[Home Assistant MCP Server](https://www.home-assistant.io/integrations/mcp_server/)**
 > integration. There is no Home Assistant `voice_assistant` pipeline on the audio
@@ -27,19 +28,22 @@
 ## What this fork changes vs. upstream
 
 - **Custom `va_client` component** replaces the stock `voice_assistant`
-  component: a thin WebSocket client (mic up / speaker down + an idle → listening
-  → thinking → replying phase/LED state machine). All the voice intelligence
-  runs in the backend add-on, not on the device.
+  component: a thin WebSocket client (mic up / speaker down + an idle → waiting →
+  listening → thinking → replying phase/LED state machine, shown as the "Voice
+  phase" sensor). All the voice intelligence runs in the backend add-on, not on
+  the device.
 - **One image for every Voice PE**, with nothing of yours in it: Wi-Fi is set from
   the install page or over Bluetooth, Home Assistant sets the API's encryption key
   as it adds the device, and the add-on's integration sets the link to the add-on
   (its address, the device secret and its certificate, kept in flash; the first
-  link only once the centre button is pressed). Updates come from the published
-  releases, as a firmware update in Home Assistant. It takes no uploads over the
-  network.
-- **"stop" word + button interrupt**: say *"stop"* while the assistant is
-  talking, or press the center button, to cancel the reply. This is the reliable
-  way to interrupt.
+  link only once the centre button is pressed, and a changed secret, certificate
+  or port once the owner confirms it in Home Assistant). Updates come from the
+  published releases, as a firmware update in Home Assistant. It takes no uploads
+  over the network.
+- **Wake word, "stop" word and button**: say *"Alexa"* (the only wake word) or
+  press the centre button to start. Say *"stop"* or press the centre button to
+  stop: a reply, the listening window after one, or a tool (a web search, a Home
+  Assistant action) still running. This is the reliable way to interrupt.
 - **Conversational, with online answers**: because the brain is an OpenAI voice
   model in the backend, you get a natural back-and-forth — and with web search enabled it
   can look things up online (weather, news, facts), not just control your devices.
@@ -70,9 +74,9 @@ at the checkout (it rewrites the file: don't commit the result).
   next wake (OpenAI caps sessions at 60 minutes).
 - **Rarely, the assistant may stop itself** on a word in its own reply that sounds
   like "stop" — just ask again.
-- **Using "stop":** interrupts the assistant *while it's speaking* (during a reply
-  or the short listening window right after one); it has no effect before it has
-  started answering.
+- **Using "stop":** works during a reply, in the short listening window right
+  after one, and while a tool runs. Before then, while you're still asking or it
+  is still thinking, it's ignored, as a misfire on your own words.
 
 ---
 

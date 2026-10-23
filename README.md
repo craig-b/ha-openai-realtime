@@ -55,11 +55,14 @@ Thank you to Felix and Xander: this is built on their work.
 
 - **[`custom_components/openai_realtime_voice_agent/`](custom_components/openai_realtime_voice_agent/)**
   — the Home Assistant integration, installed through HACS. It links the Voice PE
-  to the add-on (the add-on's address, the device secret and its certificate, from
-  the add-on's discovery offer), and makes it an Assist satellite: Home Assistant's
-  own announce and start conversation actions reach it, and its state follows the
-  conversation. Its tests run in a real Home Assistant:
-  [`integration_tests/`](integration_tests/).
+  to the add-on, and makes it an Assist satellite: Home Assistant's own announce
+  and start conversation actions reach it, and its state follows the conversation.
+  The add-on's discovery offer carries its port, the device secret, its certificate
+  and a key for the link's fingerprint. The integration gives the device the
+  secret, the certificate and an address: Home Assistant's own local IP with that
+  port, or one set in the integration's options. A changed secret, certificate or
+  port takes effect once you confirm it in Home Assistant. Its tests run in a real
+  Home Assistant: [`integration_tests/`](integration_tests/).
 
 - **[`firmware/`](firmware/)** — the Voice PE firmware (ESPHome, with a custom
   `va_client` component, specific to the Voice PE hardware). One image serves every
@@ -88,8 +91,11 @@ Thank you to Felix and Xander: this is built on their work.
 5. Install the firmware on the Voice PE from the
    **[install page](https://craig-b.github.io/ha-openai-realtime/)** (Chrome or Edge,
    over USB), and give it your Wi-Fi.
-6. Add the Voice PE (ESPHome) and then the integration when Home Assistant shows them
-   as discovered, and press the Voice PE's centre button when Home Assistant asks.
+6. Add the Voice PE when Home Assistant shows it as discovered by ESPHome.
+7. Add the integration when Home Assistant shows it as discovered, as **OpenAI
+   Realtime Voice Agent** (the add-on offers it about a minute after it finds the
+   integration installed), and pick the Voice PE. Then press the Voice PE's centre
+   button when Home Assistant asks.
 
 The [INSTALL guide](firmware/INSTALL.md) has each step in full.
 
@@ -107,7 +113,10 @@ Voice PE (ESP32-S3)  ──WSS, 16 kHz PCM up──▶   this add-on    ──�
 ```
 
 The device does wake-word detection and XMOS audio cleanup locally and is a thin
-client. Interrupt a reply with the **"stop"** word or the center button.
+client. Start a conversation with the wake word **"Alexa"** (the only one) or the
+centre button. Stop it by saying **"stop"** or pressing the centre button: "stop"
+works while the assistant replies, in the listening window after a reply, and
+while a tool (a web search, a Home Assistant action) runs.
 
 ## Known limitations
 
