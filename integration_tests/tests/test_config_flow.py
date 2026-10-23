@@ -113,6 +113,25 @@ async def test_a_device_home_assistant_doesnt_know_is_picked_by_hand(hass: HomeA
     assert result["step_id"] == "user"
 
 
+async def test_an_offer_without_its_device_shows_the_link_as_the_voice_pe_is_picked(
+    hass: HomeAssistant, voice_pe: dr.DeviceEntry
+):
+    # On a first install the device can't connect before it's linked: the add-on can't name it.
+    result = await init_hassio(hass, offer())
+    assert result["step_id"] == "discovery_pick"
+    assert result["description_placeholders"] == {"slug": DISCOVERY.slug, "fingerprint": link_fingerprint(LINK)}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {CONF_DEVICE_ID: voice_pe.id})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == {CONF_DEVICE_ID: voice_pe.id, "link": LINK, CONF_ADDON: DISCOVERY.slug}
+
+
+async def test_an_offer_naming_a_device_home_assistant_doesnt_know_shows_the_link_too(
+    hass: HomeAssistant, voice_pe: dr.DeviceEntry
+):
+    result = await init_hassio(hass, offer(mac="02:00:00:ff:ff:ff"))
+    assert result["step_id"] == "discovery_pick"
+
+
 async def test_the_add_ons_offer_brings_the_link_and_shows_its_certificate(
     hass: HomeAssistant, voice_pe: dr.DeviceEntry
 ):

@@ -315,11 +315,12 @@ makes the Voice PE an Assist satellite (section 7).
    reach the add-on until it's linked, so the add-on can't say which device it is:
    after about a minute it offers the integration without naming it, as **OpenAI
    Realtime Voice Agent**, perhaps before the Voice PE is in Home Assistant. Add the Voice PE
-   first, then **Add** the integration and pick the Voice PE. Or add it from
-   **Add integration** yourself. When the add-on can name the device, the
-   integration shows up under its name and only asks you to confirm, showing which
-   add-on the offer comes from and the link's fingerprint; the add-on's log shows
-   its link's fingerprint at every start (the `🔗` line), so check they match.
+   first, then **Add** the integration and pick the Voice PE. When the add-on can
+   name the device, the integration shows up under its name and only asks you to
+   confirm. Either way it shows which add-on the offer comes from and the link's
+   fingerprint; the add-on's log shows its link's fingerprint at every start (the
+   `🔗` line), so check they match. Or add it from **Add integration** yourself:
+   it then has no link until the add-on offers one, which you confirm.
 3. The first time, Home Assistant shows a repair asking you to press the Voice PE's
    **centre button**: the device takes its link only once someone at it agrees.
    Press it once. If the repair says *not* to press it, something else set a link on

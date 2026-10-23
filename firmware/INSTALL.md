@@ -166,7 +166,9 @@ with nothing of yours in it: Home Assistant sets up the rest.
    Agent**: the add-on offers it about a minute after it finds the integration
    installed. It may show before the Voice PE does; add the Voice PE first. Then
    **Add** the integration, and pick the Voice PE when it asks which device runs
-   the add-on's firmware.
+   the add-on's firmware. It also names the add-on the offer comes from and the
+   link's fingerprint: check it matches the `🔗 … fingerprint` line in the
+   add-on's **Log** before you submit.
 
 ### 3.3 Press the centre button
 

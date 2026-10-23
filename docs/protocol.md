@@ -339,8 +339,9 @@ Assist satellite:
   it as discovered. The offer names the device, `{"mac": "..."}` from its
   `start`, so the integration finds its ESPHome device and only asks to confirm;
   it waits up to 60 s for the device to connect, then offers without, and the
-  integration asks which device it is. On a first install the device can't
-  connect until it's linked, so the offer comes without.
+  integration asks which device it is, showing the link to check as it does
+  when it only asks to confirm. On a first install the device can't connect
+  until it's linked, so the offer comes without.
   The offer also carries what a device needs to connect, `{"link": {"port",
   "secret", "certificate", "fingerprint_key"}}`, which the integration sets on the device (its
   `set_addon_link` action) when the device's "Add-on link" sensor differs (the

@@ -14,6 +14,13 @@
           "device_id": "Voice PE"
         }
       },
+      "discovery_pick": {
+        "title": "The add-on's Voice PE",
+        "description": "Pick the Voice PE that runs the add-on's firmware. It becomes an Assist satellite, so Home Assistant's announce and start conversation actions reach the OpenAI assistant on it.\n\nThis also links the Voice PE to the add-on that made the offer:\n\n- Add-on: `{slug}`\n- Link fingerprint: `{fingerprint}`\n\nThe add-on's log shows its link's fingerprint at every start: set this up only if they match.",
+        "data": {
+          "device_id": "Voice PE"
+        }
+      },
       "discovery_confirm": {
         "title": "The add-on's Voice PE",
         "description": "Set up {name}, the Voice PE that runs the add-on's firmware, as an Assist satellite? Home Assistant's announce and start conversation actions will then reach the OpenAI assistant on it.\n\nThis also links the Voice PE to the add-on that made the offer:\n\n- Add-on: `{slug}`\n- Link fingerprint: `{fingerprint}`\n\nThe add-on's log shows its link's fingerprint at every start: set this up only if they match."

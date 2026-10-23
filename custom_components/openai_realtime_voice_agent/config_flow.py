@@ -132,7 +132,9 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         if self._voice_pe is None:
             self.context["title_placeholders"] = {"name": "OpenAI Realtime Voice Agent"}
-            return await self.async_step_user()
+            if self._link is None:
+                return await self.async_step_user()
+            return await self.async_step_discovery_pick()
         self.context["title_placeholders"] = {"name": _name(self._voice_pe)}
         return await self.async_step_discovery_confirm()
 
@@ -191,6 +193,20 @@ class OpenAIRealtimeVoiceAgentConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="discovery_confirm",
             description_placeholders={"name": _name(self._voice_pe), **self._offer_placeholders()},
+        )
+
+    async def async_step_discovery_pick(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Set up for the device the owner picks, with the link the add-on offered.
+
+        The add-on couldn't name the device: on a first install it can't connect
+        before it's linked. The owner checks the link as for discovery_confirm.
+        """
+        assert self._link is not None
+        self._abort_if_unique_id_configured()
+        if user_input is not None:
+            return self._create_entry_for(user_input[CONF_DEVICE_ID])
+        return self.async_show_form(
+            step_id="discovery_pick", data_schema=_PICK_VOICE_PE, description_placeholders=self._offer_placeholders()
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
