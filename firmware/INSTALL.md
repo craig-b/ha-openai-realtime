@@ -1,11 +1,14 @@
 # Install guide — Home Assistant Voice PE + OpenAI Realtime 2
 
-A complete, from-zero walkthrough for a newcomer. You'll set up two halves:
+A complete, from-zero walkthrough for a newcomer. You'll set up three parts:
 
-1. the **backend add-on** (the voice "brain" that runs the OpenAI session), and
-2. the **device firmware** (turns the Voice PE into a thin client that listens and speaks).
+1. the **backend add-on** (the voice "brain" that runs the OpenAI session),
+2. the **integration**, which links the Voice PE to the add-on and makes it an
+   Assist satellite, and
+3. the **device firmware** (turns the Voice PE into a thin client that listens and
+   speaks), installed from your browser.
 
-Plan ~30–45 minutes the first time. After that, updates are one click.
+After that, updates come to Home Assistant like any other.
 
 ```
 Home Assistant Voice PE          Home Assistant (your box)             Cloud
@@ -25,9 +28,12 @@ up online** (weather, news, facts) — web search is on by default.
 ## What you need
 
 - A **Home Assistant Voice PE** device (this firmware is **only** for that hardware).
-- **Home Assistant OS** (so you can install add-ons).
+- **Home Assistant OS** (so you can install add-ons), with **[HACS](https://hacs.xyz/)**
+  (to install the integration).
 - An **OpenAI account** with **billing enabled** (the voice runs on OpenAI's paid API).
-- A few minutes at the keyboard, and the device on the **same network** as Home Assistant.
+- For the first install: a computer with **Chrome or Edge**, and a **USB-C cable that
+  carries data**.
+- The device on the **same network** as Home Assistant.
 
 ---
 
@@ -47,9 +53,9 @@ up online** (weather, news, facts) — web search is on by default.
    and make sure **billing** is enabled on the account.
 2. Open the add-on's **Configuration** tab and paste the key into **`openai_api_key`**.
 3. Set **`device_secret`** to a random string of at least 16 characters with no
-   spaces, e.g. the output of `openssl rand -hex 32`. Keep it to hand: the device
-   needs the same value (step 2.3). The add-on refuses any connection without it,
-   and doesn't start until it's set.
+   spaces, e.g. the output of `openssl rand -hex 32`. The add-on refuses any
+   connection without it, and doesn't start until it's set. You don't need to keep
+   it: the integration gives it to the device (Part 2).
 
 > New OpenAI accounts start on a low rate-limit tier. If you later see *"Rate limit
 > reached"* in the log, raise your usage tier on the OpenAI dashboard.
@@ -95,136 +101,174 @@ the **⚡ Realtime settings** panel:
 | `mcp_tool_allowlist` | **blank** (use all of the official server's tools — it's already a small set) |
 | `enable_web_search` | `true` (online lookups on by default; set `false` to disable) |
 | `realtime → web_search_model` | `gpt-6-luna` (the quickest and cheapest) |
-| `house_rules` | the English default: the assistant's personality and language (to change language, see Part 5) |
+| `house_rules` | the English default: the assistant's personality and language (to change language, see Part 7) |
 
 ### 1.5 Start it
 
 Click **Start**, then open the **Log** tab. A healthy start shows
 `✅ Listening for the device on wss://0.0.0.0:8080/`. The add-on reads Home
 Assistant's tools each time a conversation starts, so the first time you talk to
-it (Part 3) the log shows `🔧 Home Assistant offers N tools` with `Hass*` names.
+it (Part 4) the log shows `🔧 Home Assistant offers N tools` with `Hass*` names.
 
 The log also prints the add-on's **certificate**, a block from
 `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`. The connection to
 the device is encrypted with it, and the device only connects to an add-on with
-exactly this certificate. Copy the whole block for step 2.3. The add-on makes it
-on first start and keeps it, in `certificate.pem` in the `tls` folder of its
+exactly this certificate. The integration gives it to the device, so there's
+nothing to copy (unless you build the firmware yourself, Part 6). The add-on makes
+it on first start and keeps it, in `certificate.pem` in the `tls` folder of its
 `addon_configs` folder.
 
 ---
 
-## Part 2 — The device firmware
+## Part 2 — The integration
 
-This replaces the stock Home Assistant voice pipeline on the Voice PE with a thin
-client that streams audio to the add-on. You set it up **once** via a tiny "stub"
-config; after that, firmware updates are one click (no copy-pasting).
+The integration links the Voice PE to the add-on: it gives the device the add-on's
+address, the device secret and the certificate, and gives them again whenever they
+change. It also makes the Voice PE an **Assist satellite**, so Home Assistant's
+announce and start conversation actions reach it (see the add-on's DOCS.md,
+section 7).
 
-### 2.1 Install the ESPHome Builder add-on
+1. In **HACS → ⋮ → Custom repositories**, add
+   `https://github.com/craig-b/ha-openai-realtime` with the type **Integration**.
+2. Install **OpenAI Realtime Voice Agent**, then **restart Home Assistant**.
 
-You build and flash the firmware with the **ESPHome Device Builder** add-on — the
-official [ESPHome](https://esphome.io/) tool that runs inside Home Assistant. You need
-it to adopt the device and flash this firmware onto it.
-
-1. Open **Settings → Add-ons → Add-on Store**, search **ESPHome Device Builder**, and
-   click **Install**
-   ([one-click open](https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome)).
-2. Enable **Show in sidebar**, then **Start** → **Open Web UI**.
-
-### 2.2 Adopt the Voice PE
-
-1. The Voice PE (on its stock firmware) should appear in ESPHome Builder as a
-   **discovered device**. If it doesn't, add it by its `home-assistant-voice-xxxx.local`
-   address.
-2. Click **Adopt**. ESPHome creates a device entry. **Don't install the stock config
-   yet.**
-3. ESPHome generates an **API encryption key** and an **OTA password** for the device —
-   note both; you'll put them in `secrets.yaml` next.
-
-### 2.3 Add your secrets
-
-In ESPHome Builder → **Secrets** (top-right ⋮), add:
-
-```yaml
-wifi_ssid: "Your-WiFi"
-wifi_password: "your-wifi-password"
-ota_password: "the-OTA-password-from-step-2.2"
-api_key: "the-API-encryption-key-from-step-2.2"   # 44-char base64
-va_secret: "the-device_secret-from-step-1.2"
-va_certificate: |
-  -----BEGIN CERTIFICATE-----
-  the lines of the certificate from step 1.5, indented like this
-  -----END CERTIFICATE-----
-
-# Optional — ONLY if you want a fixed IP (otherwise the device uses DHCP):
-# static_ip: "192.168.1.50"
-# gateway:   "192.168.1.1"
-# subnet:    "255.255.255.0"
-# dns1:      "1.1.1.1"
-# dns2:      "1.0.0.1"
-```
-
-> The firmware itself is pulled from the **public** repo at build time — no token needed.
-
-### 2.4 Paste the device stub & flash
-
-1. In ESPHome Builder, **Edit** the adopted device and **replace its entire YAML** with
-   a ready-made stub from the repo's `firmware/` folder:
-   - DHCP: [`esphome-builder.dhcp.yaml`](https://github.com/craig-b/ha-openai-realtime/blob/main/firmware/esphome-builder.dhcp.yaml)
-   - Fixed IP: [`esphome-builder.static-ip.yaml`](https://github.com/craig-b/ha-openai-realtime/blob/main/firmware/esphome-builder.static-ip.yaml)
-
-   Set `name` and `friendly_name`, and **keep** the `packages:` / `dashboard_import:`
-   lines — those are what pull the full firmware from the repo. Save.
-
-   > Optional: if your add-on isn't reachable at `wss://homeassistant.local:8080/`, add a
-   > `va_url:` line under `substitutions:` with your HA host, e.g.
-   > `va_url: "wss://192.168.1.10:8080/"`.
-
-2. Click **Install →**
-   - **First time:** choose **Plug into this computer** — the first flash from stock
-     firmware needs the device connected by **USB** to the machine running your browser.
-   - **After that:** **Wirelessly (OTA)** — every later flash goes over Wi-Fi.
-
-That's it — the device boots, connects to the add-on, and you're ready to talk to it.
+You add it in Part 3, once the Voice PE is in Home Assistant.
 
 ---
 
-## Part 3 — First run & verify
+## Part 3 — The device firmware
 
-1. After boot, the LED ring should settle to **idle (blue)** — that means the device
-   reached the add-on's WebSocket.
+This replaces the stock Home Assistant voice pipeline on the Voice PE with a thin
+client that streams audio to the add-on. There is one firmware for every Voice PE,
+with nothing of yours in it: Home Assistant sets up the rest.
+
+### 3.1 Install it from your browser
+
+1. Open the **[install page](https://craig-b.github.io/ha-openai-realtime/)** in
+   Chrome or Edge on a computer.
+2. Connect the Voice PE to the computer with the USB-C cable, press **Install**, pick
+   the Voice PE's port, and confirm. It replaces the firmware on the device.
+3. When it's done, the installer offers to connect the Voice PE to your **Wi-Fi**:
+   pick your network and enter its password.
+
+   If you skip it, set Wi-Fi up over Bluetooth instead: with Bluetooth on your Home
+   Assistant, it finds the Voice PE nearby (**Improv via BLE**). Start the setup there,
+   and press the Voice PE's **centre button** when its lights twinkle warm white.
+
+### 3.2 Add it to Home Assistant
+
+1. Under **Settings → Devices & services**, Home Assistant shows the Voice PE as
+   discovered by **ESPHome**, as `home-assistant-voice-` and six characters of its
+   address. **Add** it and confirm. Home Assistant gives the device its own
+   encryption key as it adds it.
+2. The integration then shows up as discovered, under the Voice PE's name: the
+   add-on offers it. **Add** it and confirm.
+
+### 3.3 Press the centre button
+
+The first time, the Voice PE takes its link to the add-on only once someone presses
+its centre button: that's how the device knows someone at it agreed to it. Its
+lights twinkle warm white, and Home Assistant shows a repair, **"Press the centre
+button on …"** (under **Settings → System → Repairs**, and on the Settings badge).
+Press the button once.
+
+The Voice PE connects to the add-on and its light ring settles to **idle**.
+
+> If the repair says **"Don't press the centre button"**, something else in Home
+> Assistant set a link on the device before the integration did. Don't press it:
+> restart the Voice PE (unplug it and plug it back in), and the integration's link
+> takes its place.
+
+### Coming from a firmware you built yourself
+
+A Voice PE that ran a firmware built in ESPHome Device Builder (Part 6) moves to
+this one with a USB install from the install page, as in 3.1. Then delete the
+device from ESPHome Device Builder, so it stops offering its own updates. Home
+Assistant keeps the device; if it asks about its encryption key, follow its
+prompt.
+
+---
+
+## Part 4 — First run & verify
+
+1. The light ring settles to **idle** once the device reaches the add-on. On the
+   Voice PE's device page in Home Assistant, **Add-on connection** says `connected`.
 2. Say **"alexa"** → a wake chime plays and the ring turns to **listening**.
 3. Ask for something you exposed, e.g. *"turn on the bedroom lamp"* → the ring shows
    **thinking** → it acts and replies.
 4. To interrupt a reply: say **"stop"** or press the **center button**.
 
-**If something's off, check the logs:**
+**If something's off:**
+- **Add-on connection** on the Voice PE's device page says where it stands:
+  `not linked` (the integration hasn't linked it yet: is it set up, and the add-on
+  running?), `awaiting button` (press the centre button), `connecting` (the add-on
+  isn't reachable at the address it was given), or `refused` (the add-on turned down
+  its secret; the integration gives it the new one).
+- The integration connects the device to Home Assistant's own address on your
+  network. If the device needs another address for the add-on, set it in the
+  integration's **Configure** dialog.
 - Add-on **Log** tab: `🤖 assistant:` lines (and `🗣️ user:` lines, with
   `log_what_you_say` on, or always with GPT-Live), tool calls, `📞 phase ->` changes,
-  and `🔌 opening an OpenAI session` / `🔌 OpenAI session closed`. If the device
-  can't connect, the device log says whether `va_secret` was refused.
-- Device logs: ESPHome Builder → your device → **Logs**.
+  and `🔌 opening an OpenAI session` / `🔌 OpenAI session closed`.
 
 ---
 
-## Part 4 — Updating later (one click)
+## Part 5 — Updating later
 
-- **Firmware:** when a new version is released, ESPHome Builder shows **"Update
-  available"** for your device. Click it → it recompiles with the latest config + code
-  and flashes over Wi-Fi. No copy-pasting, ever again.
+- **Firmware:** when a new version is released, Home Assistant shows a firmware
+  **update** for the Voice PE (**Settings → Updates**). Install it there: it
+  downloads the released firmware onto the device over Wi-Fi.
 - **Add-on:** Home Assistant shows an **Update** badge on the add-on (with a changelog).
-  Click **Update** — it rebuilds and restarts.
+  Click **Update**.
+- **Integration:** HACS shows its update; install it and restart Home Assistant.
 
-Your device-specific settings (name, Wi-Fi, IP) live in your stub + `secrets.yaml` and
-are **never** overwritten by an update. That also means an update that needs a new
-secret can't add it for you: when the changelog says so, add it to `secrets.yaml` and
-your stub yourself, as in Part 2. Updating from a version without the device secret
-needs exactly that: `device_secret` in the add-on; `va_secret` and `va_certificate` in
-`secrets.yaml` and in the stub's `substitutions:`; and `wss://` in place of `ws://` in
-any `va_url` you set.
+Your Wi-Fi, the device's encryption key and its link to the add-on live on the
+device, and an update keeps them. When the add-on's secret, certificate or address
+changes, the integration gives the device the new ones.
 
 ---
 
-## Part 5 — Tuning tips
+## Part 6 — Building the firmware yourself
+
+Most people don't need this: the prebuilt firmware is the same config, built by
+this repository's CI for each release. Build it yourself to change it, or to keep
+Wi-Fi, the API key or the link to the add-on in the build rather than setting them
+at runtime. You build it in the **ESPHome Device Builder** add-on, from a small
+per-device stub that takes the firmware from this repository as a package, and
+updates come from Builder (**Update**, which recompiles), not from Home Assistant's
+firmware update.
+
+1. Install **ESPHome Device Builder** (**Settings → Add-ons → Add-on Store**,
+   [one-click open](https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome)),
+   and open its web UI.
+2. In **Builder → Secrets** (top-right ⋮), add the keys your stub uses, from
+   [`secrets.yaml.example`](secrets.yaml.example). Always `ota_password`, the
+   password for Builder's uploads to the device; the rest only for the blocks
+   you keep:
+   - `wifi_ssid`, `wifi_password`: Wi-Fi in the build.
+   - `api_key`: your own API encryption key (`openssl rand -base64 32`), which you
+     give Home Assistant when you add the device.
+   - `va_url`, `va_secret`, `va_certificate`: the link to the add-on in the build:
+     its address (`wss://`, Home Assistant's address, the add-on's port), its
+     `device_secret`, and the certificate its log prints.
+3. Create a device, and replace its YAML with a stub:
+   [`esphome-builder.dhcp.yaml`](esphome-builder.dhcp.yaml), or
+   [`esphome-builder.static-ip.yaml`](esphome-builder.static-ip.yaml) for a fixed IP
+   (with `static_ip`, `gateway`, `subnet`, `dns1`, `dns2` in your secrets). Set
+   `name` and `friendly_name`, keep the `packages:`, `ota:` and `dashboard_import:`
+   blocks, and delete the optional blocks you don't want: whatever you leave out is
+   set as with the prebuilt firmware.
+4. **Install → Plug into this computer** the first time onto a device running the
+   prebuilt firmware, which takes no uploads from Builder. After that, Builder's
+   **Install → Wirelessly** works, with your `ota_password`.
+
+A link in the build counts as the device's first link, so no button press is
+needed; the integration still gives it a new one when the add-on's secret,
+certificate or address changes.
+
+---
+
+## Part 7 — Tuning tips
 
 - **It hears its own tail** (a stray turn right after a reply, or it repeats
   its last answer): the default `follow_up_open_delay_ms` of `700` normally

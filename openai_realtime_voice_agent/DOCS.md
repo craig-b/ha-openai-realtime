@@ -31,16 +31,18 @@ Voice PE device  ──encrypted WebSocket──▶  this add-on  ──▶  Ope
 3. Paste the key into the add-on's **`openai_api_key`** option.
 4. Set **`device_secret`** to a random string of at least 16 characters with no
    spaces, e.g. the output of `openssl rand -hex 32`. Your Voice PE sends the same
-   value (`va_secret` in your ESPHome secrets) to connect; the add-on refuses any
-   connection without it, so nothing else on your network can use your OpenAI key
-   or your home's controls through the add-on. The add-on doesn't start until it's
-   set.
+   value to connect; the add-on refuses any connection without it, so nothing else
+   on your network can use your OpenAI key or your home's controls through the
+   add-on. The add-on doesn't start until it's set.
 
 The connection to the device is also encrypted, so nobody on your network can
 listen to your microphone or read the secret. The add-on makes its own
-certificate on first start, keeps it, and prints it in its log at every start;
-the device needs it as `va_certificate` in your ESPHome secrets (see the
-firmware's INSTALL guide).
+certificate on first start, keeps it, and prints it in its log at every start.
+
+You don't copy either to the device: the add-on's integration does (see
+[The integration](#the-integration) below). The first time, the Voice PE asks for a
+press of its centre button before it takes them. If you change `device_secret`,
+the integration gives the device the new one.
 
 > **Heads-up on rate limits:** new accounts start at a low tokens-per-minute (TPM)
 > tier. `gpt-realtime-2.1` audio is token-heavy, so if you see *"Rate limit reached"*
@@ -227,24 +229,15 @@ counts as `spoken` once its first words have been said. What was said is part of
 ask about it straight after. "Stop" interrupts it as it does any reply. The log
 shows each request as a `📣` line.
 
-### As an Assist satellite (optional integration)
+### As an Assist satellite
 
-The repository also has a Home Assistant integration, installed through HACS, that
-makes the Voice PE an **Assist satellite**. Home Assistant's own **Assist
+The add-on's integration (see [The integration](#the-integration)) also makes the
+Voice PE an **Assist satellite**. Home Assistant's own **Assist
 satellite: Announce** and **Start conversation** actions then reach it, with a form
 in the action editor, and wait until it has been said; so do blueprints made for
 voice satellites. Its state (idle, listening, processing, responding) follows the
 conversation, for automations to use, and it's unavailable while the Voice PE isn't
 connected to the add-on.
-
-1. In HACS → ⋮ → **Custom repositories**, add
-   `https://github.com/craig-b/ha-openai-realtime` as an **Integration**, then
-   install **OpenAI Realtime Voice Agent** and restart Home Assistant.
-2. Under **Settings → Devices & services** it shows up as discovered, under your
-   Voice PE's name: the add-on offers it once it's installed. **Add** it and
-   confirm. (With firmware before 1.5.0, which doesn't tell the add-on which device
-   it is, you pick the Voice PE instead.) Or add it from **Add integration**
-   yourself.
 
 The satellite gets a device of its own, connected via the Voice PE's, so its entity
 is `assist_satellite.<voice pe>_openai_assist_satellite`. It needs no Assist
@@ -299,17 +292,46 @@ and end. View it on the add-on **Log** tab.
 after one. It has no effect before the assistant has started answering (there's
 nothing to stop yet).
 
+## The integration
+
+The repository has a Home Assistant integration, installed through HACS, that
+links the Voice PE to this add-on: it gives the device the add-on's address, the
+device secret and the certificate, and gives them again when they change. It also
+makes the Voice PE an Assist satellite (section 7).
+
+1. In HACS → ⋮ → **Custom repositories**, add
+   `https://github.com/craig-b/ha-openai-realtime` as an **Integration**, then
+   install **OpenAI Realtime Voice Agent** and restart Home Assistant.
+2. Under **Settings → Devices & services** it shows up as discovered, under your
+   Voice PE's name: the add-on offers it once it's installed. **Add** it and
+   confirm. (With firmware before 1.5.0, which doesn't tell the add-on which device
+   it is, you pick the Voice PE instead.) Or add it from **Add integration**
+   yourself.
+3. The first time, Home Assistant shows a repair asking you to press the Voice PE's
+   **centre button**: the device takes its link only once someone at it agrees.
+   Press it once. If the repair says *not* to press it, something else set a link on
+   the device first: restart the device instead.
+
+It links the device to Home Assistant's own address on your network, which suits
+the add-on running on Home Assistant's host. If the device needs another address,
+set it in the integration's **Configure** dialog (`wss://`, with the add-on's port).
+
 ## Firmware (Home Assistant Voice PE only)
 
 This add-on expects the custom **Voice PE firmware** that turns the device into a
 thin client (it streams mic audio here and plays the reply). That firmware:
 
-- is **specific to the Home Assistant Voice PE** hardware (ESP32-S3 + XMOS), and
-- lives in the **[`firmware/`](https://github.com/craig-b/ha-openai-realtime/tree/main/firmware)** folder of this add-on's repository.
+- is **specific to the Home Assistant Voice PE** hardware (ESP32-S3 + XMOS),
+- is the same for every Voice PE: you install it from your browser, from the
+  **[install page](https://craig-b.github.io/ha-openai-realtime/)**, and Home
+  Assistant sets up the rest (Wi-Fi, its encryption key, and through the
+  integration, its link to the add-on), and
+- updates through Home Assistant, as a firmware update for the Voice PE, with each
+  release.
 
-You flash it once via a tiny per-device "stub" in ESPHome Builder; after that, firmware
-updates are **one click** — no tokens, no copy-pasting. The [INSTALL guide](https://github.com/craig-b/ha-openai-realtime/blob/main/firmware/INSTALL.md) has the full
-from-scratch guide (flashing + adopting the device in ESPHome Builder).
+Its source is the **[`firmware/`](https://github.com/craig-b/ha-openai-realtime/tree/main/firmware)**
+folder of this add-on's repository. The [INSTALL guide](https://github.com/craig-b/ha-openai-realtime/blob/main/firmware/INSTALL.md)
+covers installing everything from scratch, and building the firmware yourself.
 
 ## Credits
 

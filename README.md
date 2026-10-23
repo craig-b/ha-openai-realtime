@@ -5,12 +5,13 @@
 # OpenAI Realtime 2 Voice Agent (Home Assistant Voice PE)
 
 > [!IMPORTANT]
-> **You need both halves, and both live in this repo.** The stock Home Assistant voice
-> pipeline won't talk to this add-on; it needs the custom Voice PE firmware:
+> **You need all three parts, and all live in this repo.** The stock Home Assistant
+> voice pipeline won't talk to this add-on; it needs the custom Voice PE firmware:
 > - 🧠 **Backend add-on** → [`openai_realtime_voice_agent/`](openai_realtime_voice_agent/) — runs inside Home Assistant
-> - 🔌 **Device firmware** → [`firmware/`](firmware/) — flashed onto the Voice PE
+> - 🔗 **Integration** → [`custom_components/`](custom_components/openai_realtime_voice_agent/) — installed through HACS; links the Voice PE to the add-on
+> - 🔌 **Device firmware** → [`firmware/`](firmware/) — installed onto the Voice PE from the **[install page](https://craig-b.github.io/ha-openai-realtime/)**
 >
-> 📖 New here? The full **[INSTALL guide](firmware/INSTALL.md)** walks through both halves, step by step.
+> 📖 New here? The full **[INSTALL guide](firmware/INSTALL.md)** walks through all three, step by step.
 
 A Home Assistant **add-on** that turns a [Voice PE](https://www.home-assistant.io/voice-pe/)
 device into a low-latency voice assistant built on OpenAI's voice models: the
@@ -53,14 +54,18 @@ Thank you to Felix and Xander: this is built on their work.
   - [`CHANGELOG.md`](openai_realtime_voice_agent/CHANGELOG.md) — what changed per version.
 
 - **[`custom_components/openai_realtime_voice_agent/`](custom_components/openai_realtime_voice_agent/)**
-  — an optional Home Assistant integration, installed through HACS, that makes the
-  add-on's Voice PE an Assist satellite: Home Assistant's own announce and start
-  conversation actions reach it, and its state follows the conversation. Its tests
-  run in a real Home Assistant: [`integration_tests/`](integration_tests/).
+  — the Home Assistant integration, installed through HACS. It links the Voice PE
+  to the add-on (the add-on's address, the device secret and its certificate, from
+  the add-on's discovery offer), and makes it an Assist satellite: Home Assistant's
+  own announce and start conversation actions reach it, and its state follows the
+  conversation. Its tests run in a real Home Assistant:
+  [`integration_tests/`](integration_tests/).
 
 - **[`firmware/`](firmware/)** — the Voice PE firmware (ESPHome, with a custom
-  `va_client` component, specific to the Voice PE hardware). ESPHome builds it
-  straight from this repo; see [`firmware/README.md`](firmware/README.md).
+  `va_client` component, specific to the Voice PE hardware). One image serves every
+  Voice PE: CI builds it, and each GitHub Release publishes it on GitHub Pages, with
+  its install page and the manifest Voice PEs update from; see
+  [`firmware/README.md`](firmware/README.md).
   It is a `git subtree` of `esphome/home-assistant-voice-pe`, at its release
   26.9.0, with ESPHome's `voice_kit` component and sounds kept here too, so a
   firmware build comes from this repository alone. A later upstream release
@@ -76,14 +81,19 @@ Thank you to Felix and Xander: this is built on their work.
    and add `https://github.com/craig-b/ha-openai-realtime`.
 2. Install **OpenAI Realtime 2 Voice Agent**. Home Assistant downloads the image
    that CI built and tested for its release (amd64 or aarch64).
-3. Configure the add-on and flash the companion firmware — see
+3. Configure the add-on — see
    [`openai_realtime_voice_agent/DOCS.md`](openai_realtime_voice_agent/DOCS.md).
-4. Optionally, to make the Voice PE an Assist satellite: in HACS, add this repository
-   as a custom repository of type **Integration**, install **OpenAI Realtime Voice
-   Agent**, and restart Home Assistant. It then shows up as discovered under
-   **Settings → Devices & services**; pick the Voice PE. See section 7 of DOCS.md.
+4. In HACS, add this repository as a custom repository of type **Integration**,
+   install **OpenAI Realtime Voice Agent**, and restart Home Assistant.
+5. Install the firmware on the Voice PE from the
+   **[install page](https://craig-b.github.io/ha-openai-realtime/)** (Chrome or Edge,
+   over USB), and give it your Wi-Fi.
+6. Add the Voice PE (ESPHome) and then the integration when Home Assistant shows them
+   as discovered, and press the Voice PE's centre button when Home Assistant asks.
 
-How a release is made, and its images published: [`RELEASING.md`](RELEASING.md).
+The [INSTALL guide](firmware/INSTALL.md) has each step in full.
+
+How a release is made, and its images and firmware published: [`RELEASING.md`](RELEASING.md).
 
 ## How it works
 
