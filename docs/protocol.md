@@ -2,8 +2,7 @@
 
 The contract between the Voice PE firmware (`firmware/esphome/components/va_client/`)
 and the add-on (`openai_realtime_voice_agent/app/`). Everything here is taken from
-the code on both sides; where the two disagree, or one side has handling the other
-never exercises, it is listed under [Gaps](#gaps).
+the code on both sides.
 
 ## Connection
 
@@ -215,10 +214,6 @@ The device also applies `idle` locally on every disconnect.
   for refused settings it names the add-on setting to change.
 - **Device:** plays the error chime and goes `idle`.
 
-### `request_follow_up` (handled by the device, never sent)
-`{"type":"request_follow_up"}`. The device waits for playback to drain, plays a
-chime, then opens the mic for 10 s.
-
 ## OpenAI session
 
 The add-on keeps one OpenAI session per conversation: a Realtime session, or a
@@ -361,7 +356,6 @@ it when the gate opens: it contains the wake chime.
 |---|---|---|---|
 | Device | No-speech watchdog | 7 s after wake | No `listening` yet: send `interrupt`, close mic, LED `idle` |
 | Device | Follow-up window | `follow_up_ms` | Expiry: close mic, send `flush`, LED `idle` |
-| Device | Requested follow-up | 10 s | Window length for `request_follow_up` |
 | Device | Playback drain fallback | 3 s | Proceed with held `idle` even if the speaker never reports drained |
 | Device | Reconnect backoff | 1, 2, 5, 10 s | See [Connection](#connection) |
 | Add-on | Idle debounce | 1500 ms | See `phase` |
@@ -410,8 +404,3 @@ device                         add-on
   ── interrupt ───────────────▶   device flushes playback, drops further audio
   ◀───────────── phase idle       no follow-up
 ```
-
-## Gaps
-
-- **A device handler the add-on never triggers:** `request_follow_up`. The
-  add-on has no `request_follow_up` tool.

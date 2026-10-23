@@ -389,9 +389,7 @@ void VaClient::loop() {
     //
     // Note: this does *not* cover the i2s 500ms ring + ~100ms DAC tail
     // downstream of the mixer. We fire ~500ms before true silence. For
-    // the LED that's imperceptible; for the request_follow_up chime,
-    // yaml's wait_until !is_announcing + i2s tail delay already absorbs
-    // any small overlap with the fading TTS tail.
+    // the LED that's imperceptible.
     const bool speaker_drained =
         (this->speaker_ != nullptr) && !this->speaker_->has_buffered_data();
     const bool timed_out =
@@ -404,25 +402,11 @@ void VaClient::loop() {
                  (unsigned) kSpeakerStopTimeoutMs);
       }
       this->waiting_for_speaker_stop_ = false;
-      const bool was_request = this->request_follow_up_pending_;
       this->followup_pending_ = false;
-      this->request_follow_up_pending_ = false;
-      if (was_request) {
-        // Request-driven path: speaker has drained, now hand off to yaml
-        // for the chime → wait_until !is_announcing → commit_followup_mic
-        // sequence (announcement lane is separate from the TTS lane we
-        // just waited on, so the chime won't collide with our tail).
-        this->open_followup_window_(0);  // emit deferred LED idle + latency log; no mic
-        this->followup_armed_ = true;
-        for (auto *t : this->followup_opened_triggers_) {
-          t->trigger();
-        }
-      } else {
-        // Natural-idle path: emit the deferred LED idle, and — if the backend
-        // configured a follow-up window (followup_ms_ > 0) — open the mic for
-        // that long so the user can answer back without a wake word.
-        this->open_followup_window_(this->followup_ms_);
-      }
+      // Emit the deferred LED idle, and — if the backend configured a
+      // follow-up window (followup_ms_ > 0) — open the mic for that long so
+      // the user can answer back without a wake word.
+      this->open_followup_window_(this->followup_ms_);
     }
   }
 }
@@ -678,22 +662,6 @@ void VaClient::handle_text_(const char *data, size_t len) {
     if (listen_ms > kFollowupMsMax)
       listen_ms = kFollowupMsMax;
     this->begin_unasked_reply_(listen_ms);
-    return;
-  }
-
-  if (msg.find("\"type\":\"request_follow_up\"") != std::string::npos) {
-    // Server's model called the request_follow_up tool — it asked a
-    // question and wants the user to answer without saying a wake word.
-    // Defer to loop()'s waiting_for_speaker_stop_ logic so we only fire
-    // the chime + arm the mic after speaker_->is_stopped() returns true
-    // (i.e. the i2s pipeline has finished playing the question's audio).
-    // Setting both pending flags is idempotent — loop() handles both the
-    // "already drained" and "still queued" cases uniformly via the
-    // speaker-state poll.
-    ESP_LOGI(TAG, "request_follow_up — waiting for speaker drain (%u bytes queued)",
-             (unsigned) this->audio_fill_);
-    this->followup_pending_ = true;
-    this->request_follow_up_pending_ = true;
     return;
   }
 
@@ -1011,8 +979,6 @@ void VaClient::set_phase_(const std::string &phase) {
     this->cancel_timeout("va_no_speech");
     this->followup_pending_ = false;
     this->waiting_for_speaker_stop_ = false;
-    this->request_follow_up_pending_ = false;
-    this->followup_armed_ = false;
     this->idle_emit_pending_ = false;  // new turn began, drop any held idle
   } else if (phase == "idle") {
     // Turn boundary: reset the WS-gap reference so the silence between THIS
@@ -1060,8 +1026,6 @@ void VaClient::set_phase_(const std::string &phase) {
       this->streaming_ = false;
       this->followup_pending_ = false;
       this->waiting_for_speaker_stop_ = false;
-      this->request_follow_up_pending_ = false;
-      this->followup_armed_ = false;
       this->cancel_timeout("va_tts_tail");
       this->idle_emit_pending_ = false;
     } else if (this->audio_fill_ == 0) {
@@ -1186,8 +1150,6 @@ void VaClient::start_session() {
   // follow-up window from the previous turn.
   this->followup_pending_ = false;
   this->waiting_for_speaker_stop_ = false;
-  this->request_follow_up_pending_ = false;
-  this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->suppress_followup_ = false;
   this->end_requested_ = false;
@@ -1248,8 +1210,6 @@ void VaClient::begin_unasked_reply_(uint32_t listen_ms) {
   this->streaming_ = false;
   this->followup_pending_ = false;
   this->waiting_for_speaker_stop_ = false;
-  this->request_follow_up_pending_ = false;
-  this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->cancel_timeout("va_no_speech");
   this->cancel_timeout("va_followup");
@@ -1408,34 +1368,6 @@ void VaClient::fire_phase_led_(const std::string &phase) {
   });
 }
 
-void VaClient::commit_followup_mic() {
-  // Called from yaml's on_followup_opened automation once the chime has
-  // finished playing AND the i2s tail has cleared (wait_until + delay).
-  // If anything pre-empted us between trigger fire and here (a fresh
-  // wake word, a Stop, send_interrupt, or a new turn starting) the
-  // armed flag was cleared — silently no-op so we don't reopen the mic
-  // out of nowhere.
-  if (!this->followup_armed_) {
-    ESP_LOGD(TAG, "commit_followup_mic: not armed, ignoring");
-    return;
-  }
-  this->followup_armed_ = false;
-  ESP_LOGI(TAG, "follow-up mic armed by yaml (window %u ms)",
-           (unsigned) kRequestFollowUpMs);
-  // Discard the pre-roll: the request_follow_up chime just played and leaked
-  // into the ring; don't replay it to OpenAI. (Same "Au!" guard as the wake
-  // path; consumed by the mic task on the next frame.)
-  this->preroll_discard_pending_ = true;
-  this->streaming_ = true;
-  this->set_timeout("va_followup", kRequestFollowUpMs, [this]() {
-    if (this->streaming_) {
-      ESP_LOGI(TAG, "follow-up window expired — mic streaming off");
-      this->streaming_ = false;
-      this->send_mic_flush_();  // drop any uncommitted partial utterance
-    }
-  });
-}
-
 void VaClient::send_interrupt() {
   // Best-effort cancel to the backend — ONLY if the socket is alive. The local
   // cleanup below must ALWAYS run: returning early on a dead socket (the old
@@ -1480,8 +1412,6 @@ void VaClient::send_interrupt() {
   this->streaming_ = false;
   this->followup_pending_ = false;
   this->waiting_for_speaker_stop_ = false;
-  this->request_follow_up_pending_ = false;
-  this->followup_armed_ = false;
   this->idle_emit_pending_ = false;
   this->cancel_timeout("va_no_speech");
   this->cancel_timeout("va_followup");

@@ -18,7 +18,6 @@ namespace va_client {
 
 class OnPhaseTrigger;
 class OnRepeatedFailureTrigger;
-class OnFollowupOpenedTrigger;
 
 // The link to the add-on, as kept in flash: set by Home Assistant (set_link),
 // so one firmware image serves every install.
@@ -90,9 +89,6 @@ class VaClient : public Component {
   void add_on_repeated_failure_trigger(OnRepeatedFailureTrigger *t) {
     repeated_failure_triggers_.push_back(t);
   }
-  void add_on_followup_opened_trigger(OnFollowupOpenedTrigger *t) {
-    followup_opened_triggers_.push_back(t);
-  }
 
   bool is_connected() const { return ws_connected_; }
 
@@ -110,19 +106,13 @@ class VaClient : public Component {
   // YAML-callable actions.
   void start_session();
   void send_interrupt();
-  // Called from yaml's on_followup_opened automation AFTER the chime has
-  // finished announcing through the speaker (wait_until !is_announcing +
-  // i2s tail). Opens the mic for kRequestFollowUpMs. No-op if the device
-  // is no longer armed (e.g. user already pressed wake before the chime
-  // finished — the new session takes priority).
-  void commit_followup_mic();
   // True once this turn has produced audible reply audio (the first
   // non-suppressed binary chunk set turn_t_first_audio_out_; reset to 0 on
   // every start_session()). The yaml "stop" handler uses this to ignore a
   // detection while the user is still asking / the model is still thinking —
   // there is nothing to stop yet, and a false "stop" on the user's own speech
-  // would otherwise corrupt the turn (no follow-up window). Reply/follow-up/
-  // request-follow-up windows all have it set, so a real barge-in still works.
+  // would otherwise corrupt the turn (no follow-up window). Reply and
+  // follow-up windows both have it set, so a real barge-in still works.
   bool turn_has_reply_audio() const { return this->turn_t_first_audio_out_ != 0; }
 
   // Called from the static esp-idf event handler trampoline.
@@ -199,7 +189,6 @@ class VaClient : public Component {
   std::atomic<uint8_t> current_phase_{static_cast<uint8_t>(Phase::IDLE)};
   std::vector<OnPhaseTrigger *> phase_triggers_;
   std::vector<OnRepeatedFailureTrigger *> repeated_failure_triggers_;
-  std::vector<OnFollowupOpenedTrigger *> followup_opened_triggers_;
 
   // Counts consecutive failed reconnect attempts. Reset to 0 on a clean
   // WS_CONNECTED event. When it hits kRepeatedFailureThreshold we fire the
@@ -234,8 +223,8 @@ class VaClient : public Component {
   // gemini_proxy's ring_buffer_->reset() on start. Trade-off: a word spoken
   // *during* the chime is lost; the user speaks once the listening ring lights.
   // Touched ONLY by the mic task (on_mic_data_) — no lock needed.
-  // preroll_discard_pending_ is set by start_session()/commit_followup_mic()
-  // (main loop) and consumed by the mic task: a plain bool like streaming_.
+  // preroll_discard_pending_ is set by start_session() (main loop) and
+  // consumed by the mic task: a plain bool like streaming_.
   static constexpr uint32_t kMicSampleRate = 16000;  // i2s_mics rate (16 samples/ms)
   static constexpr uint32_t kPreRollMs = 600;
   int16_t *preroll_buf_{nullptr};
@@ -255,18 +244,6 @@ class VaClient : public Component {
   // the mic until the speaker drains, otherwise it picks up its own output.
   // loop() flips this to a live followup window once audio_fill_ hits 0.
   bool followup_pending_{false};
-  // Tracks whether the pending follow-up was requested by the server's
-  // request_follow_up tool (model asked a question) vs the natural
-  // post-reply path. The former wants a longer mic window
-  // (kRequestFollowUpMs); the latter uses kFollowupMs (which is 0 by
-  // default — no auto-follow-up).
-  bool request_follow_up_pending_{false};
-  // Set when on_followup_opened has fired and we're waiting on yaml to
-  // play the chime + call commit_followup_mic(). Cleared on commit or
-  // when a new session preempts. Without this flag a stale
-  // commit_followup_mic() call (e.g. delayed lambda after a `Stop` wake
-  // word already reset state) would re-open the mic out of nowhere.
-  bool followup_armed_{false};
   // Server sends phase=idle when OpenAI is done generating, but we still
   // have audio queued in PSRAM + downstream rings. If we fire the LED
   // trigger immediately the device looks idle while still speaking. Hold
@@ -375,11 +352,6 @@ class VaClient : public Component {
   // from the backend (followup_ms_); this stays 0 so a device talking to an
   // old backend that doesn't send follow_up_ms keeps the turn-based behaviour.
   static constexpr uint32_t kFollowupMs = 0;
-  // Used when the server explicitly requests a follow-up via the
-  // request_follow_up tool — overrides kFollowupMs for a single turn.
-  // Longer than the default because the model asked a real question
-  // and the user might pause before answering.
-  static constexpr uint32_t kRequestFollowUpMs = 10000;
   // After start_session() we wait this long for the server to emit
   // phase=listening (i.e. server VAD heard speech). If nothing comes, the
   // user pressed wake/button and stayed silent — close the session so we
