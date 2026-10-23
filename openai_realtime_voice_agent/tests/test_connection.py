@@ -61,7 +61,7 @@ async def test_a_refused_device_does_not_take_over(openai, addon, wake):
     await device.close()
 
 
-@pytest.mark.parametrize("secret", [None, "", "too-short", "has a space in it, so no"])
+@pytest.mark.parametrize("secret", [None, "", "too-short", "has a space in it, so no", "x" * 129])
 async def test_the_addon_does_not_start_without_a_usable_secret(start_addon, secret):
     with pytest.raises(ValueError, match="device_secret"):
         await start_addon(DEVICE_SECRET=secret)

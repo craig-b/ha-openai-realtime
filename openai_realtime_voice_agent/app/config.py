@@ -63,14 +63,19 @@ def _resolve_choice(name: str, custom_name: str, default: str) -> str:
     return choice or default
 
 
-# The device secret travels in an HTTP header: visible ASCII, no spaces.
+# The device secret travels in an HTTP header: visible ASCII, no spaces. The
+# device keeps at most DEVICE_SECRET_MAX_LENGTH, and the integration gives it no
+# longer one.
 DEVICE_SECRET_MIN_LENGTH = 16
+DEVICE_SECRET_MAX_LENGTH = 128
 
 
 def device_secret_problem(secret: str) -> str | None:
     """Why `secret` can't be the device secret, or None if it can."""
     if len(secret) < DEVICE_SECRET_MIN_LENGTH:
         return f"device_secret must be at least {DEVICE_SECRET_MIN_LENGTH} characters"
+    if len(secret) > DEVICE_SECRET_MAX_LENGTH:
+        return f"device_secret must be at most {DEVICE_SECRET_MAX_LENGTH} characters"
     if not all("!" <= c <= "~" for c in secret):
         return "device_secret may only contain visible ASCII characters, no spaces"
     return None
