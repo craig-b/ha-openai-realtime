@@ -65,7 +65,7 @@ esphome:
   # entity compares it with the published manifest's.
   project:
     name: "craig-b.voice-pe-openai-realtime"
-    version: "1.5.0"
+    version: "1.6.0"
   min_version: 2026.6.0
   on_boot:
     priority: 375

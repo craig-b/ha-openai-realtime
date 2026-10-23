@@ -2,6 +2,41 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.11.0
+
+**If you build the firmware in ESPHome Device Builder, don't click its Update with
+your current stub.** The firmware no longer takes Wi-Fi, the API key or uploads from
+that stub: the device would come back off your Wi-Fi (set it up again over
+Bluetooth, INSTALL guide, step 3.1). Instead:
+
+1. Update the add-on, and the integration in HACS (then restart Home Assistant).
+   The integration is no longer optional: it's what links the Voice PE to the
+   add-on.
+2. Move the Voice PE to the prebuilt firmware: install it from the
+   [install page](https://craig-b.github.io/ha-openai-realtime/) over USB (INSTALL
+   guide, Part 3), then delete the device from ESPHome Device Builder. Or, to keep
+   building it yourself, replace your stub with the new one first (INSTALL guide,
+   Part 6).
+3. Press the Voice PE's centre button when Home Assistant asks.
+
+- **Prebuilt firmware.** One firmware for every Voice PE, installed from your
+  browser at the [install page](https://craig-b.github.io/ha-openai-realtime/), with
+  nothing of yours in it: you set Wi-Fi in the installer or over Bluetooth, Home
+  Assistant sets the device's encryption key as it adds it, and the integration
+  links it to the add-on. Its updates come to Home Assistant as a firmware update
+  for the Voice PE, with each release. *(firmware)*
+- **The integration links the Voice PE to the add-on:** the add-on's address, the
+  device secret and its certificate, from the add-on's offer, and again whenever
+  they change, so there's nothing to copy into the device. The first time, the
+  device takes the link only once its centre button is pressed, and Home Assistant
+  asks for the press. Once linked, it takes a new link only from the integration
+  that set the last one. *(integration, firmware)*
+- **The device's link settings show on its page:** "Add-on link" (a hash of the
+  add-on's address and certificate) and "Add-on connection" (connected,
+  connecting, refused, awaiting button, or not linked). *(firmware)*
+- **The firmware takes in ESPHome's Voice PE release 26.9.0:** a switch to disable
+  the buttons, and its LED and button fixes. *(firmware)*
+
 ## 0.10.0
 
 Update the add-on, the integration in HACS (then restart Home Assistant), and the
