@@ -84,6 +84,8 @@ class Agent:
     SPEAK_FINISH_TIMEOUT_S = 300.0
     # The phase sent to the device, as an Assist satellite's state.
     SATELLITE_STATE = {"listening": "listening", "thinking": "processing", "replying": "responding", "idle": "idle"}
+    # A cancelled tool's result: the call may or may not have taken effect.
+    TOOL_STOPPED = "Stopped: the user said stop before this finished, so it may or may not have taken effect."
     # How a request to speak unasked went.
     SPOKEN = "spoken"
     STOPPED = "stopped"
@@ -156,8 +158,11 @@ class Agent:
         self._idle_task: Optional[asyncio.Task] = None
         self._tasks: set[asyncio.Task] = set()
 
-        # Tool calls of the response being generated, as (call_id, task).
-        self._tool_calls: list[tuple[str, asyncio.Task]] = []
+        # Tool calls of the response being generated, as (call_id, task, the
+        # stops before it): a stop after a call means its result goes unanswered.
+        self._tool_calls: list[tuple[str, asyncio.Task, int]] = []
+        self._tools_running: set[asyncio.Task] = set()
+        self._stops = 0
         self._last_idle_unstick = 0.0
 
     # --- running ---------------------------------------------------------------
@@ -257,6 +262,7 @@ class Agent:
         logger.info("🛑 device interrupt")
         self._end_unasked(self.STOPPED)
         self._stopped = True
+        self._stop_tools()
         self._end_engagement()
         # The device has gone idle by itself; no reply may have been playing
         # to end in an `idle` (a stop while a tool runs).
@@ -602,7 +608,17 @@ class Agent:
         # must not finish the wrong way round.
         previous = self._tool_calls[-1][1] if self._tool_calls else None
         task = self._spawn(self._run_tool(name, arguments, after=previous), f"tool_{name}")
-        self._tool_calls.append((call_id, task))
+        self._tools_running.add(task)
+        task.add_done_callback(self._tools_running.discard)
+        self._tool_calls.append((call_id, task, self._stops))
+
+    def _stop_tools(self) -> None:
+        """A stop ends the turn's work: the tools still running are cancelled."""
+        self._stops += 1
+        if self._tools_running:
+            logger.info(f"🛑 cancelling {len(self._tools_running)} running tool(s)")
+        for task in self._tools_running:
+            task.cancel()
 
     async def _run_tool(self, name: str, arguments: str, after: Optional[asyncio.Task]) -> str:
         self._liveness.tool_started()
@@ -631,11 +647,22 @@ class Agent:
             calls, self._tool_calls = self._tool_calls, []
             self._spawn(self._answer_tool_calls(session, calls), "tool_results")
 
-    async def _answer_tool_calls(self, session: Session, calls: list[tuple[str, asyncio.Task]]) -> None:
-        """Send the calls' results, once all are in, for the model to answer with."""
-        results = [(call_id, await task) for call_id, task in calls]
+    async def _answer_tool_calls(self, session: Session, calls: list[tuple[str, asyncio.Task, int]]) -> None:
+        """Send the calls' results, once all are in, for the model to answer with.
+
+        After a stop, the results still go into the conversation, so it stays
+        whole, but nothing answers them: the user asked for the turn to end.
+        """
+        await asyncio.wait([task for _, task, _ in calls])
+        results = [
+            (call_id, self.TOOL_STOPPED if task.cancelled() else task.result())
+            for call_id, task, _ in calls
+        ]
+        answer = all(stops == self._stops for _, _, stops in calls)
+        if not answer:
+            logger.info("🛑 tool results added unanswered: the user said stop")
         if session is self._session:  # not if the session the calls belong to has closed
-            await session.send_tool_results(results)
+            await session.send_tool_results(results, answer=answer)
 
     def turn_failed(self, reason: str) -> None:
         """A turn ended without a reply: put the device back to idle, so the user can try again."""

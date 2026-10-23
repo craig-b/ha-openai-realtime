@@ -235,6 +235,24 @@ async def test_speech_does_not_cancel_a_running_tool(openai, home_assistant, ha_
     await device.close()
 
 
+async def test_a_stop_cancels_a_running_tool_and_leaves_its_result_unanswered(openai, home_assistant, ha_addon, wake):
+    home_assistant.delay = 2.0
+    device = await ha_addon.connect()
+    conn = await wake(device)
+    await conn.user_turn()
+    call_id = await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+    await wait_until(lambda: home_assistant.calls, 3.0, "the tool call")
+    answers = conn.count("response.create")
+    await device.send({"type": "interrupt"})
+    # A wake right after doesn't let the stopped call's result be answered.
+    await device.send({"type": "wake"})
+    output = await conn.wait_for("conversation.item.create", timeout=1.0)
+    assert output["item"]["call_id"] == call_id
+    assert output["item"]["output"] == Agent.TOOL_STOPPED
+    await conn.assert_none("response.create", within=0.5, after=answers)
+    await device.close()
+
+
 async def test_thinking_outlasts_its_timeout_while_a_tool_runs(openai, home_assistant, ha_addon, monkeypatch, wake):
     monkeypatch.setattr(PhaseTracker, "THINKING_TIMEOUT_S", 0.5)
     home_assistant.delay = 2.0

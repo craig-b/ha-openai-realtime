@@ -201,14 +201,15 @@ class LiveSession:
         self._muted = False
         await self._send({"type": "session.instructions.append", "delegation_id": None, "content": instruction})
 
-    async def send_tool_results(self, results: list[tuple[str, str]]) -> None:
-        """Each call's result, then continue the backend's work."""
+    async def send_tool_results(self, results: list[tuple[str, str]], *, answer: bool) -> None:
+        """Each call's result, then, if `answer`, continue the backend's work."""
         for call_id, output in results:
             await self._send({
                 "type": "response.item.create",
                 "item": {"type": "function_call_output", "call_id": call_id, "output": output},
             })
-        await self._send({"type": "response.create"})
+        if answer:
+            await self._send({"type": "response.create"})
 
     async def _send(self, event: dict) -> None:
         if self._ws is None or self._closing:

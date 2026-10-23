@@ -108,6 +108,10 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
   any appearing within 1.5 s. Real user speech disarms both; a `wake` disarms
   the first. With GPT-Live, which has no responses to cancel, it drops GPT-Live's
   voice until the next `wake` and asks GPT-Live to stop speaking.
+- **Add-on, with either engine:** cancels the tools still running. The results
+  of tool calls made before the stop, including the cancelled ones' (which say
+  the user stopped them), go into the conversation without a request to answer
+  them, so the stopped turn gets no reply, even after a `wake`.
 
 ## Add-on → device messages
 

@@ -137,6 +137,27 @@ async def test_a_backend_tool_call_runs_and_its_result_goes_back(openai, start_a
         await ha.stop()
 
 
+async def test_a_stop_cancels_a_backend_tool_call_and_leaves_its_result_unanswered(openai, start_addon):
+    ha = FakeHomeAssistant()
+    ha.delay = 2.0
+    await ha.start()
+    try:
+        addon = await start_addon(ENGINE="live", HA_MCP_URL=ha.url, LONGLIVED_TOKEN="ha-token")
+        device = await addon.connect()
+        await device.send({"type": "wake"})
+        conn = await openai.live_connection()
+        await conn.delegates()
+        call_id = await conn.function_call("HassTurnOn", {"name": "kitchen light"})
+        await wait_until(lambda: ha.calls, 3.0, "the tool call")
+        await device.send({"type": "interrupt"})
+        result = await conn.wait_for("response.item.create", timeout=1.0)
+        assert result["item"] == {"type": "function_call_output", "call_id": call_id, "output": Agent.TOOL_STOPPED}
+        await conn.assert_none("response.create", within=0.5)
+        await device.close()
+    finally:
+        await ha.stop()
+
+
 async def test_a_stop_silences_gpt_live(openai, live):
     device, conn = live
     await conn.says("A long answer", pcm_tone(400, 24000))

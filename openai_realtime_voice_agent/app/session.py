@@ -124,8 +124,8 @@ class Session(Protocol):
     async def interrupt(self) -> None:
         """The device's "stop": drop the reply being made."""
 
-    async def send_tool_results(self, results: list[tuple[str, str]]) -> None:
-        """Each (call_id, output), then continue the response."""
+    async def send_tool_results(self, results: list[tuple[str, str]], *, answer: bool) -> None:
+        """Each (call_id, output), then, if `answer`, continue the response."""
 
     async def speak(self, instruction: str) -> None:
         """Have the model speak first, unasked, as `instruction` says (app/prompts.py)."""

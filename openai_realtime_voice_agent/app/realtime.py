@@ -178,8 +178,8 @@ class RealtimeSession:
         self._kill_until = 0.0
         self._kill_next = False
 
-    async def send_tool_results(self, results: list[tuple[str, str]]) -> None:
-        """Each call's result, then a request to answer with them."""
+    async def send_tool_results(self, results: list[tuple[str, str]], *, answer: bool) -> None:
+        """Each call's result, then, if `answer`, a request to answer with them."""
         for call_id, output in results:
             await self._send({
                 "type": "conversation.item.create",
@@ -190,7 +190,8 @@ class RealtimeSession:
                     "output": output,
                 },
             })
-        await self._send({"type": "response.create"})
+        if answer:
+            await self._send({"type": "response.create"})
 
     async def speak(self, instruction: str) -> None:
         """Tell the model, as a system message in the conversation, and ask for a response.
