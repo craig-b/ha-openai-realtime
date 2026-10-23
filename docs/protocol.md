@@ -358,7 +358,10 @@ Assist satellite:
   button`, "Add-on link" shows the link waiting (it refuses any other until the
   press or a restart), and its LEDs twinkle. The integration raises a repair
   issue asking for the press if the link waiting is its own, or warning not to
-  press, and to restart the device, if it isn't. The offer goes from the
+  press, and to restart the device, if it isn't. A linked device that refuses
+  the integration's link, while it's online, holds one the integration didn't
+  give it: a critical repair issue tells the owner to factory reset it, which
+  erases the link, until it takes the integration's. The offer goes from the
   Supervisor to Home Assistant alone, but any add-on can make an offer for the
   integration, and the integration signs the link it takes for the device. So
   it takes a link only in the form the device takes, records which add-on (by

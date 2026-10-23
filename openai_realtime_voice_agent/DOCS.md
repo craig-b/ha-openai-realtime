@@ -326,7 +326,10 @@ makes the Voice PE an Assist satellite (section 7).
    Press it once, and only when the repair asks: the press accepts whatever link
    is waiting on the device, and the repair is what says it's the integration's.
    If the repair says *not* to press it, something else set a link on the device
-   first: restart the device instead.
+   first: restart the device instead. If Home Assistant says to **reset** the
+   Voice PE, it holds a link the integration didn't give it: factory reset it
+   straight away (hold the centre button until the lights turn solid red, about
+   22 seconds), then set it up again.
 
 The integration takes the link only from the add-on it was set up with: any other
 add-on's offer is turned away. When the add-on's secret, certificate or port

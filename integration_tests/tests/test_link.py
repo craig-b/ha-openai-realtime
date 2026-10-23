@@ -103,6 +103,10 @@ def other_link_issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEnt
     return ir.async_get(hass).async_get_issue(DOMAIN, f"other_link_waiting_{entry.entry_id}")
 
 
+def reset_issue(hass: HomeAssistant, entry: MockConfigEntry) -> ir.IssueEntry | None:
+    return ir.async_get(hass).async_get_issue(DOMAIN, f"linked_elsewhere_{entry.entry_id}")
+
+
 async def link_at_the_button(hass: HomeAssistant, firmware: FakeFirmware) -> None:
     firmware.press()
     await hass.async_block_till_done()
@@ -140,14 +144,45 @@ async def test_a_new_secret_reaches_the_device_with_proof_of_the_old(hass: HomeA
     assert firmware.calls[-1]["proof"] == proof(LINK["secret"], URL, new_link["secret"], CERTIFICATE)
 
 
-async def test_a_device_with_another_secret_stays_as_it_is(hass: HomeAssistant, voice_pe, addon, caplog):
+ELSEWHERE = {"url": "wss://203.0.113.5:8080/", "secret": "someone-elses-secret", "certificate": CERTIFICATE}
+
+
+async def test_a_device_with_another_secret_is_to_be_reset(hass: HomeAssistant, voice_pe, addon, caplog):
     # Linked by something else, with a secret the integration doesn't know: no proof it can make.
-    firmware = FakeFirmware(
-        hass, voice_pe, linked={"url": "wss://203.0.113.5:8080/", "secret": "someone-elses-secret", "certificate": CERTIFICATE}
-    )
-    await set_up(hass, voice_pe)
+    firmware = FakeFirmware(hass, voice_pe, linked=dict(ELSEWHERE))
+    entry = await set_up(hass, voice_pe)
     assert firmware.link["url"] == "wss://203.0.113.5:8080/"
     assert "didn't take the link" in caplog.text
+    issue = reset_issue(hass, entry)
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.CRITICAL
+
+
+async def test_the_reset_issue_goes_once_the_device_takes_the_link(hass: HomeAssistant, voice_pe, addon):
+    firmware = FakeFirmware(hass, voice_pe, linked=dict(ELSEWHERE))
+    entry = await set_up(hass, voice_pe)
+    # The owner factory resets it: it's linked to nothing, then takes the integration's link at the button.
+    firmware.link = None
+    firmware.connection = "not linked"
+    firmware.publish()
+    await hass.async_block_till_done()
+    assert reset_issue(hass, entry) is None
+    await link_at_the_button(hass, firmware)
+    assert firmware.link["url"] == URL
+    assert reset_issue(hass, entry) is None
+
+
+async def test_a_device_going_offline_as_it_is_linked_is_not_to_be_reset(hass: HomeAssistant, voice_pe, addon):
+    # It drops off as the integration sets its link: that fails too, but says nothing about its link.
+    firmware = FakeFirmware(hass, voice_pe, linked=dict(ELSEWHERE))
+
+    async def drop_off(call: ServiceCall) -> None:
+        hass.states.async_set(firmware.connection_sensor, "unavailable")
+        raise HomeAssistantError("the device disconnected")
+
+    hass.services.async_register("esphome", "home_assistant_voice_a1b2c3_set_addon_link", drop_off)
+    entry = await set_up(hass, voice_pe)
+    assert reset_issue(hass, entry) is None
 
 
 async def test_the_owner_can_give_another_address(hass: HomeAssistant, voice_pe, addon):
@@ -182,6 +217,15 @@ async def test_the_issue_goes_with_the_entry(hass: HomeAssistant, voice_pe, addo
     await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert press_button_issue(hass, entry) is None
+
+
+async def test_the_reset_issue_goes_with_the_entry(hass: HomeAssistant, voice_pe, addon):
+    FakeFirmware(hass, voice_pe, linked=dict(ELSEWHERE))
+    entry = await set_up(hass, voice_pe)
+    assert reset_issue(hass, entry) is not None
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert reset_issue(hass, entry) is None
 
 
 async def test_another_link_waiting_for_the_button_is_not_pressed_for(hass: HomeAssistant, voice_pe, addon, caplog):

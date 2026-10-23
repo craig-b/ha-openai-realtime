@@ -61,6 +61,10 @@
     "other_link_waiting": {
       "title": "Don't press the centre button on {name}",
       "description": "{name} is waiting for its centre button to accept a link that isn't this add-on's: something else in Home Assistant set it. Don't press the button. Restart the device (unplug it and plug it back in) to clear that link; it then gets the add-on's, and asks for the press here."
+    },
+    "linked_elsewhere": {
+      "title": "Reset {name} now",
+      "description": "{name} holds a link to an add-on that this integration didn't give it, and refuses the integration's. Until you reset it, it may be sending what its microphone hears somewhere other than your add-on.\n\nReset it now: hold its centre button down past the first warning, until its lights turn solid red (about 22 seconds), then let go. That erases its link, its Wi-Fi and its encryption key. Then give it your Wi-Fi again, add it to Home Assistant again, and press its centre button only when Home Assistant asks you to here.\n\nIf you build its firmware yourself with a link in it, build it again with the add-on's device secret instead."
     }
   }
 }

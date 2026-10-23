@@ -19,6 +19,10 @@ button", and nothing can replace the link waiting. The integration sends its
 link again to tell whether that's it: if the device takes it, a repair issue asks
 the owner to press the button; if not, one warns them not to, and to restart the
 device.
+
+A linked device that refuses the integration's link holds one the integration
+didn't give it, and may be streaming its microphone anywhere: a repair issue tells
+the owner to factory reset it, until it takes the integration's link.
 """
 
 import hashlib
@@ -45,8 +49,10 @@ CONNECTION_SENSOR_NAME = "Add-on connection"
 LINK_ACTION = "set_addon_link"
 REFUSED = "refused"
 AWAITING_BUTTON = "awaiting button"
+NOT_LINKED = "not linked"
 PRESS_BUTTON_ISSUE = "press_button"
 OTHER_LINK_ISSUE = "other_link_waiting"
+LINKED_ELSEWHERE_ISSUE = "linked_elsewhere"
 
 STORAGE_VERSION = 1
 
@@ -125,6 +131,7 @@ class Linker:
         if not awaiting:
             self._raise_issue(None)
             if link_state.state == fingerprint(link["url"], link["certificate"]) and connection_state.state != REFUSED:
+                self._flag_linked_elsewhere(False)
                 return
         if not self._hass.services.has_service("esphome", self._action):
             return  # not connected to Home Assistant yet
@@ -147,10 +154,38 @@ class Linker:
             _LOGGER.error("The Voice PE didn't take the link to the add-on: %s", e)
             if awaiting:
                 self._raise_issue(OTHER_LINK_ISSUE)
+            elif self._holds_another_link():
+                self._flag_linked_elsewhere(True)
             return
         await self._store.async_save({"secret": link["secret"]})
+        self._flag_linked_elsewhere(False)
         if awaiting:
             self._raise_issue(PRESS_BUTTON_ISSUE)
+
+    def _holds_another_link(self) -> bool:
+        """The device, refusing the integration's link, is linked and online: its link isn't the integration's.
+
+        Not when it went offline meanwhile, which fails the call too.
+        """
+        state = self._hass.states.get(self._connection_sensor)
+        return state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN, NOT_LINKED, AWAITING_BUTTON)
+
+    @callback
+    def _flag_linked_elsewhere(self, flagged: bool) -> None:
+        """Tell the owner to reset the device while it holds a link the integration didn't give it."""
+        issue_id = f"{LINKED_ELSEWHERE_ISSUE}_{self._entry.entry_id}"
+        if not flagged:
+            ir.async_delete_issue(self._hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self._hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.CRITICAL,
+            translation_key=LINKED_ELSEWHERE_ISSUE,
+            translation_placeholders={"name": self._entry.title},
+        )
 
     @callback
     def _raise_issue(self, raised: str | None) -> None:
@@ -173,6 +208,7 @@ class Linker:
     async def async_forget(self) -> None:
         await self._store.async_remove()
         self._raise_issue(None)
+        self._flag_linked_elsewhere(False)
 
     async def _async_link(self) -> dict[str, Any]:
         link = self._entry.data[CONF_LINK]

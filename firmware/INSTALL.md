@@ -189,6 +189,12 @@ The Voice PE connects to the add-on and its light ring settles to **idle**.
 > restart the Voice PE (unplug it and plug it back in), and the integration's link
 > takes its place.
 
+> If Home Assistant shows **"Reset … now"**, the Voice PE holds a link the
+> integration didn't give it, and refuses the integration's. Reset it straight
+> away: hold its centre button down past the first warning, until its lights turn
+> solid red (about 22 seconds), then let go. Then give it your Wi-Fi again, add it
+> to Home Assistant again, and press its centre button when the repair asks.
+
 ### Coming from a firmware you built yourself
 
 A Voice PE that ran a firmware built in ESPHome Device Builder (Part 6) moves to

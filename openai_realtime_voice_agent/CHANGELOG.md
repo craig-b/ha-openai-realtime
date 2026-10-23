@@ -20,6 +20,11 @@ firmware update to 1.7.0 comes to Home Assistant as an update for the Voice PE.
   the Voice PE, so Home Assistant asks you to pick it. That step now also shows
   the add-on and the link's fingerprint to check against the add-on's log, as
   confirming a link does. *(integration)*
+- **A Voice PE holding a link the integration didn't give it is flagged.** If it
+  refuses the integration's link, Home Assistant shows a critical repair telling
+  you to factory reset it straight away. Before, only the log said so. Press the
+  centre button only when Home Assistant asks: the press accepts whatever link is
+  waiting. *(integration)*
 - **The add-on refuses a `device_secret` over 128 characters** at start, which
   the integration couldn't give the device.
 - **Renamed to OpenAI Realtime Voice Agent,** as the integration is. Your
