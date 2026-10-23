@@ -323,8 +323,10 @@ makes the Voice PE an Assist satellite (section 7).
    it then has no link until the add-on offers one, which you confirm.
 3. The first time, Home Assistant shows a repair asking you to press the Voice PE's
    **centre button**: the device takes its link only once someone at it agrees.
-   Press it once. If the repair says *not* to press it, something else set a link on
-   the device first: restart the device instead.
+   Press it once, and only when the repair asks: the press accepts whatever link
+   is waiting on the device, and the repair is what says it's the integration's.
+   If the repair says *not* to press it, something else set a link on the device
+   first: restart the device instead.
 
 The integration takes the link only from the add-on it was set up with: any other
 add-on's offer is turned away. When the add-on's secret, certificate or port

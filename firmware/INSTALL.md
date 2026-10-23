@@ -178,6 +178,10 @@ lights twinkle warm white, and Home Assistant shows a repair, **"Press the centr
 button on …"** (under **Settings → System → Repairs**, and on the Settings badge).
 Press the button once.
 
+Press it only when that repair asks you to, not because the lights twinkle: the
+press accepts whatever link is waiting on the device, and the repair is what says
+the link waiting is the integration's.
+
 The Voice PE connects to the add-on and its light ring settles to **idle**.
 
 > If the repair says **"Don't press the centre button"**, something else in Home
