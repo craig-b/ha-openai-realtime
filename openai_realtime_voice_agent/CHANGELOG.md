@@ -16,9 +16,9 @@ firmware is unchanged.
   in the form the device takes is refused. If the integration is set up already,
   it records the add-on the next time the add-on offers the link it has, when the
   add-on starts. *(integration)*
-- **The add-on logs its link's fingerprint** at every start (its port, the device
-  secret and its certificate), to check against the one Home Assistant shows when
-  it asks you to confirm a link.
+- **The add-on logs its link's fingerprint** at every start (its port and its
+  certificate), to check against the one Home Assistant shows when it asks you to
+  confirm a link.
 
 ## 0.11.0
 

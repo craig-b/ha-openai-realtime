@@ -126,7 +126,7 @@ async def test_the_add_ons_offer_brings_the_link_and_shows_its_certificate(
 
 async def test_a_changed_link_waits_for_the_owner(hass: HomeAssistant, voice_pe: dr.DeviceEntry):
     entry = set_up_already(hass, voice_pe, link=LINK, addon=DISCOVERY.slug)
-    new = {**LINK, "secret": "fedcba9876543210fedc"}
+    new = {**LINK, "port": 8443}
     result = await init_hassio(hass, offer(new))
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "confirm_link"
@@ -183,9 +183,9 @@ async def test_an_offer_out_of_shape_is_turned_away(hass: HomeAssistant, voice_p
 
 
 async def test_the_link_fingerprint_is_the_add_ons(hass: HomeAssistant):
-    # The add-on logs SHA-256 over "port\nsecret\n" and the certificate's DER (app/tls.py).
+    # The add-on logs SHA-256 over "port\n" and the certificate's DER (app/tls.py).
     der = ssl.PEM_cert_to_DER_cert(CERTIFICATE.strip())
-    digest = hashlib.sha256(b"8080\n0123456789abcdef0123\n" + der).hexdigest().upper()
+    digest = hashlib.sha256(b"8080\n" + der).hexdigest().upper()
     assert link_fingerprint(LINK) == " ".join(digest[i : i + 4] for i in range(0, 32, 4))
 
 

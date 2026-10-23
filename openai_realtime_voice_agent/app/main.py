@@ -180,7 +180,7 @@ class Application:
         }
         logger.info(
             f"🔗 The link offered to Home Assistant for the device has the fingerprint "
-            f"{link_fingerprint(**link)}: Home Assistant shows the same when it asks you to confirm it"
+            f"{link_fingerprint(link['port'], link['certificate'])}: Home Assistant shows the same when it asks you to confirm it"
         )
         bus = EventBus(
             self._home_assistant_api_url(),

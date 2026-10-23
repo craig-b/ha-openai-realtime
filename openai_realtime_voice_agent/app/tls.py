@@ -42,12 +42,13 @@ def server_context(directory: str) -> ssl.SSLContext:
     return context
 
 
-def link_fingerprint(port: int, secret: str, certificate: str) -> str:
-    """A fingerprint of the link the add-on offers: SHA-256 over its port, the
-    secret and the certificate (DER), 32 hex digits in fours. The integration
-    shows the same when it asks the owner to confirm a link, so they can tell
-    it's this add-on's, all of it."""
-    digest = hashlib.sha256(f"{port}\n{secret}\n".encode() + ssl.PEM_cert_to_DER_cert(certificate.strip())).hexdigest()
+def link_fingerprint(port: int, certificate: str) -> str:
+    """A fingerprint of the link the add-on offers: SHA-256 over its port and
+    the certificate (DER), 32 hex digits in fours. The integration shows the
+    same when it asks the owner to confirm a link, so they can tell it's this
+    add-on's. Not the secret: the log is shared when people ask for help, and a
+    hash of a secret its owner chose can be guessed at offline."""
+    digest = hashlib.sha256(f"{port}\n".encode() + ssl.PEM_cert_to_DER_cert(certificate.strip())).hexdigest()
     return " ".join(digest[i : i + 4] for i in range(0, 32, 4)).upper()
 
 

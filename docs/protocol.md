@@ -327,8 +327,9 @@ Assist satellite:
   its Supervisor slug) the entry's link came from, and turns other add-ons'
   offers away; a new or changed link waits for the owner to confirm it, shown
   with the add-on's slug and the link's fingerprint, which the add-on logs at
-  every start: the first 32 hex digits of SHA-256 over `port\nsecret\n` and the
-  certificate's DER bytes, in groups of four. (Not the add-on's name: the add-on
+  every start: the first 32 hex digits of SHA-256 over `port\n` and the
+  certificate's DER bytes, in groups of four. Not the secret, as logs get
+  shared and a hash of a secret its owner chose can be guessed at offline. (Not the add-on's name: the add-on
   chooses it.) Offers to a set-up entry don't wait on one another, and the
   add-on is checked again when the owner confirms. (An entry from 0.11.0, with no add-on recorded, records the one that
   offers the link it already has.)

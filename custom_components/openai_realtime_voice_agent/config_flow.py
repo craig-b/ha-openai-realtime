@@ -52,9 +52,11 @@ def _der(certificate: str) -> bytes | None:
 
 def link_fingerprint(link: dict[str, Any]) -> str:
     """The link's fingerprint, as the add-on's log shows it: SHA-256 over its
-    port, the secret and the certificate (DER), 32 hex digits in fours."""
+    port and the certificate (DER), 32 hex digits in fours. Not the secret,
+    which the add-on keeps out of its log; only the add-on the entry records
+    can offer one anyway."""
     der = _der(link["certificate"]) or b""
-    digest = hashlib.sha256(f"{link['port']}\n{link['secret']}\n".encode() + der).hexdigest()
+    digest = hashlib.sha256(f"{link['port']}\n".encode() + der).hexdigest()
     return " ".join(digest[i : i + 4] for i in range(0, 32, 4)).upper()
 
 
