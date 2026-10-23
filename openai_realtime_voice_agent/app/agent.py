@@ -621,7 +621,7 @@ class Agent:
             task.cancel()
 
     async def _run_tool(self, name: str, arguments: str, after: Optional[asyncio.Task]) -> str:
-        self._liveness.tool_started()
+        self._work_started()
         try:
             if after is not None:
                 await asyncio.wait({after})
@@ -637,6 +637,14 @@ class Agent:
             self._liveness.tool_finished()
 
     def work_started(self) -> None:
+        self._work_started()
+
+    def _work_started(self) -> None:
+        # The model is working on the user's turn, so the user has finished
+        # speaking: the device listens for "stop" from now on.
+        if self._liveness.in_flight == 0:
+            logger.info(f"➡️ working to {'the device' if self.device.connected else 'no device'}")
+            self.device.send_json({"type": "working"})
         self._liveness.tool_started()
 
     def work_finished(self) -> None:

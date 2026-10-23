@@ -206,6 +206,17 @@ async def test_a_tool_call_runs_and_its_result_goes_back(openai, home_assistant,
     await device.close()
 
 
+async def test_the_device_is_told_when_the_first_tool_starts(openai, home_assistant, ha_addon, wake):
+    home_assistant.delay = 0.5
+    device = await ha_addon.connect()
+    conn = await wake(device)
+    await conn.user_turn()
+    await conn.function_calls([("HassTurnOn", {"name": "kitchen light"}), ("HassTurnOff", {"name": "kitchen light"})])
+    await conn.wait_for("response.create")
+    assert [m for m in device.messages if m["type"] == "working"] == [{"type": "working"}]
+    await device.close()
+
+
 async def test_tool_calls_run_one_at_a_time_in_the_models_order(openai, home_assistant, ha_addon, wake):
     home_assistant.delay = 0.5  # HassTurnOn is slow; HassTurnOff, called second, is not
     device = await ha_addon.connect()

@@ -182,6 +182,13 @@ device does not parse JSON; it matches substrings such as `"type":"hello"` and
 
 The device also applies `idle` locally on every disconnect.
 
+### `working`
+`{"type":"working"}`
+
+- **Sent:** when the model starts work on the user's turn and none is running
+  yet: a tool call starts, or, with GPT-Live, its backend starts a response. The
+  model has taken the turn, so the user has finished speaking.
+
 ### `end`
 `{"type":"end"}`
 

@@ -130,6 +130,7 @@ async def test_a_backend_tool_call_runs_and_its_result_goes_back(openai, start_a
         call_id = await conn.function_call("HassTurnOn", {"name": "kitchen light"})
         result = await conn.wait_for("response.item.create")
         assert result["item"] == {"type": "function_call_output", "call_id": call_id, "output": "Turned on kitchen light"}
+        assert {"type": "working"} in device.messages
         await conn.wait_for("response.create")
         assert conn.index_of("response.item.create") < conn.index_of("response.create")
         await device.close()
