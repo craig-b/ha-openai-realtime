@@ -2,6 +2,23 @@
 
 All notable changes to this add-on. Newest first.
 
+## 0.11.1
+
+Update the add-on, and the integration in HACS (then restart Home Assistant). The
+firmware is unchanged.
+
+- **The integration takes the add-on's link only from the add-on itself.** Any
+  installed add-on can make an offer to the integration, and the integration signs
+  the link it takes for the Voice PE, so another add-on could have redirected the
+  device's microphone to itself. The integration now records which add-on its link
+  came from and turns other add-ons' offers away. A new or changed link waits for
+  you to confirm it, with the add-on's certificate's fingerprint, and an offer not
+  in the form the device takes is refused. If the integration is set up already,
+  it records the add-on the next time the add-on offers the link it has, when the
+  add-on starts. *(integration)*
+- **The add-on logs its certificate's SHA-256 fingerprint** at every start, to
+  check against the one Home Assistant shows when it asks you to confirm a link.
+
 ## 0.11.0
 
 **If you build the firmware in ESPHome Device Builder, don't click its Update with
